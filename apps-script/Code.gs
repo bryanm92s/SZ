@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  Salome Zuluaga | Micropigmentación — DEMO Apps Script  ║
+// ║  Salome Zuluaga | SZ  ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 const SECRET_TOKEN = 'CAMBIA_TU_TOKEN';
