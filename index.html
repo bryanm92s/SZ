@@ -3,8 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%VITE_BIZ_EMOJI%3C/text%3E%3C/svg%3E" />
-    <title>%VITE_BIZ_NAME%</title>
+    <!--
+      Nota: NO uses placeholders VITE_xxx en atributos del HTML.
+      Vite ejecuta decodeURI() sobre los href durante el build de
+      producción y rompe con "URI malformed" si hay un porcentaje
+      no válido. El título y el favicon se definen dinámicamente
+      desde App.jsx usando import.meta.env (con valores por defecto).
+    -->
+    <title>Studio Beauty</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌸%3C/text%3E%3C/svg%3E" />
+    <link rel="apple-touch-icon" href="/logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />

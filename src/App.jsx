@@ -134,6 +134,24 @@ export default function App() {
 
   const setTab = (t, extra=null) => { setTabRaw(t); setTabExtra(extra) }
 
+  // Sincroniza <title> y favicon con la config del negocio en runtime.
+  // Evitamos placeholders %VITE_*% en index.html porque Vite hace decodeURI()
+  // sobre los href durante `vite build` y revienta con "URI malformed".
+  useEffect(() => {
+    document.title = BIZ_SUBTITLE ? `${BIZ_NAME} · ${BIZ_SUBTITLE}` : BIZ_NAME
+    if (BIZ_EMOJI) {
+      const svg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E${encodeURIComponent(BIZ_EMOJI)}%3C/text%3E%3C/svg%3E`
+      let link = document.querySelector("link[rel~='icon']")
+      if (!link) { link = document.createElement('link'); link.rel='icon'; document.head.appendChild(link) }
+      link.href = svg
+    }
+    if (BIZ_LOGO) {
+      let apple = document.querySelector("link[rel='apple-touch-icon']")
+      if (!apple) { apple = document.createElement('link'); apple.rel='apple-touch-icon'; document.head.appendChild(apple) }
+      apple.href = BIZ_LOGO
+    }
+  }, [BIZ_NAME, BIZ_SUBTITLE, BIZ_EMOJI, BIZ_LOGO])
+
   // useRef persists across renders (unlike a plain `{current}` literal that
   // would be recreated every render, defeating the guard below).
   const savingRef = useRef(false)
