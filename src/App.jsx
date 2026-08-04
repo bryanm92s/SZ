@@ -1930,8 +1930,10 @@ function MonthComparison({appts,expenses,setTab}) {
 /* ══════════════════════════════════════════════════════════════
    TOP SERVICES
 ══════════════════════════════════════════════════════════════ */
-function TopServices({appts,setTab}) {
+function TopServices({appts,services,priceHistory,setTab}) {
   const safeA = Array.isArray(appts)?appts:[]
+  const safeSvcs = Array.isArray(services)?services:[]
+  const safeHist = Array.isArray(priceHistory)?priceHistory:[]
   const [period, setPeriod] = useState('all') // 'all' | '3m' | '6m' | 'year'
 
   const now = new Date()
@@ -1947,16 +1949,50 @@ function TopServices({appts,setTab}) {
     (!cutoff || cleanDate(a.date).slice(0,7) >= cutoff)
   )
 
-  // Build service stats
+  // Build service stats — usa el precio REAL de cada servicio en la cita
+  // (guardado en appt.servicePrices), no el total repartido entre N.
+  // Fallbacks: historial de precios a la fecha de la cita, precio actual
+  // del catálogo, y como último recurso el total de la cita.
+  const parsePrices = raw => {
+    let o = {}
+    try {
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        o = Object.fromEntries(Object.entries(raw).map(([k,v])=>[k,toN(v)]))
+      } else if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+        o = Object.fromEntries(Object.entries(JSON.parse(raw)).map(([k,v])=>[k,toN(v)]))
+      }
+    } catch(_e) { o = {} }
+    return o
+  }
+  const priceAt = (svcId, before) => {
+    if (!before) return null
+    const recs = safeHist
+      .filter(h => String(h.serviceId) === String(svcId) && String(h.changedAt) <= String(before))
+      .sort((a,b) => String(b.changedAt).localeCompare(String(a.changedAt)))
+    return recs.length ? toN(recs[0].price) : null
+  }
   const stats = {}
   completedAppts.forEach(a => {
-    const names = String(a.serviceNames||'').split(',').map(s=>s.trim()).filter(Boolean)
-    const ids   = String(a.serviceIds||'').split(',').map(s=>s.trim()).filter(Boolean)
-    const total = toN(a.servicePrice)
-    const perSvc= names.length ? total/names.length : total
+    const names   = String(a.serviceNames||'').split(',').map(s=>s.trim()).filter(Boolean)
+    const ids     = String(a.serviceIds||'').split(',').map(s=>s.trim()).filter(Boolean)
+    const prices  = parsePrices(a.servicePrices)
+    const created = a.createdAt || a.date || ''
+    const apptTotal = toN(a.servicePrice)
     names.forEach((name,i) => {
-      if (!stats[name]) stats[name] = {name, revenue:0, count:0, id:ids[i]||''}
-      stats[name].revenue += perSvc
+      const id = ids[i] || ''
+      let price = prices[id]
+      if (price === undefined || !isFinite(price)) price = priceAt(id, created)
+      if (price === null || price === undefined) {
+        const svc = safeSvcs.find(s => s.id === id)
+        if (svc) price = toN(svc.price)
+      }
+      if (price === null || price === undefined || !isFinite(price)) {
+        // Último recurso: repartir el total de la cita entre los servicios
+        // (comportamiento anterior). Mejor aproximación que nada.
+        price = names.length ? apptTotal / names.length : apptTotal
+      }
+      if (!stats[name]) stats[name] = {name, revenue:0, count:0, id}
+      stats[name].revenue += price
       stats[name].count   += 1
     })
   })
