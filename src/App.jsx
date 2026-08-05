@@ -1482,14 +1482,14 @@ function ClientsTab({clients,appts,SC,confirm,infoModal,setTab}) {
 function ServicesTab({services,SS,confirm}) {
   const [name,setN]=useState(''), [price,setP]=useState(''), [editId,setEI]=useState(null), [eP,setEP]=useState('')
   const safe=Array.isArray(services)?services:[]
-  const add=()=>{if(!name.trim()||!price)return;SS([...safe,{id:uid(),name:name.trim(),price:Number(price)}]);setN('');setP('')}
+  const add=()=>{if(!name.trim()||!price)return;SS([...safe,{id:uid(),name:name.trim(),price:Math.max(0,Number(price)||0)}]);setN('');setP('')}
   return <>
     <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',marginBottom:16}}>Servicios</div>
     <div className="card">
       <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>✨ Agregar servicio</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
         <div><label className="lbl">Nombre</label><input className="inp" placeholder="Ej: Diseño de cejas" value={name} onChange={e=>setN(e.target.value)}/></div>
-        <div><label className="lbl">Precio (COP)</label><input className="inp" type="number" placeholder="35000" value={price} onChange={e=>setP(e.target.value)}/></div>
+        <div><label className="lbl">Precio (COP)</label><input className="inp" type="number" min="0" placeholder="35000" value={price} onChange={e=>setP(e.target.value)}/></div>
       </div>
       <button className="btn" style={{width:'100%'}} onClick={add} disabled={!name.trim()||!price}>Agregar servicio</button>
     </div>
@@ -1501,8 +1501,8 @@ function ServicesTab({services,SS,confirm}) {
           <div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,fontSize:14}}>{s.name}</div><div style={{fontSize:12,color:'var(--t2)'}}>~1 hora</div></div>
           {editId===s.id
             ?<div style={{display:'flex',alignItems:'center',gap:6}}>
-              <input className="inp" type="number" value={eP} onChange={e=>setEP(e.target.value)} style={{width:100,padding:'6px 10px',fontSize:13}}/>
-              <button className="btn" style={{padding:'6px 12px',fontSize:13}} onClick={()=>{SS(safe.map(x=>x.id===s.id?{...x,price:Number(eP)}:x));setEI(null)}}>✓</button>
+              <input className="inp" type="number" min="0" value={eP} onChange={e=>setEP(e.target.value)} style={{width:100,padding:'6px 10px',fontSize:13}}/>
+              <button className="btn" style={{padding:'6px 12px',fontSize:13}} onClick={()=>{SS(safe.map(x=>x.id===s.id?{...x,price:Math.max(0,Number(eP)||0)}:x));setEI(null)}}>✓</button>
               <button className="btn-del" onClick={()=>setEI(null)}>✕</button>
             </div>
             :<div style={{display:'flex',alignItems:'center',gap:6}}>
@@ -1553,10 +1553,10 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
 
   const add=()=>{
     if(!desc.trim()||!amount)return
-    SE([...safe,{id:uid(),description:capFirst(desc),amount:Number(amount),category:capFirst(customCat||cat),date:expDate}])
+    SE([...safe,{id:uid(),description:capFirst(desc),amount:Math.max(0,Number(amount)||0),category:capFirst(customCat||cat),date:expDate}])
     setD('');setA('');setCC('')
   }
-  const saveEdit=()=>{SE(safe.map(e=>e.id===editId?{...e,...editData}:e));setEI(null)}
+  const saveEdit=()=>{SE(safe.map(e=>e.id===editId?{...e,...editData,amount:Math.max(0,toN(editData.amount))}:e));setEI(null)}
 
   return <>
     <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',marginBottom:16}}>Finanzas</div>
@@ -1604,7 +1604,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
       <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>📤 Agregar gasto</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
         <div><label className="lbl">Descripción</label><input className="inp" placeholder="Ej: Cera" value={desc} onChange={e=>setD(e.target.value)}/></div>
-        <div><label className="lbl">Monto (COP)</label><input className="inp" type="number" placeholder="20000" value={amount} onChange={e=>setA(e.target.value)}/></div>
+        <div><label className="lbl">Monto (COP)</label><input className="inp" type="number" min="0" placeholder="20000" value={amount} onChange={e=>setA(e.target.value)}/></div>
         <div>
           <label className="lbl">Categoría</label>
           <select className="inp" value={customCat?'__c':cat} onChange={e=>{const v=e.target.value;if(v==='__c'){setCC('new')}else{setC(v);setCC('')}}}>
@@ -1654,7 +1654,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
           {isEdit
             ?<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
               <div><label className="lbl">Descripción</label><input className="inp" value={editData.description||''} onChange={x=>setEData(p=>({...p,description:x.target.value}))}/></div>
-              <div><label className="lbl">Monto</label><input className="inp" type="number" value={editData.amount||''} onChange={x=>setEData(p=>({...p,amount:x.target.value}))}/></div>
+              <div><label className="lbl">Monto</label><input className="inp" type="number" min="0" value={editData.amount||''} onChange={x=>setEData(p=>({...p,amount:Math.max(0,Number(x.target.value)||0)}))}/></div>
               <div><label className="lbl">Cat.</label><input className="inp" list="cats-f" value={editData.category||''} onChange={x=>setEData(p=>({...p,category:x.target.value}))}/><datalist id="cats-f">{allCats.map(c=><option key={c} value={c}/>)}</datalist></div>
               <div><label className="lbl">Fecha</label><input type="date" className="inp" value={editData.date||''} onChange={x=>setEData(p=>({...p,date:x.target.value}))}/></div>
               <div style={{gridColumn:'span 2',display:'flex',gap:8}}><button className="btn" style={{flex:1}} onClick={saveEdit}>Guardar</button><button className="btn-del" onClick={()=>setEI(null)}>Cancelar</button></div>

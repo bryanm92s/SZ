@@ -50,6 +50,9 @@ function doPost(e) {
   try {
     const b = JSON.parse(e.postData.contents);
     if (b.token !== SECRET_TOKEN) { lock.releaseLock(); return err('No autorizado'); }
+    // Defensa en profundidad: clip a 0 todo campo monetario antes de
+    // persistir, por si alguien llama al endpoint con valores negativos.
+    try { sanitizePayload(b); } catch(_) {}
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     initSheets(ss);
     if (b.action==='deleteCalendarEvent') return ok({calResult:deleteCalEvent(b.eventId)});
@@ -90,8 +93,8 @@ function createCalEvent(evt) {
     const dom=evt.domicilio==='true'||evt.domicilio===true;
     const desc='👤 '+evt.clientName+'\n📱 '+evt.clientPhone+
                 '\n✨ '+evt.serviceNames+
-                '\n💳 Total: $'+Number(evt.totalPrice||0).toLocaleString('es-CO')+
-                (dom?'\n🛵 Domicilio: $'+Number(evt.domicilioPrice||0).toLocaleString('es-CO')+
+                '\n💳 Total: $'+clip0(Number(evt.totalPrice||0)).toLocaleString('es-CO')+
+                (dom?'\n🛵 Domicilio: $'+clip0(Number(evt.domicilioPrice||0)).toLocaleString('es-CO')+
                      (evt.address?'\n📍 '+evt.address:''):'');
     const event=cal.createEvent('✨ '+evt.serviceNames+' — '+evt.clientName,s,e,{description:desc,sendInvites:false});
     event.setColor(CalendarApp.EventColor.MAUVE);
@@ -436,3 +439,67 @@ function cellStr(v,key) {
 
 function ok(data){return ContentService.createTextOutput(JSON.stringify({ok:true,data})).setMimeType(ContentService.MimeType.JSON);}
 function err(msg){return ContentService.createTextOutput(JSON.stringify({ok:false,error:msg})).setMimeType(ContentService.MimeType.JSON);}
+
+/* ───────────────────────────────────────────────────────────────
+   SANITIZACIÓN DE ENTRADA — defensa en profundidad
+   El frontend ya bloquea valores negativos en los inputs y al guardar,
+   pero alguien podría llamar al endpoint directamente con un JSON
+   malicioso. Aquí clipamos a 0 todo campo monetario antes de
+   persistirlo, para que nunca se guarden valores negativos.
+───────────────────────────────────────────────────────────────── */
+
+// Devuelve el número si es >= 0, o 0 si es negativo/NaN. Strings
+// numéricos y vacíos se normalizan; otros tipos pasan tal cual.
+const clip0 = v => {
+  const n = Number(v);
+  return (n !== n || n < 0) ? 0 : n;   // NaN o negativo → 0
+};
+
+function sanitizeNumberField(obj, field) {
+  if (!obj || obj[field] === undefined || obj[field] === null || obj[field] === '') return;
+  obj[field] = clip0(obj[field]);
+}
+
+function sanitizePayload(b) {
+  // Servicios: price
+  if (Array.isArray(b.services)) {
+    b.services.forEach(s => sanitizeNumberField(s, 'price'));
+  }
+  // Gastos: amount
+  if (Array.isArray(b.expenses)) {
+    b.expenses.forEach(e => sanitizeNumberField(e, 'amount'));
+  }
+  // Citas: servicePrice, domicilioPrice, totalPrice; y cada precio
+  // dentro de servicePrices (objeto {id: precio} serializado).
+  if (Array.isArray(b.appointments)) {
+    b.appointments.forEach(a => {
+      sanitizeNumberField(a, 'servicePrice');
+      sanitizeNumberField(a, 'domicilioPrice');
+      sanitizeNumberField(a, 'totalPrice');
+      if (a.servicePrices !== undefined && a.servicePrices !== null && a.servicePrices !== '') {
+        let sp = a.servicePrices;
+        let parsed = null;
+        if (typeof sp === 'string') {
+          try { parsed = JSON.parse(sp); } catch (_) { parsed = null; }
+        } else if (typeof sp === 'object' && !Array.isArray(sp)) {
+          parsed = sp;
+        }
+        if (parsed) {
+          Object.keys(parsed).forEach(k => { parsed[k] = clip0(parsed[k]); });
+          a.servicePrices = JSON.stringify(parsed);
+        }
+      }
+    });
+  }
+  // Evento de calendario: totalPrice y domicilioPrice
+  if (b.calendarEvent) {
+    sanitizeNumberField(b.calendarEvent, 'totalPrice');
+    sanitizeNumberField(b.calendarEvent, 'domicilioPrice');
+  }
+  // Historial de precios (cuando se reseedea)
+  if (b.action !== 'updateCalendarEvent' && b.action !== 'deleteCalendarEvent') {
+    // resetPriceHistory reescribe el historial desde b.services; ya
+    // se clipó b.services.price arriba, así que las filas sembradas
+    // ya quedan saneadas. No se requiere acción extra aquí.
+  }
+}
