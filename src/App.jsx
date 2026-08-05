@@ -326,6 +326,7 @@ export default function App() {
         {tab==='client-history'  && <ClientHistory   {...p}/>}
         {tab==='comparison'      && <MonthComparison {...p}/>}
         {tab==='top-services'    && <TopServices     {...p}/>}
+        {tab==='report'          && <ReportTab       {...p}/>}
       </main>
 
       <footer style={{textAlign:'center',padding:'20px 14px 28px',borderTop:'1px solid var(--border)',marginTop:8,background:'var(--surface)'}}>
@@ -1058,6 +1059,7 @@ function EditAppt({appt,services,appts,SA,sync,priceHistory,onClose}) {
             <input className="inp" type="number" min="0" placeholder="Otro" style={{flex:1,padding:'8px 10px',fontSize:13}} value={![10000,20000].includes(domP)?domP:''} onChange={e=>setDomP(Math.max(0, Number(e.target.value)||0))}/>
           </div>
           <input className="inp" placeholder="Dirección" value={addr} onChange={e=>setAddr(e.target.value)}/>
+          {dom && !addr.trim() && <div style={{color:'var(--red)',fontSize:11,marginTop:4}}>La dirección es obligatoria cuando el servicio es a domicilio</div>}
         </div>}
       </div>
 
@@ -1092,7 +1094,7 @@ function EditAppt({appt,services,appts,SA,sync,priceHistory,onClose}) {
         ? <button className="btn" style={{width:'100%'}} onClick={onClose}>Listo</button>
         : <div style={{display:'flex',gap:8}}>
             <button className="btn-o" onClick={onClose}>Cancelar</button>
-            <button className="btn" style={{flex:1}} onClick={save} disabled={!time||svcIds.length===0||loading}>{loading?'⏳ Guardando…':'Guardar cambios'}</button>
+            <button className="btn" style={{flex:1}} onClick={save} disabled={!time||svcIds.length===0||loading||(dom&&!addr.trim())}>{loading?'⏳ Guardando…':'Guardar cambios'}</button>
           </div>
       }
     </div>
@@ -1292,6 +1294,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose}) {
           </div>
           <label className="lbl">Dirección</label>
           <input className="inp" placeholder="Ej: Cra 15 #45-20, Apto 302" value={addr} onChange={e=>setAddr(e.target.value)}/>
+          {dom && !addr.trim() && <div style={{color:'var(--red)',fontSize:11,marginTop:4}}>La dirección es obligatoria cuando el servicio es a domicilio</div>}
         </div>}
       </div>
 
@@ -1301,7 +1304,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose}) {
         <div style={{display:'flex',justifyContent:'space-between',borderTop:'1px solid var(--border)',paddingTop:6,marginTop:4}}><span style={{fontWeight:700}}>Total</span><span style={{fontWeight:700,color:'var(--primary)',fontSize:16}}>{fmtM(grand)}</span></div>
       </div>}
 
-      <button className="btn" style={{width:'100%',marginTop:14}} onClick={()=>setStep(4)} disabled={svcIds.length===0}>
+      <button className="btn" style={{width:'100%',marginTop:14}} onClick={()=>setStep(4)} disabled={svcIds.length===0||(dom&&!addr.trim())}>
         Siguiente {svcIds.length>0&&`(${svcIds.length} servicio${svcIds.length>1?'s':''})`}
       </button>
     </div>}
@@ -1481,17 +1484,26 @@ function ClientsTab({clients,appts,SC,confirm,infoModal,setTab}) {
 ══════════════════════════════════════════════════════════════ */
 function ServicesTab({services,SS,confirm}) {
   const [name,setN]=useState(''), [price,setP]=useState(''), [editId,setEI]=useState(null), [eP,setEP]=useState('')
+  const [priceErr,setPErr]=useState('')   // mensaje "no puede ser negativo"
   const safe=Array.isArray(services)?services:[]
-  const add=()=>{if(!name.trim()||!price)return;SS([...safe,{id:uid(),name:name.trim(),price:Math.max(0,Number(price)||0)}]);setN('');setP('')}
+  const add=()=>{if(!name.trim()||!price)return;SS([...safe,{id:uid(),name:name.trim(),price:Math.max(0,Number(price)||0)}]);setN('');setP('');setPErr('')}
   return <>
     <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',marginBottom:16}}>Servicios</div>
     <div className="card">
       <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>✨ Agregar servicio</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
         <div><label className="lbl">Nombre</label><input className="inp" placeholder="Ej: Diseño de cejas" value={name} onChange={e=>setN(e.target.value)}/></div>
-        <div><label className="lbl">Precio (COP)</label><input className="inp" type="number" min="0" placeholder="35000" value={price} onChange={e=>setP(e.target.value)}/></div>
+        <div>
+          <label className="lbl">Precio (COP)</label>
+          <input className="inp" type="number" min="0" placeholder="35000" value={price} onChange={e=>{
+            const v=e.target.value
+            setP(v)
+            setPErr(Number(v)<0 ? 'El precio del servicio no puede ser negativo' : '')
+          }}/>
+          {priceErr&&<div style={{color:'var(--red)',fontSize:11,marginTop:4}}>{priceErr}</div>}
+        </div>
       </div>
-      <button className="btn" style={{width:'100%'}} onClick={add} disabled={!name.trim()||!price}>Agregar servicio</button>
+      <button className="btn" style={{width:'100%'}} onClick={add} disabled={!name.trim()||!price}>{'Agregar servicio'}</button>
     </div>
     <div className="card">
       <div style={{fontWeight:700,marginBottom:14,fontSize:15}}>Servicios ({safe.length})</div>
@@ -1500,10 +1512,13 @@ function ServicesTab({services,SS,confirm}) {
           <div style={{fontSize:20,flexShrink:0}}>✨</div>
           <div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,fontSize:14}}>{s.name}</div><div style={{fontSize:12,color:'var(--t2)'}}>~1 hora</div></div>
           {editId===s.id
-            ?<div style={{display:'flex',alignItems:'center',gap:6}}>
-              <input className="inp" type="number" min="0" value={eP} onChange={e=>setEP(e.target.value)} style={{width:100,padding:'6px 10px',fontSize:13}}/>
-              <button className="btn" style={{padding:'6px 12px',fontSize:13}} onClick={()=>{SS(safe.map(x=>x.id===s.id?{...x,price:Math.max(0,Number(eP)||0)}:x));setEI(null)}}>✓</button>
-              <button className="btn-del" onClick={()=>setEI(null)}>✕</button>
+            ?<div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <input className="inp" type="number" min="0" value={eP} onChange={e=>setEP(e.target.value)} style={{width:100,padding:'6px 10px',fontSize:13}}/>
+                <button className="btn" style={{padding:'6px 12px',fontSize:13}} disabled={Number(eP)<0} onClick={()=>{SS(safe.map(x=>x.id===s.id?{...x,price:Math.max(0,Number(eP)||0)}:x));setEI(null)}}>✓</button>
+                <button className="btn-del" onClick={()=>setEI(null)}>✕</button>
+              </div>
+              {Number(eP)<0&&<div style={{color:'var(--red)',fontSize:10,whiteSpace:'nowrap'}}>El precio del servicio no puede ser negativo</div>}
             </div>
             :<div style={{display:'flex',alignItems:'center',gap:6}}>
               <span style={{fontWeight:700,color:'var(--primary)',fontSize:15}}>{fmtM(s.price)}</span>
@@ -1525,6 +1540,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
   const [desc,setD]=useState(''), [amount,setA]=useState(''), [cat,setC]=useState('Insumos'), [expDate,setED]=useState(todayStr())
   const [editId,setEI]=useState(null), [editData,setEData]=useState({})
   const [customCat,setCC]=useState('')
+  const [amountErr,setAErr]=useState('')   // mensaje "no puede ser negativo"
   const [hiddenCats,setHC]=useState(()=>{try{return JSON.parse(localStorage.getItem('sz_hcats')||'[]')}catch{return[]}})
   const [showCatMgr,setSCM]=useState(false)
 
@@ -1552,11 +1568,11 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
   const tot=me.reduce((s,e)=>s+toN(e.amount||0),0)
 
   const add=()=>{
-    if(!desc.trim()||!amount)return
+    if(!desc.trim()||!amount||Number(amount)<0)return
     SE([...safe,{id:uid(),description:capFirst(desc),amount:Math.max(0,Number(amount)||0),category:capFirst(customCat||cat),date:expDate}])
-    setD('');setA('');setCC('')
+    setD('');setA('');setCC('');setAErr('')
   }
-  const saveEdit=()=>{SE(safe.map(e=>e.id===editId?{...e,...editData,amount:Math.max(0,toN(editData.amount))}:e));setEI(null)}
+  const saveEdit=()=>{if(Number(editData.amount)<0)return;SE(safe.map(e=>e.id===editId?{...e,...editData,amount:Math.max(0,toN(editData.amount))}:e));setEI(null)}
 
   return <>
     <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',marginBottom:16}}>Finanzas</div>
@@ -1598,13 +1614,26 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
         <div style={{fontWeight:700,fontSize:13,color:'var(--t)'}}>Servicios rentables</div>
         <div style={{fontSize:11,color:'var(--t2)',marginTop:3}}>Ver ranking →</div>
       </div>
+      <div className="card" style={{marginBottom:0,cursor:'pointer',textAlign:'center',padding:'16px 12px'}} onClick={()=>setTab('report')}>
+        <div style={{fontSize:26,marginBottom:6}}><svg width="26" height="22" viewBox="0 0 26 22" fill="none"><rect x="2" y="2" width="22" height="18" rx="2" stroke="var(--primary)" strokeWidth="2" fill="none"/><path d="M6 8h14M6 12h14M6 16h8" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round"/></svg></div>
+        <div style={{fontWeight:700,fontSize:13,color:'var(--t)'}}>Reporte</div>
+        <div style={{fontSize:11,color:'var(--t2)',marginTop:3}}>Exportar / WhatsApp →</div>
+      </div>
     </div>
 
     <div className="card">
       <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>📤 Agregar gasto</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
         <div><label className="lbl">Descripción</label><input className="inp" placeholder="Ej: Cera" value={desc} onChange={e=>setD(e.target.value)}/></div>
-        <div><label className="lbl">Monto (COP)</label><input className="inp" type="number" min="0" placeholder="20000" value={amount} onChange={e=>setA(e.target.value)}/></div>
+        <div>
+          <label className="lbl">Monto (COP)</label>
+          <input className="inp" type="number" min="0" placeholder="20000" value={amount} onChange={e=>{
+            const v=e.target.value
+            setA(v)
+            setAErr(Number(v)<0 ? 'El monto del gasto no puede ser negativo' : '')
+          }}/>
+          {amountErr&&<div style={{color:'var(--red)',fontSize:11,marginTop:4}}>{amountErr}</div>}
+        </div>
         <div>
           <label className="lbl">Categoría</label>
           <select className="inp" value={customCat?'__c':cat} onChange={e=>{const v=e.target.value;if(v==='__c'){setCC('new')}else{setC(v);setCC('')}}}>
@@ -1615,7 +1644,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
         {customCat&&<div><label className="lbl">Nueva cat.</label><input className="inp" placeholder="Ej: Equipos" value={customCat==='new'?'':customCat} onChange={e=>{const v=e.target.value;setCC(v?v.charAt(0).toUpperCase()+v.slice(1).toLowerCase():'');}}/></div>}
         <div><label className="lbl">Fecha</label><input type="date" className="inp" value={expDate} onChange={e=>setED(e.target.value)}/></div>
       </div>
-      <button className="btn" style={{width:'100%'}} onClick={add} disabled={!desc.trim()||!amount}>Agregar gasto</button>
+      <button className="btn" style={{width:'100%'}} onClick={add} disabled={!desc.trim()||!amount||Number(amount)<0}>Agregar gasto</button>
 
       {/* Category manager */}
       <div style={{marginTop:14,borderTop:'1px solid var(--border)',paddingTop:12}}>
@@ -1654,10 +1683,14 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
           {isEdit
             ?<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
               <div><label className="lbl">Descripción</label><input className="inp" value={editData.description||''} onChange={x=>setEData(p=>({...p,description:x.target.value}))}/></div>
-              <div><label className="lbl">Monto</label><input className="inp" type="number" min="0" value={editData.amount||''} onChange={x=>setEData(p=>({...p,amount:Math.max(0,Number(x.target.value)||0)}))}/></div>
+              <div>
+                <label className="lbl">Monto</label>
+                <input className="inp" type="number" min="0" value={editData.amount||''} onChange={x=>setEData(p=>({...p,amount:x.target.value}))}/>
+                {Number(editData.amount)<0&&<div style={{color:'var(--red)',fontSize:11,marginTop:4}}>El monto del gasto no puede ser negativo</div>}
+              </div>
               <div><label className="lbl">Cat.</label><input className="inp" list="cats-f" value={editData.category||''} onChange={x=>setEData(p=>({...p,category:x.target.value}))}/><datalist id="cats-f">{allCats.map(c=><option key={c} value={c}/>)}</datalist></div>
               <div><label className="lbl">Fecha</label><input type="date" className="inp" value={editData.date||''} onChange={x=>setEData(p=>({...p,date:x.target.value}))}/></div>
-              <div style={{gridColumn:'span 2',display:'flex',gap:8}}><button className="btn" style={{flex:1}} onClick={saveEdit}>Guardar</button><button className="btn-del" onClick={()=>setEI(null)}>Cancelar</button></div>
+              <div style={{gridColumn:'span 2',display:'flex',gap:8}}><button className="btn" style={{flex:1}} onClick={saveEdit} disabled={Number(editData.amount)<0}>Guardar</button><button className="btn-del" onClick={()=>setEI(null)}>Cancelar</button></div>
             </div>
             :<div style={{display:'flex',alignItems:'center',gap:8}}>
               <div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,fontSize:13}}>{e.description}</div><div style={{fontSize:11,color:'var(--t2)'}}>{e.category} · {fmtDate(e.date)}</div></div>
@@ -2080,6 +2113,277 @@ function TopServices({appts,services,priceHistory,setTab}) {
       </div>
       <RankList items={byCount} maxBar={maxCount} colors={COLORS_CNT} barKey="count"/>
 
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════
+   REPORT TAB — reporte de actividad por día o rango de fechas,
+   con exportación a Excel (.xlsx) y envío por WhatsApp al admin.
+══════════════════════════════════════════════════════════════ */
+const ADMIN_WA = '3223992340'
+
+function ReportTab({appts,expenses,services,setTab}) {
+  const safeA = Array.isArray(appts)?appts:[]
+  const safeE = Array.isArray(expenses)?expenses:[]
+
+  // Modo de filtro: 'day' (un día puntual) o 'range' (rango de fechas)
+  const [mode, setMode] = useState('day')
+  const today = new Date().toISOString().slice(0,10)
+  const [day,  setDay]  = useState(today)
+  const [from, setFrom]= useState(today)
+  const [to,   setTo]  = useState(today)
+
+  const fromVal = () => mode==='day' ? day : from
+  const toVal   = () => mode==='day' ? day : to
+  const inRange = (d, a, b) => { const x = cleanDate(d); return x && x >= a && x <= b }
+  const periodLabel = () =>
+    mode==='day' ? fmtDate(day)
+                 : (from===to ? fmtDate(from) : `${fmtDate(from)} — ${fmtDate(to)}`)
+
+  // Filtrado de citas según el modo
+  const apptsInPeriod = safeA.filter(a => {
+    const d = cleanDate(a.date)
+    if (!d) return false
+    return mode==='day' ? d===day : inRange(d, from, to)
+  })
+
+  // Métricas clave
+  const created    = apptsInPeriod.length
+  const completed  = apptsInPeriod.filter(a => bool(a.completed) && a.completed!=='noshow').length
+  const pending    = apptsInPeriod.filter(a => !bool(a.completed) && a.completed!=='noshow').length
+  const noshow     = apptsInPeriod.filter(a => a.completed==='noshow').length
+  const cancelledRate = created>0 ? Math.round(noshow/created*100) : 0
+  const completionRate = created>0 ? Math.round(completed/created*100) : 0
+
+  // Ingresos: solo citas completadas (sin no-show)
+  const revenue = apptsInPeriod
+    .filter(a => bool(a.completed) && a.completed!=='noshow')
+    .reduce((s,a) => s + toN(a.totalPrice||a.servicePrice||0), 0)
+
+  // Ingresos potenciales (incluye pendientes)
+  const projected = apptsInPeriod
+    .reduce((s,a) => a.completed==='noshow' ? s : s + toN(a.totalPrice||a.servicePrice||0), 0)
+
+  // Gastos del período + neto
+  const expensesInPeriod = safeE.filter(e => inRange(cleanDate(e.date), fromVal(), toVal()))
+  const totalExpenses = expensesInPeriod.reduce((s,e) => s + toN(e.amount||0), 0)
+  const neto = revenue - totalExpenses
+
+  // Ticket promedio (sobre completadas)
+  const avgTicket = completed>0 ? Math.round(revenue/completed) : 0
+
+  // Domicilios
+  const domicilios = apptsInPeriod.filter(a => bool(a.domicilio)).length
+  const domRevenue = apptsInPeriod
+    .filter(a => bool(a.completed) && a.completed!=='noshow' && bool(a.domicilio))
+    .reduce((s,a) => s + toN(a.domicilioPrice||0), 0)
+
+  // Top servicios del período (por demanda en completadas)
+  const svcStats = {}
+  apptsInPeriod.filter(a => bool(a.completed) && a.completed!=='noshow').forEach(a => {
+    const names = String(a.serviceNames||'').split(',').map(s=>s.trim()).filter(Boolean)
+    names.forEach(n => {
+      if (!svcStats[n]) svcStats[n] = {name:n, count:0, revenue:0}
+      svcStats[n].count += 1
+      // Reparto simple (fallback); el cálculo fino está en TopServices
+      svcStats[n].revenue += names.length ? toN(a.servicePrice)/names.length : toN(a.servicePrice)
+    })
+  })
+  const topByDemand = Object.values(svcStats).sort((a,b)=>b.count-a.count).slice(0,5)
+
+  // ─── Exportar a Excel (.xlsx) ──────────────────────────────────
+  const exportExcel = async () => {
+    const XLSX = await import('xlsx')
+    const wb = XLSX.utils.book_new()
+
+    // Hoja 1: Resumen
+    const resumen = [
+      ['REPORTE DE ACTIVIDAD'],
+      ['Período', periodLabel()],
+      ['Generado', new Date().toLocaleString('es-CO')],
+      [''],
+      ['Métrica', 'Valor'],
+      ['Citas creadas', created],
+      ['Citas completadas', completed],
+      ['Citas pendientes', pending],
+      ['No asistió (No-show)', noshow],
+      ['Tasa de completado (%)', completionRate],
+      ['Tasa de no-asistencia (%)', cancelledRate],
+      [''],
+      ['Ingresos (completadas)', revenue],
+      ['Ingresos proyectados (con pendientes)', projected],
+      ['Ticket promedio', avgTicket],
+      [''],
+      ['Gastos del período', totalExpenses],
+      ['Neto (ingresos - gastos)', neto],
+      [''],
+      ['Servicios a domicilio', domicilios],
+      ['Ingresos por domicilio', domRevenue],
+    ]
+    const ws1 = XLSX.utils.aoa_to_sheet(resumen)
+    ws1['!cols'] = [{wch:34},{wch:18}]
+    XLSX.utils.book_append_sheet(wb, ws1, 'Resumen')
+
+    // Hoja 2: Detalle de citas
+    const citasRows = [['Fecha','Hora','Cliente','Teléfono','Servicios','Total','Domicilio','Dirección','Estado','Creada el']]
+    apptsInPeriod.slice().sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date))).forEach(a => {
+      const status = a.completed==='noshow' ? 'No asistió'
+                   : bool(a.completed)      ? 'Completada'
+                   :                          'Pendiente'
+      citasRows.push([
+        cleanDate(a.date), cleanTime(a.time), a.clientName||'', a.clientPhone||'',
+        a.serviceNames||'', toN(a.totalPrice||a.servicePrice||0),
+        bool(a.domicilio) ? 'Sí' : 'No', a.address||'', status,
+        (a.createdAt||'').slice(0,19).replace('T',' ')
+      ])
+    })
+    const ws2 = XLSX.utils.aoa_to_sheet(citasRows)
+    ws2['!cols'] = [{wch:10},{wch:6},{wch:20},{wch:14},{wch:30},{wch:10},{wch:10},{wch:30},{wch:12},{wch:20}]
+    XLSX.utils.book_append_sheet(wb, ws2, 'Citas')
+
+    // Hoja 3: Gastos del período
+    const gastosRows = [['Fecha','Descripción','Categoría','Monto']]
+    expensesInPeriod.slice().sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date))).forEach(e => {
+      gastosRows.push([cleanDate(e.date), e.description||'', e.category||'', toN(e.amount||0)])
+    })
+    if (expensesInPeriod.length>0) {
+      gastosRows.push(['', '', 'TOTAL', totalExpenses])
+    }
+    const ws3 = XLSX.utils.aoa_to_sheet(gastosRows)
+    ws3['!cols'] = [{wch:10},{wch:30},{wch:18},{wch:12}]
+    XLSX.utils.book_append_sheet(wb, ws3, 'Gastos')
+
+    const name = `reporte_${mode==='day'?day:`${from}_${to}`}.xlsx`
+    XLSX.writeFile(wb, name)
+  }
+
+  // ─── Enviar por WhatsApp al admin ─────────────────────────────
+  const sendWA = () => {
+    const p = ('57' + ADMIN_WA.replace(/\D/g, '')).replace(/^5757/, '57')
+    const SPARK = '\u2728'        // ✨
+    const MONEY = '\uD83D\uDCB0'  // 💰
+    const CAL   = '\uD83D\uDCC5'  // 📅
+    const CHART = '\uD83D\uDCCA'  // 📊
+    const MOTO  = '\uD83D\uDEF5'  // 🛵
+    const lines = [
+      `${SPARK} *Reporte de actividad*`,
+      `${CAL} ${periodLabel()}`,
+      '',
+      `${CHART} *Citas*`,
+      `• Creadas: *${created}*`,
+      `• Completadas: *${completed}*${pending?` · Pendientes: ${pending}`:''}${noshow?` · No-show: ${noshow}`:''}`,
+      `• Tasa completado: *${completionRate}%*`,
+      '',
+      `${MONEY} *Ingresos*`,
+      `• Recibido: *${fmtM(revenue)}*`,
+      `• Proyectado: *${fmtM(projected)}*`,
+      `• Ticket prom.: *${fmtM(avgTicket)}*`,
+      `• Gastos: *${fmtM(totalExpenses)}*`,
+      `• Neto: *${fmtM(neto)}*`,
+    ]
+    if (domicilios>0) lines.push('', `${MOTO} *Domicilios*: ${domicilios} · ${fmtM(domRevenue)}`)
+    if (topByDemand.length>0) {
+      lines.push('', `${SPARK} *Top servicios*`)
+      topByDemand.slice(0,3).forEach((s,i) => lines.push(`${['1.','2.','3.'][i]} ${s.name} — ${s.count}x (${fmtM(Math.round(s.revenue))})`))
+    }
+    lines.push('', `_Generado ${new Date().toLocaleString('es-CO')}_`)
+    const msg = lines.join('\n')
+    const url = 'https://api.whatsapp.com/send/?phone=' + p + '&text=' + encodeURIComponent(msg) + '&type=phone_number&app_absent=0'
+    window.open(url, '_blank')
+  }
+
+  const Metric = ({label, value, color, big}) => (
+    <div style={{background:'var(--bg2)',borderRadius:12,padding:'12px 10px',textAlign:'center'}}>
+      <div style={{fontSize:10,textTransform:'uppercase',letterSpacing:'.05em',color:'var(--t2)',fontWeight:600,marginBottom:4}}>{label}</div>
+      <div style={{fontSize:big?22:18,fontWeight:700,color:color||'var(--t)'}}>{value}</div>
+    </div>
+  )
+
+  return (
+    <div>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
+        <button className="btn-sm" onClick={()=>setTab('finances')}>← Volver</button>
+        <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>📊 Reporte</span>
+      </div>
+
+      {/* Modo de filtrado */}
+      <div style={{display:'flex',gap:8,marginBottom:14}}>
+        <button onClick={()=>setMode('day')} style={{flex:1,background:mode==='day'?'var(--primary)':'white',color:mode==='day'?'white':'var(--t2)',border:'1.5px solid',borderColor:mode==='day'?'var(--primary)':'var(--border)',borderRadius:20,padding:'8px 14px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+          📅 Por día
+        </button>
+        <button onClick={()=>setMode('range')} style={{flex:1,background:mode==='range'?'var(--primary)':'white',color:mode==='range'?'white':'var(--t2)',border:'1.5px solid',borderColor:mode==='range'?'var(--primary)':'var(--border)',borderRadius:20,padding:'8px 14px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+          📆 Por rango
+        </button>
+      </div>
+
+      {/* Selector de fecha(s) */}
+      {mode==='day'
+        ? <div style={{marginBottom:14}}><label className="lbl">Día</label><input type="date" className="inp" value={day} max={today} onChange={e=>setDay(e.target.value)}/></div>
+        : <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
+            <div><label className="lbl">Desde</label><input type="date" className="inp" value={from} max={today} onChange={e=>setFrom(e.target.value)}/></div>
+            <div><label className="lbl">Hasta</label><input type="date" className="inp" value={to} max={today} onChange={e=>setTo(e.target.value)}/></div>
+          </div>
+      }
+
+      {/* Período activo */}
+      <div style={{background:'var(--primary-l)',borderRadius:12,padding:'10px 14px',marginBottom:14,fontSize:13,color:'var(--primary)',fontWeight:600}}>
+        🗓️ {periodLabel()}
+      </div>
+
+      {/* Métricas de citas */}
+      <div style={{fontWeight:700,fontSize:14,marginBottom:10}}>📈 Citas</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:18}}>
+        <Metric label="Creadas"     value={created}   big />
+        <Metric label="Completadas" value={completed} color="var(--green)" big />
+        <Metric label="Pendientes"  value={pending}   color="var(--gold)" />
+        <Metric label="No-show"     value={noshow}    color="var(--red)" />
+        <Metric label="% completado" value={`${completionRate}%`} />
+        <Metric label="% no-asist."  value={`${cancelledRate}%`} />
+      </div>
+
+      {/* Métricas de dinero */}
+      <div style={{fontWeight:700,fontSize:14,marginBottom:10}}>💰 Dinero</div>
+      <div style={{background:'linear-gradient(135deg,var(--primary),var(--primary-d))',borderRadius:14,padding:'14px 18px',marginBottom:8,color:'white'}}>
+        <div style={{fontSize:11,opacity:.8,textTransform:'uppercase',letterSpacing:'.05em',fontWeight:600,marginBottom:4}}>Ingresos (completadas)</div>
+        <div style={{fontFamily:'Georgia,serif',fontSize:28,fontWeight:700}}>{fmtM(revenue)}</div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:18}}>
+        <Metric label="Proyectado"   value={fmtM(projected)}    color="var(--gold)" />
+        <Metric label="Ticket prom." value={fmtM(avgTicket)} />
+        <Metric label="Domicilios"  value={`${domicilios} · ${fmtM(domRevenue)}`} />
+        <Metric label="Gastos"       value={fmtM(totalExpenses)} color="var(--red)" />
+        <Metric label="Neto"         value={fmtM(neto)}          color={neto>=0?'var(--green)':'var(--red)'} />
+      </div>
+
+      {/* Top servicios del período */}
+      {topByDemand.length>0 && (
+        <div className="card" style={{marginBottom:14}}>
+          <div style={{fontWeight:700,fontSize:14,marginBottom:10}}>✨ Top servicios del período</div>
+          {topByDemand.map((s,i) => (
+            <div key={s.name} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:i<topByDemand.length-1?'1px solid var(--border)':'none'}}>
+              <span style={{fontWeight:600,fontSize:13}}>{['🥇','🥈','🥉','4.','5.'][i]} {s.name}</span>
+              <span style={{color:'var(--t2)',fontSize:13}}>{s.count}x · <strong style={{color:'var(--primary)'}}>{fmtM(Math.round(s.revenue))}</strong></span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Botones de acción */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
+        <button className="btn-o" onClick={exportExcel} disabled={created===0} style={{padding:'14px 12px'}}>
+          📊 Exportar Excel
+        </button>
+        <button className="btn-wa" onClick={sendWA} disabled={created===0} style={{padding:'14px 12px'}}>
+          💬 WhatsApp admin
+        </button>
+      </div>
+      {created===0 && <div style={{textAlign:'center',fontSize:12,color:'var(--t2)',marginBottom:14}}>No hay citas en este período para exportar.</div>}
+
+      {/* Pista de destinatario */}
+      <div style={{textAlign:'center',fontSize:11,color:'var(--t2)',marginBottom:6}}>
+        El reporte por WhatsApp se envía al admin: 📱 {ADMIN_WA}
+      </div>
     </div>
   )
 }
