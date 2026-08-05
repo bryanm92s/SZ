@@ -482,6 +482,7 @@ function GS() { return <style>{`
   nav::-webkit-scrollbar{display:none}
   @keyframes spin{to{transform:rotate(360deg)}}
   @keyframes pulse{0%,100%{opacity:.7}50%{opacity:1}}
+  @keyframes remindPing{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(196,130,122,.6)}50%{transform:scale(1.03);box-shadow:0 0 0 6px rgba(196,130,122,0)}}
   @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
   .slide-in{animation:slideDown .18s ease forwards}
 `}</style> }
@@ -496,6 +497,18 @@ function Dashboard({clients,appts,expenses,setTab}) {
   const ta = [...appts].filter(a=>cleanDate(a.date)===td).sort((a,b)=>cleanTime(a.time).localeCompare(cleanTime(b.time)))
   const safeA = Array.isArray(appts)?appts:[]
   const safeE = Array.isArray(expenses)?expenses:[]
+
+  // Citas "por recordar": pendientes de HOY a ≤60 min de empezar
+  // (o que empezaron hace <10 min). Botón rápido para enviar el WA.
+  const remindNow = new Date()
+  const toRemind = ta.filter(a => {
+    if (bool(a.completed) || a.completed==='noshow') return false
+    const [h, m] = cleanTime(a.time).split(':').map(Number)
+    if (isNaN(h)) return false
+    const start = new Date(); start.setHours(h, m, 0, 0)
+    const mins = Math.round((start - remindNow) / 60000)
+    return mins <= 60 && mins > -10
+  })
 
   const allDone  = safeA.filter(a=>bool(a.completed))
   const allNoShow= safeA.filter(a=>a.completed==='noshow')
@@ -534,6 +547,33 @@ function Dashboard({clients,appts,expenses,setTab}) {
       <div style={{fontFamily:'Georgia,serif',fontSize:21,fontWeight:600,color:'var(--t)'}}>Bienvenida {'\u2728'}</div>
       <div style={{fontSize:11,color:'var(--t2)'}}>{new Date().toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'})}</div>
     </div>
+
+    {/* Aviso: citas por recordar (≤1h antes) */}
+    {toRemind.length>0 && (
+      <div style={{background:'var(--primary-l)',border:'1.5px solid var(--primary)',borderRadius:12,padding:14,marginBottom:14}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:toRemind.length>0?10:0}}>
+          <span style={{fontSize:18}}>⏰</span>
+          <span style={{fontWeight:700,fontSize:14,color:'var(--primary)'}}>
+            {toRemind.length===1 ? '1 cita por recordar' : `${toRemind.length} citas por recordar`}
+          </span>
+          <span style={{fontSize:11,color:'var(--t2)'}}>— pulsa para enviar el WhatsApp</span>
+        </div>
+        {toRemind.map(a => {
+          const isDom = bool(a.domicilio)
+          return (
+            <div key={a.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:'var(--surface)',borderRadius:10,marginBottom:6}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:600,fontSize:13}}>{a.clientName} · <span style={{color:'var(--t2)'}}>{fmtTime(a.time)}</span></div>
+                <div style={{fontSize:11,color:'var(--t2)'}}>✨ {a.serviceNames}</div>
+              </div>
+              <button className="btn-wa" onClick={()=>openWA(a.clientPhone,a.clientName,a.time,a.date,a.serviceNames,a.totalPrice||a.servicePrice,isDom)}>
+                💬 Recordar
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    )}
 
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
       <div className="stat" onClick={()=>setTab('clients')}>
@@ -863,10 +903,25 @@ function ApptCard({appt,canEdit,onToggle,onEdit,onDelete}) {
   const today  = new Date().toISOString().slice(0,10)
   const isFuture = cleanDate(appt.date) > today
   const allowToggle = !isFuture
+  // ¿Hay que recordar YA? Solo para citas pendientes de HOY cuya hora
+  // de inicio está a ≤60 min en el futuro o ya empezó hace <10 min.
+  // (Las que empezaron hace más rato caen en "● Pasada".) El badge
+  // te avisa visualmente: "pulsa 💬 Recordatorio ahora".
+  const minsToAppt = (() => {
+    if (cleanDate(appt.date) !== today) return null
+    const [h, m] = cleanTime(appt.time).split(':').map(Number)
+    if (isNaN(h)) return null
+    const start = new Date(); start.setHours(h, m, 0, 0)
+    return Math.round((start - new Date()) / 60000) // + = futuro, - = pasado
+  })()
+  const remindNow = status==='pending' && minsToAppt !== null && minsToAppt <= 60 && minsToAppt > -10
   const bgMap  = {done:'var(--green-bg)', noshow:'var(--red-bg)', pending: past?'var(--border)':'var(--surface)'}
   const brdMap = {done:'#B0DDC0', noshow:'#F5C0B0', pending: past?'#E0D8D5':'var(--border)'}
   return (
-    <div style={{background:bgMap[status],borderRadius:12,border:`1px solid ${brdMap[status]}`,padding:14,marginTop:8}}>
+    <div style={{background:bgMap[status],borderRadius:12,border:`1.5px solid ${remindNow?'var(--primary)':brdMap[status]}`,padding:14,marginTop:8,boxShadow:remindNow?'0 0 0 3px var(--primary-l)':'none'}}>
+      {remindNow && <div style={{background:'var(--primary)',color:'white',borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:700,marginBottom:8,display:'inline-block',animation:'remindPing 1.4s ease-in-out infinite'}}>
+        ⏰ Recordar ahora · {fmtTime(appt.time)}
+      </div>}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
         <div>
           <div style={{fontWeight:700,fontSize:14,marginBottom:1}}>{appt.clientName}</div>
