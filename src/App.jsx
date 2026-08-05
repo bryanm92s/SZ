@@ -857,6 +857,12 @@ function ApptCard({appt,canEdit,onToggle,onEdit,onDelete}) {
   const dom    = bool(appt.domicilio)
   const status = appt.completed==='noshow' ? 'noshow' : bool(appt.completed) ? 'done' : 'pending'
   const past   = isPastAppt(appt)
+  // Es una cita futura si su fecha es posterior a HOY (aún no llega
+  // el día). En ese caso no se puede marcar como Completada ni como
+  // No asistió — no tiene sentido. Editar y Eliminar sí siguen activos.
+  const today  = new Date().toISOString().slice(0,10)
+  const isFuture = cleanDate(appt.date) > today
+  const allowToggle = !isFuture
   const bgMap  = {done:'var(--green-bg)', noshow:'var(--red-bg)', pending: past?'var(--border)':'var(--surface)'}
   const brdMap = {done:'#B0DDC0', noshow:'#F5C0B0', pending: past?'#E0D8D5':'var(--border)'}
   return (
@@ -884,16 +890,19 @@ function ApptCard({appt,canEdit,onToggle,onEdit,onDelete}) {
         {status==='pending'&& past && <span className="tag-past" style={{fontSize:11}}>● Pasada</span>}
       </div>
       <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+        {status==='pending' && isFuture && <span style={{fontSize:11,color:'var(--t2)',background:'var(--gold-bg)',borderRadius:8,padding:'6px 10px',fontWeight:600}}>📅 Cita futura — no se puede completar aún</span>}
         <button className={`btn-check${status==='done'?' done':''}`} onClick={()=>onToggle('done')}
-          style={status==='done'?{}:{opacity: status==='noshow'?.5:1}}>
+          style={status==='done'?{}:{opacity: status==='noshow'?.5:1}}
+          disabled={isFuture}>
           {status==='done'?'✓ Completada':'✓ Completada'}
         </button>
         <button onClick={()=>onToggle('noshow')}
-          style={{background:status==='noshow'?'var(--red)':'#FFF4F0',color:status==='noshow'?'white':'var(--red)',border:`1.5px solid ${status==='noshow'?'var(--red)':'#F5C0B0'}`,borderRadius:8,padding:'6px 10px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',transition:'all .15s',opacity: status==='done'?.5:1}}>
+          disabled={isFuture}
+          style={{background:status==='noshow'?'var(--red)':'#FFF4F0',color:status==='noshow'?'white':'var(--red)',border:`1.5px solid ${status==='noshow'?'var(--red)':'#F5C0B0'}`,borderRadius:8,padding:'6px 10px',fontSize:12,fontWeight:600,cursor:isFuture?'not-allowed':'pointer',fontFamily:'inherit',transition:'all .15s',opacity: status==='done'?.5:1}}>
           ✗ No asistió
         </button>
         {status==='pending' && <button className="btn-wa" onClick={()=>openWA(appt.clientPhone,appt.clientName,appt.time,appt.date,appt.serviceNames,appt.totalPrice||appt.servicePrice,dom)}>💬 Recordatorio</button>}
-        {canEdit && status==='pending' && <button className="btn-edit" onClick={onEdit}>✏️ Editar</button>}
+        {status==='pending' && <button className="btn-edit" onClick={onEdit}>✏️ Editar</button>}
         {status==='pending' && <button className="btn-del" onClick={onDelete}>🗑️ Eliminar</button>}
       </div>
     </div>
@@ -2141,20 +2150,34 @@ function ReportTab({appts,expenses,services,setTab}) {
     mode==='day' ? fmtDate(day)
                  : (from===to ? fmtDate(from) : `${fmtDate(from)} — ${fmtDate(to)}`)
 
-  // Filtrado de citas según el modo
+  // Citas agendadas PARA el período (por fecha de la cita) — base
+  // para completadas / pendientes / no-show / ingresos.
   const apptsInPeriod = safeA.filter(a => {
     const d = cleanDate(a.date)
     if (!d) return false
     return mode==='day' ? d===day : inRange(d, from, to)
   })
 
-  // Métricas clave
-  const created    = apptsInPeriod.length
+  // Citas CREADAS en el período (por createdAt) — pueden tener la
+  // fecha de la cita en otro día (ej: hoy agendo una para mañana).
+  // Caso: creaste 4 hoy, 3 son para hoy y 1 para mañana → aquí
+  // cuenta 4 porque las 4 se registraron hoy; en apptsInPeriod solo
+  // aparecen las 3 que son para hoy.
+  const createdInPeriod = safeA.filter(a => {
+    const c = cleanDate(String(a.createdAt||'').slice(0,10)) || cleanDate(a.date)
+    if (!c) return false
+    return mode==='day' ? c===day : inRange(c, from, to)
+  })
+  const created = createdInPeriod.length
+
+  // Métricas clave (sobre las citas agendadas PARA el período)
+  const scheduled = apptsInPeriod.length
   const completed  = apptsInPeriod.filter(a => bool(a.completed) && a.completed!=='noshow').length
   const pending    = apptsInPeriod.filter(a => !bool(a.completed) && a.completed!=='noshow').length
   const noshow     = apptsInPeriod.filter(a => a.completed==='noshow').length
-  const cancelledRate = created>0 ? Math.round(noshow/created*100) : 0
-  const completionRate = created>0 ? Math.round(completed/created*100) : 0
+  // Tasa de completado/no-show sobre las agendadas (no sobre las creadas)
+  const cancelledRate  = scheduled>0 ? Math.round(noshow/scheduled*100) : 0
+  const completionRate = scheduled>0 ? Math.round(completed/scheduled*100) : 0
 
   // Ingresos: solo citas completadas (sin no-show)
   const revenue = apptsInPeriod
@@ -2190,7 +2213,7 @@ function ReportTab({appts,expenses,services,setTab}) {
       svcStats[n].revenue += names.length ? toN(a.servicePrice)/names.length : toN(a.servicePrice)
     })
   })
-  const topByDemand = Object.values(svcStats).sort((a,b)=>b.count-a.count).slice(0,5)
+  const topByDemand = Object.values(svcStats).sort((a,b)=>b.count-a.count).slice(0,3)
 
   // ─── Exportar a Excel (.xlsx) ──────────────────────────────────
   const exportExcel = async () => {
@@ -2204,16 +2227,14 @@ function ReportTab({appts,expenses,services,setTab}) {
       ['Generado', new Date().toLocaleString('es-CO')],
       [''],
       ['Métrica', 'Valor'],
-      ['Citas creadas', created],
+      ['Citas creadas (registradas en el período)', created],
+      ['Citas agendadas para el período', scheduled],
       ['Citas completadas', completed],
       ['Citas pendientes', pending],
-      ['No asistió (No-show)', noshow],
       ['Tasa de completado (%)', completionRate],
-      ['Tasa de no-asistencia (%)', cancelledRate],
       [''],
       ['Ingresos (completadas)', revenue],
       ['Ingresos proyectados (con pendientes)', projected],
-      ['Ticket promedio', avgTicket],
       [''],
       ['Gastos del período', totalExpenses],
       ['Neto (ingresos - gastos)', neto],
@@ -2226,8 +2247,14 @@ function ReportTab({appts,expenses,services,setTab}) {
     XLSX.utils.book_append_sheet(wb, ws1, 'Resumen')
 
     // Hoja 2: Detalle de citas
+    // Incluye las agendadas PARA el período + las CREADAS en el
+    // período que se agendaron fuera de él (para no "perder" citas
+    // como la que se crea hoy pero se atiende mañana).
+    const detailSet = new Map()
+    apptsInPeriod.forEach(a => detailSet.set(a.id, a))
+    createdInPeriod.forEach(a => { if (!detailSet.has(a.id)) detailSet.set(a.id, a) })
     const citasRows = [['Fecha','Hora','Cliente','Teléfono','Servicios','Total','Domicilio','Dirección','Estado','Creada el']]
-    apptsInPeriod.slice().sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date))).forEach(a => {
+    Array.from(detailSet.values()).slice().sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date))).forEach(a => {
       const status = a.completed==='noshow' ? 'No asistió'
                    : bool(a.completed)      ? 'Completada'
                    :                          'Pendiente'
@@ -2271,14 +2298,14 @@ function ReportTab({appts,expenses,services,setTab}) {
       `${CAL} ${periodLabel()}`,
       '',
       `${CHART} *Citas*`,
-      `• Creadas: *${created}*`,
-      `• Completadas: *${completed}*${pending?` · Pendientes: ${pending}`:''}${noshow?` · No-show: ${noshow}`:''}`,
+      `• Creadas (registradas): *${created}*`,
+      `• Agendadas para el período: *${scheduled}*`,
+      `• Completadas: *${completed}*${pending?` · Pendientes: ${pending}`:''}`,
       `• Tasa completado: *${completionRate}%*`,
       '',
       `${MONEY} *Ingresos*`,
       `• Recibido: *${fmtM(revenue)}*`,
       `• Proyectado: *${fmtM(projected)}*`,
-      `• Ticket prom.: *${fmtM(avgTicket)}*`,
       `• Gastos: *${fmtM(totalExpenses)}*`,
       `• Neto: *${fmtM(neto)}*`,
     ]
@@ -2332,14 +2359,16 @@ function ReportTab({appts,expenses,services,setTab}) {
       </div>
 
       {/* Métricas de citas */}
-      <div style={{fontWeight:700,fontSize:14,marginBottom:10}}>📈 Citas</div>
+      <div style={{fontWeight:700,fontSize:14,marginBottom:6}}>📈 Citas</div>
+      <div style={{fontSize:11,color:'var(--t2)',marginBottom:10}}>
+        <strong style={{color:'var(--t)'}}>Creadas</strong> = registradas en el período (aunque la cita sea para otro día) · <strong style={{color:'var(--t)'}}>Agendadas</strong> = citas para el período (aunque se hayan creado antes)
+      </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:18}}>
         <Metric label="Creadas"     value={created}   big />
+        <Metric label="Agendadas"   value={scheduled} />
         <Metric label="Completadas" value={completed} color="var(--green)" big />
         <Metric label="Pendientes"  value={pending}   color="var(--gold)" />
-        <Metric label="No-show"     value={noshow}    color="var(--red)" />
         <Metric label="% completado" value={`${completionRate}%`} />
-        <Metric label="% no-asist."  value={`${cancelledRate}%`} />
       </div>
 
       {/* Métricas de dinero */}
@@ -2350,7 +2379,6 @@ function ReportTab({appts,expenses,services,setTab}) {
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:18}}>
         <Metric label="Proyectado"   value={fmtM(projected)}    color="var(--gold)" />
-        <Metric label="Ticket prom." value={fmtM(avgTicket)} />
         <Metric label="Domicilios"  value={`${domicilios} · ${fmtM(domRevenue)}`} />
         <Metric label="Gastos"       value={fmtM(totalExpenses)} color="var(--red)" />
         <Metric label="Neto"         value={fmtM(neto)}          color={neto>=0?'var(--green)':'var(--red)'} />
