@@ -23,6 +23,17 @@ export const localDateStr = (d = new Date()) =>
 
 export const todayStr = () => localDateStr()
 
+export const monthStr = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+
+// Timestamp ISO LOCAL (sin 'Z' final) —替代 a new Date().toISOString()
+// que devuelve UTC y desplaza las horas en Colombia (UTC-5).
+// Formato: 'YYYY-MM-DDTHH:mm:ss' con horas/minutos/segundos locales.
+export const localNowISO = (d = new Date()) => {
+  const p = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
 export const tomorrowStr = () => {
   const d = new Date()
   d.setDate(d.getDate() + 1)

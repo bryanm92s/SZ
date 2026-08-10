@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { loadData, saveData } from './api.js'
 // Helpers puros extraídos para poder testearlos sin React:
 import {
-  toN, localDateStr, todayStr, tomorrowStr, bool, phoneMatch,
-  cleanDate, fmtDate, cleanTime, fmtTime, getSlots,
+  toN, localDateStr, todayStr, tomorrowStr, monthStr, localNowISO,
+  bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots,
 } from './helpers.js'
 
 /* ══════════════════════════════════════════════════════════════
@@ -491,7 +491,7 @@ function GS() { return <style>{`
    DASHBOARD
 ══════════════════════════════════════════════════════════════ */
 function Dashboard({clients,appts,expenses,setTab}) {
-  const [selMonth, setSelMonth] = useState(()=>new Date().toISOString().slice(0,7))
+  const [selMonth, setSelMonth] = useState(monthStr)
   const [finTab,   setFinTab]   = useState('general')
   const td = todayStr()
   const ta = [...appts].filter(a=>cleanDate(a.date)===td).sort((a,b)=>cleanTime(a.time).localeCompare(cleanTime(b.time)))
@@ -519,7 +519,7 @@ function Dashboard({clients,appts,expenses,setTab}) {
   const gExp     = safeE.reduce((s,e)=>s+toN(e.amount||0),0)
   const gNeto    = gRevDone - gExp
 
-  const months   = [...new Set([...safeA.map(a=>cleanDate(a.date).slice(0,7)),...safeE.map(e=>cleanDate(e.date).slice(0,7)),new Date().toISOString().slice(0,7)].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
+  const months   = [...new Set([...safeA.map(a=>cleanDate(a.date).slice(0,7)),...safeE.map(e=>cleanDate(e.date).slice(0,7)),monthStr()].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
   const mA       = safeA.filter(a=>cleanDate(a.date).slice(0,7)===selMonth)
   const mE       = safeE.filter(e=>cleanDate(e.date).slice(0,7)===selMonth)
   const mDone    = mA.filter(a=>bool(a.completed))
@@ -677,7 +677,7 @@ function MonthlyIncomeState({appts,selMonth,setSelMonth,setTab}) {
   const safe   = Array.isArray(appts)?appts:[]
   const months = [...new Set([
     ...safe.map(a=>cleanDate(a.date).slice(0,7)),
-    new Date().toISOString().slice(0,7),
+    monthStr(),
   ].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
 
   const ma       = safe.filter(a=>cleanDate(a.date).slice(0,7)===selMonth)
@@ -739,7 +739,7 @@ function MonthlyBalance({appts,expenses,selMonth,setSelMonth,setTab}) {
   const months = [...new Set([
     ...safeA.map(a=>cleanDate(a.date).slice(0,7)),
     ...safeE.map(e=>cleanDate(e.date).slice(0,7)),
-    new Date().toISOString().slice(0,7),
+    monthStr(),
   ].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
 
   const ma = safeA.filter(a=>cleanDate(a.date).slice(0,7)===selMonth)
@@ -900,7 +900,7 @@ function ApptCard({appt,canEdit,onToggle,onEdit,onDelete}) {
   // Es una cita futura si su fecha es posterior a HOY (aún no llega
   // el día). En ese caso no se puede marcar como Completada ni como
   // No asistió — no tiene sentido. Editar y Eliminar sí siguen activos.
-  const today  = new Date().toISOString().slice(0,10)
+  const today  = todayStr()
   const isFuture = cleanDate(appt.date) > today
   const allowToggle = !isFuture
   // ¿Hay que recordar YA? Solo para citas pendientes de HOY cuya hora
@@ -1243,7 +1243,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose}) {
       servicePrice:svcTotal, domicilio:dom, domicilioPrice:dom?safeDomP:0,
       totalPrice:grand, address:dom?addr:'',
       date, time:cleanTime(time)||time,
-      createdAt:new Date().toISOString(), calendarCreated:false, calendarEventId:'', completed:false
+      createdAt:localNowISO(), calendarCreated:false, calendarEventId:'', completed:false
     }
     const res = await sync({
       appointments:[...appts,appt],
@@ -1600,7 +1600,7 @@ function ServicesTab({services,SS,confirm}) {
    FINANCES TAB
 ══════════════════════════════════════════════════════════════ */
 function FinancesTab({appts,expenses,SE,setTab,confirm}) {
-  const [month,setM]=useState(new Date().toISOString().slice(0,7))
+  const [month,setM]=useState(monthStr)
   const [desc,setD]=useState(''), [amount,setA]=useState(''), [cat,setC]=useState('Insumos'), [expDate,setED]=useState(todayStr())
   const [editId,setEI]=useState(null), [editData,setEData]=useState({})
   const [customCat,setCC]=useState('')
@@ -1610,7 +1610,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
 
   const safe=Array.isArray(expenses)?expenses:[]
   const safeA=Array.isArray(appts)?appts:[]
-  const months=[...new Set([...safeA.map(a=>cleanDate(a.date).slice(0,7)),...safe.map(e=>cleanDate(e.date).slice(0,7)),new Date().toISOString().slice(0,7)].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
+  const months=[...new Set([...safeA.map(a=>cleanDate(a.date).slice(0,7)),...safe.map(e=>cleanDate(e.date).slice(0,7)),monthStr()].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
   const usedCats=safe.map(e=>e.category).filter(Boolean)
   // All categories: default (minus hidden ones that have NO expenses) + custom from expenses
   const allCats=[...new Set([...DEF_CATS.filter(c=>!hiddenCats.includes(c)||usedCats.includes(c)),...usedCats])]
@@ -1903,10 +1903,10 @@ function MonthComparison({appts,expenses,setTab}) {
   const allMonths = [...new Set([
     ...safeA.map(a=>cleanDate(a.date).slice(0,7)),
     ...safeE.map(e=>cleanDate(e.date).slice(0,7)),
-    new Date().toISOString().slice(0,7),
+    monthStr(),
   ].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
 
-  const now  = new Date().toISOString().slice(0,7)
+  const now  = monthStr()
   const prev = allMonths.find(m=>m<now) || allMonths[1] || now
 
   const [mA, setMA] = useState(now)
@@ -2036,8 +2036,8 @@ function TopServices({appts,services,priceHistory,setTab}) {
   const now = new Date()
   const cutoff = {
     all:  null,
-    '3m': new Date(now.getFullYear(), now.getMonth()-2, 1).toISOString().slice(0,7),
-    '6m': new Date(now.getFullYear(), now.getMonth()-5, 1).toISOString().slice(0,7),
+    '3m': monthStr(new Date(now.getFullYear(), now.getMonth()-2, 1)),
+    '6m': monthStr(new Date(now.getFullYear(), now.getMonth()-5, 1)),
     year: `${now.getFullYear()}-01`,
   }[period]
 
@@ -2191,50 +2191,64 @@ function ReportTab({appts,expenses,services,setTab}) {
   const safeA = Array.isArray(appts)?appts:[]
   const safeE = Array.isArray(expenses)?expenses:[]
 
-  // Modo de filtro: 'day' (un día puntual) o 'range' (rango de fechas)
+  // Modo de filtro: 'day' (un día puntual), 'month' (mes en curso) o 'range'
   const [mode, setMode] = useState('day')
-  const today = new Date().toISOString().slice(0,10)
-  const [day,  setDay]  = useState(today)
-  const [from, setFrom]= useState(today)
-  const [to,   setTo]  = useState(today)
+  const today = todayStr()
+  const [day,   setDay]   = useState(today)
+  const [month, setMonth] = useState(monthStr())
+  const [from,  setFrom]  = useState(today)
+  const [to,    setTo]    = useState(today)
 
-  const fromVal = () => mode==='day' ? day : from
-  const toVal   = () => mode==='day' ? day : to
+  // Predicado de pertenencia al período (réplica del backend _inPeriod)
+  const inPeriod = d => {
+    const x = cleanDate(d)
+    if (!x) return false
+    if (mode === 'day')   return x === day
+    if (mode === 'month') return x.slice(0,7) === month
+    return x >= from && x <= to
+  }
+  // Rango from..to para filtrar gastos (range Inclusivo, en otros modos del día/mes)
+  const fromVal = () => mode==='day' ? day : mode==='month' ? month + '-01' : from
+  const toVal   = () => {
+    if (mode === 'day')   return day
+    if (mode === 'month') {
+      const [y, m] = month.split('-').map(Number)
+      const d = new Date(y, m, 0)  // día 0 del mes siguiente = último día
+      return `${y}-${String(m).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    }
+    return to
+  }
   const inRange = (d, a, b) => { const x = cleanDate(d); return x && x >= a && x <= b }
+  const monthLabel = ym => {
+    const NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+    const [y, m] = String(ym).split('-')
+    return NAMES[Number(m) - 1] + ' ' + y
+  }
   const periodLabel = () =>
-    mode==='day' ? fmtDate(day)
-                 : (from===to ? fmtDate(from) : `${fmtDate(from)} — ${fmtDate(to)}`)
+    mode==='day'   ? fmtDate(day)
+  : mode==='month' ? monthLabel(month)
+  : (from===to ? fmtDate(from) : `${fmtDate(from)} — ${fmtDate(to)}`)
 
-  // Citas agendadas PARA el período (por fecha de la cita) — base
-  // para completadas / pendientes / no-show / ingresos.
-  const apptsInPeriod = safeA.filter(a => {
-    const d = cleanDate(a.date)
-    if (!d) return false
-    return mode==='day' ? d===day : inRange(d, from, to)
-  })
+  // Citas agendadas PARA el período (por fecha de la cita)
+  const apptsInPeriod = safeA.filter(a => inPeriod(a.date))
 
-  // Citas CREADAS en el período (por createdAt) — pueden tener la
-  // fecha de la cita en otro día (ej: hoy agendo una para mañana).
-  // Caso: creaste 4 hoy, 3 son para hoy y 1 para mañana → aquí
-  // cuenta 4 porque las 4 se registraron hoy; en apptsInPeriod solo
-  // aparecen las 3 que son para hoy.
+  // Citas CREADAS en el período (por createdAt) — la cita puede tener
+  // fecha para otro día (ej: hoy agendo una para mañana).
   const createdInPeriod = safeA.filter(a => {
     const c = cleanDate(String(a.createdAt||'').slice(0,10)) || cleanDate(a.date)
-    if (!c) return false
-    return mode==='day' ? c===day : inRange(c, from, to)
+    return inPeriod(c)
   })
   const created = createdInPeriod.length
 
-  // Métricas clave (sobre las citas agendadas PARA el período)
+  // Métricas clave
   const scheduled = apptsInPeriod.length
   const completed  = apptsInPeriod.filter(a => bool(a.completed) && a.completed!=='noshow').length
   const pending    = apptsInPeriod.filter(a => !bool(a.completed) && a.completed!=='noshow').length
   const noshow     = apptsInPeriod.filter(a => a.completed==='noshow').length
-  // Tasa de completado/no-show sobre las agendadas (no sobre las creadas)
   const cancelledRate  = scheduled>0 ? Math.round(noshow/scheduled*100) : 0
   const completionRate = scheduled>0 ? Math.round(completed/scheduled*100) : 0
 
-  // Ingresos: solo citas completadas (sin no-show)
+  // Ingresos: solo citas completadas (sin no-show) — incluyen el domicilio
   const revenue = apptsInPeriod
     .filter(a => bool(a.completed) && a.completed!=='noshow')
     .reduce((s,a) => s + toN(a.totalPrice||a.servicePrice||0), 0)
@@ -2248,10 +2262,10 @@ function ReportTab({appts,expenses,services,setTab}) {
   const totalExpenses = expensesInPeriod.reduce((s,e) => s + toN(e.amount||0), 0)
   const neto = revenue - totalExpenses
 
-  // Ticket promedio (sobre completadas)
   const avgTicket = completed>0 ? Math.round(revenue/completed) : 0
 
-  // Domicilios
+  // Domicilios (cantidad de citas + ingresos por domicilio, estos últimos
+  // ya van incluidos en `revenue` como parte de totalPrice)
   const domicilios = apptsInPeriod.filter(a => bool(a.domicilio)).length
   const domRevenue = apptsInPeriod
     .filter(a => bool(a.completed) && a.completed!=='noshow' && bool(a.domicilio))
@@ -2264,7 +2278,6 @@ function ReportTab({appts,expenses,services,setTab}) {
     names.forEach(n => {
       if (!svcStats[n]) svcStats[n] = {name:n, count:0, revenue:0}
       svcStats[n].count += 1
-      // Reparto simple (fallback); el cálculo fino está en TopServices
       svcStats[n].revenue += names.length ? toN(a.servicePrice)/names.length : toN(a.servicePrice)
     })
   })
@@ -2288,23 +2301,21 @@ function ReportTab({appts,expenses,services,setTab}) {
       ['Citas pendientes', pending],
       ['Tasa de completado (%)', completionRate],
       [''],
-      ['Ingresos (completadas)', revenue],
+      ['Ingresos completadas (incl. domicilios)', revenue],
       ['Ingresos proyectados (con pendientes)', projected],
       [''],
       ['Gastos del período', totalExpenses],
       ['Neto (ingresos - gastos)', neto],
       [''],
-      ['Servicios a domicilio', domicilios],
-      ['Ingresos por domicilio', domRevenue],
+      ['Domicilios (cantidad)', domicilios],
+      ['Domicilios ingresos', domRevenue],
+      ['Nota: dom. ingresos ya incluidos en Ingresos completadas', ''],
     ]
     const ws1 = XLSX.utils.aoa_to_sheet(resumen)
-    ws1['!cols'] = [{wch:34},{wch:18}]
+    ws1['!cols'] = [{wch:48},{wch:18}]
     XLSX.utils.book_append_sheet(wb, ws1, 'Resumen')
 
     // Hoja 2: Detalle de citas
-    // Incluye las agendadas PARA el período + las CREADAS en el
-    // período que se agendaron fuera de él (para no "perder" citas
-    // como la que se crea hoy pero se atiende mañana).
     const detailSet = new Map()
     apptsInPeriod.forEach(a => detailSet.set(a.id, a))
     createdInPeriod.forEach(a => { if (!detailSet.has(a.id)) detailSet.set(a.id, a) })
@@ -2336,7 +2347,7 @@ function ReportTab({appts,expenses,services,setTab}) {
     ws3['!cols'] = [{wch:10},{wch:30},{wch:18},{wch:12}]
     XLSX.utils.book_append_sheet(wb, ws3, 'Gastos')
 
-    const name = `reporte_${mode==='day'?day:`${from}_${to}`}.xlsx`
+    const name = `reporte_${mode==='day'?day:mode==='month'?month:`${from}_${to}`}.xlsx`
     XLSX.writeFile(wb, name)
   }
 
@@ -2359,12 +2370,12 @@ function ReportTab({appts,expenses,services,setTab}) {
       `• Tasa completado: *${completionRate}%*`,
       '',
       `${MONEY} *Ingresos*`,
-      `• Recibido: *${fmtM(revenue)}*`,
+      `• Recibido (incl. domicilios): *${fmtM(revenue)}*`,
       `• Proyectado: *${fmtM(projected)}*`,
       `• Gastos: *${fmtM(totalExpenses)}*`,
       `• Neto: *${fmtM(neto)}*`,
     ]
-    if (domicilios>0) lines.push('', `${MOTO} *Domicilios*: ${domicilios} · ${fmtM(domRevenue)}`)
+    if (domicilios>0) lines.push('', `${MOTO} *Domicilios*: ${domicilios} · ${fmtM(domRevenue)} (incl. en ingresos)`)
     if (topByDemand.length>0) {
       lines.push('', `${SPARK} *Top servicios*`)
       topByDemand.slice(0,3).forEach((s,i) => lines.push(`${['1.','2.','3.'][i]} ${s.name} — ${s.count}x (${fmtM(Math.round(s.revenue))})`))
@@ -2375,12 +2386,24 @@ function ReportTab({appts,expenses,services,setTab}) {
     window.open(url, '_blank')
   }
 
-  const Metric = ({label, value, color, big}) => (
+  const Metric = ({label, value, color, big, sub}) => (
     <div style={{background:'var(--bg2)',borderRadius:12,padding:'12px 10px',textAlign:'center'}}>
       <div style={{fontSize:10,textTransform:'uppercase',letterSpacing:'.05em',color:'var(--t2)',fontWeight:600,marginBottom:4}}>{label}</div>
       <div style={{fontSize:big?22:18,fontWeight:700,color:color||'var(--t)'}}>{value}</div>
+      {sub && <div style={{fontSize:9,color:'var(--t2)',marginTop:2}}>{sub}</div>}
     </div>
   )
+
+  // Estilos reutilizables para los chips de modo
+  const chipStyle = active => ({
+    flex:1,
+    background: active ? 'var(--primary)' : 'white',
+    color: active ? 'white' : 'var(--t2)',
+    border: '1.5px solid',
+    borderColor: active ? 'var(--primary)' : 'var(--border)',
+    borderRadius:20, padding:'8px 14px',
+    fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit',
+  })
 
   return (
     <div>
@@ -2389,19 +2412,18 @@ function ReportTab({appts,expenses,services,setTab}) {
         <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>📊 Reporte</span>
       </div>
 
-      {/* Modo de filtrado */}
+      {/* Modo de filtrado — 3 chips: día / mes / rango */}
       <div style={{display:'flex',gap:8,marginBottom:14}}>
-        <button onClick={()=>setMode('day')} style={{flex:1,background:mode==='day'?'var(--primary)':'white',color:mode==='day'?'white':'var(--t2)',border:'1.5px solid',borderColor:mode==='day'?'var(--primary)':'var(--border)',borderRadius:20,padding:'8px 14px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-          📅 Por día
-        </button>
-        <button onClick={()=>setMode('range')} style={{flex:1,background:mode==='range'?'var(--primary)':'white',color:mode==='range'?'white':'var(--t2)',border:'1.5px solid',borderColor:mode==='range'?'var(--primary)':'var(--border)',borderRadius:20,padding:'8px 14px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-          📆 Por rango
-        </button>
+        <button onClick={()=>setMode('day')}   style={chipStyle(mode==='day')}>📅 Por día</button>
+        <button onClick={()=>setMode('month')} style={chipStyle(mode==='month')}>🗓️ Por mes</button>
+        <button onClick={()=>setMode('range')} style={chipStyle(mode==='range')}>📆 Por rango</button>
       </div>
 
-      {/* Selector de fecha(s) */}
+      {/* Selector de fecha(s) según el modo */}
       {mode==='day'
         ? <div style={{marginBottom:14}}><label className="lbl">Día</label><input type="date" className="inp" value={day} max={today} onChange={e=>setDay(e.target.value)}/></div>
+        : mode==='month'
+        ? <div style={{marginBottom:14}}><label className="lbl">Mes</label><input type="month" className="inp" value={month} max={monthStr()} onChange={e=>setMonth(e.target.value)}/></div>
         : <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
             <div><label className="lbl">Desde</label><input type="date" className="inp" value={from} max={today} onChange={e=>setFrom(e.target.value)}/></div>
             <div><label className="lbl">Hasta</label><input type="date" className="inp" value={to} max={today} onChange={e=>setTo(e.target.value)}/></div>
@@ -2429,14 +2451,14 @@ function ReportTab({appts,expenses,services,setTab}) {
       {/* Métricas de dinero */}
       <div style={{fontWeight:700,fontSize:14,marginBottom:10}}>💰 Dinero</div>
       <div style={{background:'linear-gradient(135deg,var(--primary),var(--primary-d))',borderRadius:14,padding:'14px 18px',marginBottom:8,color:'white'}}>
-        <div style={{fontSize:11,opacity:.8,textTransform:'uppercase',letterSpacing:'.05em',fontWeight:600,marginBottom:4}}>Ingresos (completadas)</div>
+        <div style={{fontSize:11,opacity:.8,textTransform:'uppercase',letterSpacing:'.05em',fontWeight:600,marginBottom:4}}>Ingresos completadas (incl. domicilios)</div>
         <div style={{fontFamily:'Georgia,serif',fontSize:28,fontWeight:700}}>{fmtM(revenue)}</div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:18}}>
-        <Metric label="Proyectado"   value={fmtM(projected)}    color="var(--gold)" />
-        <Metric label="Domicilios"  value={`${domicilios} · ${fmtM(domRevenue)}`} />
-        <Metric label="Gastos"       value={fmtM(totalExpenses)} color="var(--red)" />
-        <Metric label="Neto"         value={fmtM(neto)}          color={neto>=0?'var(--green)':'var(--red)'} />
+        <Metric label="Proyectado" value={fmtM(projected)} color="var(--gold)" />
+        <Metric label="Domicilios" value={`${domicilios} · ${fmtM(domRevenue)}`} sub="incl. en ingresos" />
+        <Metric label="Gastos"      value={fmtM(totalExpenses)} color="var(--red)" />
+        <Metric label="Neto"        value={fmtM(neto)} color={neto>=0?'var(--green)':'var(--red)'} />
       </div>
 
       {/* Top servicios del período */}
@@ -2476,10 +2498,10 @@ function ReportTab({appts,expenses,services,setTab}) {
 ══════════════════════════════════════════════════════════════ */
 function IncomeDetail({appts,setTab,tabExtra}) {
   const initFilter = tabExtra?.filter || 'all'
-  const [month,setM] = useState(tabExtra?.month || new Date().toISOString().slice(0,7))
+  const [month,setM] = useState(tabExtra?.month || monthStr())
   const [filter,setF]= useState(initFilter) // 'all'|'completed'|'pending'
   const safe   = Array.isArray(appts)?appts:[]
-  const months = [...new Set([...safe.map(a=>cleanDate(a.date).slice(0,7)),new Date().toISOString().slice(0,7)].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
+  const months = [...new Set([...safe.map(a=>cleanDate(a.date).slice(0,7)),monthStr()].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
   const ma     = [...safe].filter(a=>cleanDate(a.date).slice(0,7)===month).sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date)))
   const done   = ma.filter(a=>bool(a.completed)&&a.completed!=='noshow')
   const noshow = ma.filter(a=>a.completed==='noshow')
@@ -2745,10 +2767,10 @@ function SettingsTab({clients, appts, expenses, resetAll, themeMode, themePalett
    EXPENSE DETAIL
 ══════════════════════════════════════════════════════════════ */
 function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
-  const [month,setM]=useState(tabExtra?.month || new Date().toISOString().slice(0,7))
+  const [month,setM]=useState(tabExtra?.month || monthStr())
   const [editId,setEI]=useState(null), [editData,setED]=useState({})
   const safe=Array.isArray(expenses)?expenses:[]
-  const months=[...new Set([...safe.map(e=>cleanDate(e.date).slice(0,7)),new Date().toISOString().slice(0,7)].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
+  const months=[...new Set([...safe.map(e=>cleanDate(e.date).slice(0,7)),monthStr()].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
   const me=[...safe].filter(e=>cleanDate(e.date).slice(0,7)===month).sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date)))
   const tot=me.reduce((s,e)=>s+toN(e.amount||0),0)
   const allCats=[...new Set([...DEF_CATS,...safe.map(e=>e.category).filter(Boolean)])]
