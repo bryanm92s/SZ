@@ -301,7 +301,7 @@ export default function App() {
           ['clients',    'people', 'Clientes'],
           ['services',   'stars',  'Servicios'],
           ['finances',   'chart',  'Finanzas'],
-          ['calendar', 'cal', 'Calendario'],
+          ['calendar', 'cal2', 'Calendario'],
           ['settings',   'gear',   'Ajustes'],
         ].map(([id,ic,lb])=>(
           <button key={id} onClick={()=>setTab(id)} className={`nb${tab===id?' act':''}`}
