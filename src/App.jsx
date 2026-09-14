@@ -10,57 +10,175 @@ import {
    CONSTANTS & HELPERS  (los helpers puros viv en src/helpers.js)
 ══════════════════════════════════════════════════════════════ */
 
-/* ── Theme System ── */
+/* ── Theme System ── Modern Flat + Neumorphism + Glassmorphism ── */
 const PALETTES = [
-  { id:'rosa',    name:'Rosa',    emoji:'🌸', primary:'#B5524A', pd:'#8E3E38', pl:'#FAEAE8', bg:'#F7F0EC', border:'#E8D0CC', t:'#1E0E0C', t2:'#7A5E5A' },
-  { id:'morado',  name:'Morado',  emoji:'💜', primary:'#7C4DBD', pd:'#5D3A8E', pl:'#EDE6F8', bg:'#F4F0FA', border:'#D8CFF0', t:'#1A1228', t2:'#6A5A80' },
-  { id:'azul',    name:'Azul',    emoji:'💙', primary:'#3A6FBD', pd:'#2A5290', pl:'#E6EEF8', bg:'#F0F4FA', border:'#C8D8EE', t:'#0E1A2C', t2:'#5A6A80' },
-  { id:'verde',   name:'Verde',   emoji:'💚', primary:'#2E7D52', pd:'#1F5C3C', pl:'#E6F5EC', bg:'#F0F8F4', border:'#C0E0CC', t:'#0A1E14', t2:'#4A7060' },
-  { id:'dorado',  name:'Dorado',  emoji:'✨', primary:'#A07820', pd:'#785A14', pl:'#FAF4E0', bg:'#FAF6EE', border:'#E8DEB8', t:'#1E1A0C', t2:'#7A7040' },
-  { id:'fucsia',  name:'Fucsia',  emoji:'🌺', primary:'#C04A82', pd:'#903060', pl:'#FCE6F2', bg:'#FDF0F8', border:'#ECC8DF', t:'#1E0C18', t2:'#7A5070' },
+  { 
+    id:'rosa',    
+    name:'Rosa',    
+    emoji:'🌸', 
+    primary:'#B5524A', 
+    pd:'#8E3E38', 
+    pl:'#FAEAE8', 
+    bg:'#F7F0EC', 
+    border:'#E8D0CC', 
+    t:'#1E0E0C', 
+    t2:'#7A5E5A',
+    gradient:'linear-gradient(135deg, #B5524A 0%, #D47A6A 50%, #E8A898 100%)',
+    gradientSoft:'linear-gradient(135deg, #FAEAE8 0%, #F7F0EC 50%, #E8D0CC 100%)',
+    glass:'rgba(181, 82, 74, 0.12)',
+    glassStrong:'rgba(181, 82, 74, 0.25)',
+    neoLight:'#FFFFFF',
+    neoDark:'#E8D0CC',
+    neoShadow:'rgba(181, 82, 74, 0.15)',
+    neoShadowDark:'rgba(142, 62, 56, 0.2)'
+  },
+  { 
+    id:'morado',  
+    name:'Morado',  
+    emoji:'💜', 
+    primary:'#7C4DBD', 
+    pd:'#5D3A8E', 
+    pl:'#EDE6F8', 
+    bg:'#F4F0FA', 
+    border:'#D8CFF0', 
+    t:'#1A1228', 
+    t2:'#6A5A80',
+    gradient:'linear-gradient(135deg, #7C4DBD 0%, #9B6FD8 50%, #B898F0 100%)',
+    gradientSoft:'linear-gradient(135deg, #EDE6F8 0%, #F4F0FA 50%, #D8CFF0 100%)',
+    glass:'rgba(124, 77, 189, 0.12)',
+    glassStrong:'rgba(124, 77, 189, 0.25)',
+    neoLight:'#FFFFFF',
+    neoDark:'#D8CFF0',
+    neoShadow:'rgba(124, 77, 189, 0.15)',
+    neoShadowDark:'rgba(93, 58, 142, 0.2)'
+  },
+  { 
+    id:'azul',    
+    name:'Azul',    
+    emoji:'💙', 
+    primary:'#3A6FBD', 
+    pd:'#2A5290', 
+    pl:'#E6EEF8', 
+    bg:'#F0F4FA', 
+    border:'#C8D8EE', 
+    t:'#0E1A2C', 
+    t2:'#5A6A80',
+    gradient:'linear-gradient(135deg, #3A6FBD 0%, #5A8FD8 50%, #8AAEF0 100%)',
+    gradientSoft:'linear-gradient(135deg, #E6EEF8 0%, #F0F4FA 50%, #C8D8EE 100%)',
+    glass:'rgba(58, 111, 189, 0.12)',
+    glassStrong:'rgba(58, 111, 189, 0.25)',
+    neoLight:'#FFFFFF',
+    neoDark:'#C8D8EE',
+    neoShadow:'rgba(58, 111, 189, 0.15)',
+    neoShadowDark:'rgba(42, 82, 144, 0.2)'
+  },
+  { 
+    id:'verde',   
+    name:'Verde',   
+    emoji:'💚', 
+    primary:'#2E7D52', 
+    pd:'#1F5C3C', 
+    pl:'#E6F5EC', 
+    bg:'#F0F8F4', 
+    border:'#C0E0CC', 
+    t:'#0A1E14', 
+    t2:'#4A7060',
+    gradient:'linear-gradient(135deg, #2E7D52 0%, #4A9D6E 50%, #7AC898 100%)',
+    gradientSoft:'linear-gradient(135deg, #E6F5EC 0%, #F0F8F4 50%, #C0E0CC 100%)',
+    glass:'rgba(46, 125, 82, 0.12)',
+    glassStrong:'rgba(46, 125, 82, 0.25)',
+    neoLight:'#FFFFFF',
+    neoDark:'#C0E0CC',
+    neoShadow:'rgba(46, 125, 82, 0.15)',
+    neoShadowDark:'rgba(31, 92, 60, 0.2)'
+  },
+  { 
+    id:'dorado',  
+    name:'Dorado',  
+    emoji:'✨', 
+    primary:'#A07820', 
+    pd:'#785A14', 
+    pl:'#FAF4E0', 
+    bg:'#FAF6EE', 
+    border:'#E8DEB8', 
+    t:'#1E1A0C', 
+    t2:'#7A7040',
+    gradient:'linear-gradient(135deg, #A07820 0%, #C49A2A 50%, #E8C858 100%)',
+    gradientSoft:'linear-gradient(135deg, #FAF4E0 0%, #FAF6EE 50%, #E8DEB8 100%)',
+    glass:'rgba(160, 120, 32, 0.12)',
+    glassStrong:'rgba(160, 120, 32, 0.25)',
+    neoLight:'#FFFFFF',
+    neoDark:'#E8DEB8',
+    neoShadow:'rgba(160, 120, 32, 0.15)',
+    neoShadowDark:'rgba(120, 90, 20, 0.2)'
+  },
+  { 
+    id:'fucsia',  
+    name:'Fucsia',  
+    emoji:'🌺', 
+    primary:'#C04A82', 
+    pd:'#903060', 
+    pl:'#FCE6F2', 
+    bg:'#FDF0F8', 
+    border:'#ECC8DF', 
+    t:'#1E0C18', 
+    t2:'#7A5070',
+    gradient:'linear-gradient(135deg, #C04A82 0%, #D86AA0 50%, #F098C8 100%)',
+    gradientSoft:'linear-gradient(135deg, #FCE6F2 0%, #FDF0F8 50%, #ECC8DF 100%)',
+    glass:'rgba(192, 74, 130, 0.12)',
+    glassStrong:'rgba(192, 74, 130, 0.25)',
+    neoLight:'#FFFFFF',
+    neoDark:'#ECC8DF',
+    neoShadow:'rgba(192, 74, 130, 0.15)',
+    neoShadowDark:'rgba(144, 48, 96, 0.2)'
+  },
 ]
-const applyTheme = (pid, mode) => {
+
+const applyTheme = (pid) => {
   const p = PALETTES.find(x=>x.id===pid)||PALETTES[0]
   const r = document.documentElement.style
-  if (mode==='dark') {
-    r.setProperty('--primary',   p.primary)
-    r.setProperty('--primary-d', p.pd)
-    r.setProperty('--primary-l', p.pd+'55')
-    r.setProperty('--bg',        '#131013')
-    r.setProperty('--card',      '#1E1A1D')
-    r.setProperty('--surface',   '#271E25')
-    r.setProperty('--border',    '#3A2C36')
-    r.setProperty('--t',         '#F0E8EC')
-    r.setProperty('--t2',        '#A08898')
-    r.setProperty('--green',     '#4ABA80')
-    r.setProperty('--green-bg',  '#0B2A1A')
-    r.setProperty('--gold',      '#D4AA40')
-    r.setProperty('--gold-bg',   '#2A2200')
-    r.setProperty('--red',       '#E06060')
-    r.setProperty('--red-bg',    '#2A0E0E')
-    r.setProperty('--warn-bg',   '#2A2000')
-    r.setProperty('--warn-t',    '#F0C060')
-    r.setProperty('--input-bg',  '#271E25')
-  } else {
-    r.setProperty('--primary',   p.primary)
-    r.setProperty('--primary-d', p.pd)
-    r.setProperty('--primary-l', p.pl)
-    r.setProperty('--bg',        p.bg)
-    r.setProperty('--card',      '#FFFFFF')
-    r.setProperty('--surface',   '#FFFFFF')
-    r.setProperty('--border',    p.border)
-    r.setProperty('--t',         p.t)
-    r.setProperty('--t2',        p.t2)
-    r.setProperty('--green',     '#2E7D52')
-    r.setProperty('--green-bg',  '#EDF7F0')
-    r.setProperty('--gold',      '#C49A1A')
-    r.setProperty('--gold-bg',   '#FFF8E6')
-    r.setProperty('--red',       '#B03030')
-    r.setProperty('--red-bg',    '#FFF0F0')
-    r.setProperty('--warn-bg',   '#FFF4DC')
-    r.setProperty('--warn-t',    '#7A5000')
-    r.setProperty('--input-bg',  '#FFFFFF')
-  }
+  
+  r.setProperty('--primary',   p.primary)
+  r.setProperty('--primary-d', p.pd)
+  r.setProperty('--primary-l', p.pl)
+  r.setProperty('--bg',        p.bg)
+  r.setProperty('--card',      '#FFFFFF')
+  r.setProperty('--surface',   '#FFFFFF')
+  r.setProperty('--border',    p.border)
+  r.setProperty('--t',         p.t)
+  r.setProperty('--t2',        p.t2)
+  r.setProperty('--green',     '#2E7D52')
+  r.setProperty('--green-bg',  '#EDF7F0')
+  r.setProperty('--gold',      '#C49A1A')
+  r.setProperty('--gold-bg',   '#FFF8E6')
+  r.setProperty('--red',       '#B03030')
+  r.setProperty('--red-bg',    '#FFF0F0')
+  r.setProperty('--warn-bg',   '#FFF4DC')
+  r.setProperty('--warn-t',    '#7A5000')
+  r.setProperty('--input-bg',  '#FFFFFF')
+  
+  /* ── Gradient & Glassmorphism ── */
+  r.setProperty('--gradient',       p.gradient)
+  r.setProperty('--gradient-soft',  p.gradientSoft)
+  r.setProperty('--glass',          p.glass)
+  r.setProperty('--glass-strong',   p.glassStrong)
+  
+  /* ── Neumorphism ── */
+  r.setProperty('--neo-light',      p.neoLight)
+  r.setProperty('--neo-dark',       p.neoDark)
+  r.setProperty('--neo-shadow',     p.neoShadow)
+  r.setProperty('--neo-shadow-dark',p.neoShadowDark)
+  
+  /* ── Flat shadows ── */
+  r.setProperty('--shadow-sm',      '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)')
+  r.setProperty('--shadow-md',      '0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)')
+  r.setProperty('--shadow-lg',      '0 12px 32px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.05)')
+  r.setProperty('--shadow-xl',      '0 20px 48px rgba(0,0,0,0.12), 0 8px 16px rgba(0,0,0,0.06)')
+  r.setProperty('--shadow-inner',   'inset 0 2px 4px rgba(0,0,0,0.04)')
+  
+  /* ── Glassmorphism blur ── */
+  r.setProperty('--glass-blur',     'blur(20px)')
+  r.setProperty('--glass-blur-sm',  'blur(12px)')
 }
 /* ── Business config — set these in Vercel environment variables ── */
 const BIZ_NAME     = import.meta.env.VITE_BIZ_NAME     || 'Mi Negocio'
@@ -178,13 +296,12 @@ export default function App() {
     })
   }, [])
 
-  const [themeMode,   setThemeMode]   = useState(()=>{ try{return localStorage.getItem('sz_mode')||'light'}catch{return 'light'} })
   const [themePalette,setThemePalette]= useState(()=>{ try{return localStorage.getItem('sz_palette')||'rosa'}catch{return 'rosa'} })
 
   useEffect(()=>{
-    applyTheme(themePalette, themeMode)
-    try{ localStorage.setItem('sz_mode',themeMode); localStorage.setItem('sz_palette',themePalette) }catch{}
-  },[themePalette,themeMode])
+    applyTheme(themePalette)
+    try{ localStorage.setItem('sz_palette',themePalette) }catch{}
+  },[themePalette])
 
   useEffect(()=>{
     // Título de la pestaña: emoji + nombre
@@ -266,7 +383,7 @@ export default function App() {
       saveData({action:'deleteCalendarEvent',eventId:appt.calendarEventId}).catch(()=>{})
   }, [appts, SA])
 
-  const p = {clients,services,appts,expenses,SC,SS,SA,SE,sync,deleteAppt,setTab,confirm,infoModal,tabExtra,resetAll,themeMode,themePalette,setThemeMode,setThemePalette,priceHistory}
+  const p = {clients,services,appts,expenses,SC,SS,SA,SE,sync,deleteAppt,setTab,confirm,infoModal,tabExtra,resetAll,themePalette,setThemePalette,priceHistory}
 
   if (status==='loading') return <Cent><div style={{fontSize:52,animation:'pulse 2s ease-in-out infinite'}}>{BIZ_EMOJI}</div></Cent>
   if (status==='noconfig') return <Cent><div style={{fontSize:36,marginBottom:8}}>⚙️</div><p style={{fontSize:16,fontWeight:600}}>Configura VITE_SCRIPT_URL y VITE_TOKEN en Vercel</p></Cent>
@@ -277,24 +394,24 @@ export default function App() {
       {modal?.type==='confirm' && <Modal msg={modal.msg} onOk={()=>{modal.onOk();setModal(null)}} onCancel={()=>setModal(null)}/>}
       {modal?.type==='info'    && <Modal msg={modal.msg} onOk={()=>setModal(null)} okLabel="Entendido" cancelLabel={null}/>}
 
-      <header style={{background:'var(--primary)',padding:'13px 18px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100,boxShadow:'0 2px 12px rgba(180,100,100,0.18)'}}>
+      <header style={{background:'var(--gradient)',padding:'14px 18px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100,boxShadow:'var(--shadow-md)',borderBottom:'1px solid rgba(255,255,255,0.2)'}}>
         <div style={{display:'flex',alignItems:'center',gap:11}}>
           {BIZ_LOGO
-            ? <img src={BIZ_LOGO} alt={BIZ_NAME} style={{height:38,width:'auto',objectFit:'contain',flexShrink:0,filter:'drop-shadow(0 1px 3px rgba(0,0,0,0.2))'}}/>
-            : <div style={{fontSize:26}}>{BIZ_EMOJI}</div>
+            ? <img src={BIZ_LOGO} alt={BIZ_NAME} style={{height:40,width:'auto',objectFit:'contain',flexShrink:0,filter:'drop-shadow(0 2px 8px rgba(0,0,0,0.15))'}}/>
+            : <div style={{fontSize:28,filter:'drop-shadow(0 2px 4px rgba(0,0,0,0.15))'}}>{BIZ_EMOJI}</div>
           }
           <div>
-            <div style={{fontFamily:'Georgia,serif',fontSize:15,color:'white',fontWeight:700}}>{BIZ_NAME}</div>
-            <div style={{fontSize:9,color:'rgba(255,255,255,0.78)',letterSpacing:'0.14em',textTransform:'uppercase'}}>{BIZ_SUBTITLE||BIZ_NAME}</div>
+            <div style={{fontFamily:'Georgia,serif',fontSize:16,color:'white',fontWeight:700,textShadow:'0 1px 3px rgba(0,0,0,0.2)'}}>{BIZ_NAME}</div>
+            <div style={{fontSize:9,color:'rgba(255,255,255,0.85)',letterSpacing:'0.14em',textTransform:'uppercase',fontWeight:500}}>{BIZ_SUBTITLE||BIZ_NAME}</div>
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={()=>refresh(true)} style={{background:'rgba(255,255,255,0.15)',border:'none',borderRadius:20,padding:'5px 10px',color:'white',fontSize:14,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>↻</button>
+          <button onClick={()=>refresh(true)} style={{background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:20,padding:'6px 12px',color:'white',fontSize:14,cursor:'pointer',fontFamily:'inherit',fontWeight:600,backdropFilter:'var(--glass-blur-sm)',webkitBackdropFilter:'var(--glass-blur-sm)',transition:'all .15s'}} onMouseOver={e=>e.target.style.background='rgba(255,255,255,0.3)'} onMouseOut={e=>e.target.style.background='rgba(255,255,255,0.2)'}>↻</button>
           <SyncBadge status={status} lastSync={lastSync}/>
         </div>
       </header>
 
-      <nav style={{background:'var(--surface)',borderBottom:'1px solid var(--border)',display:'flex',overflowX:'auto',padding:'0 2px',position:'sticky',top:58,zIndex:99,scrollbarWidth:'none'}}>
+      <nav style={{background:'rgba(255,255,255,0.8)',backdropFilter:'var(--glass-blur)',webkitBackdropFilter:'var(--glass-blur)',borderBottom:'1px solid rgba(0,0,0,0.04)',display:'flex',overflowX:'auto',padding:'0 2px',position:'sticky',top:62,zIndex:99,scrollbarWidth:'none',boxShadow:'var(--shadow-sm)'}}>
         {[
           ['dashboard',  'grid',   'Panel'],
           ['appointments','cal',   'Citas'],
@@ -329,7 +446,7 @@ export default function App() {
         {tab==='report'          && <ReportTab       {...p}/>}
       </main>
 
-      <footer style={{textAlign:'center',padding:'20px 14px 28px',borderTop:'1px solid var(--border)',marginTop:8,background:'var(--surface)'}}>
+      <footer style={{textAlign:'center',padding:'20px 14px 28px',borderTop:'1px solid var(--border)',marginTop:8,background:'rgba(255,255,255,0.7)',backdropFilter:'var(--glass-blur)',webkitBackdropFilter:'var(--glass-blur)'}}>
         <span style={{fontSize:11,color:'var(--t2)',letterSpacing:'.03em',display:'inline-flex',alignItems:'center',gap:6,flexWrap:'wrap',justifyContent:'center'}}>
           <span>{BIZ_EMOJI} {BIZ_NAME}</span>
           <span style={{color:'var(--border)'}}>|</span>
@@ -348,13 +465,13 @@ export default function App() {
 
 function Modal({msg, onOk, onCancel, okLabel='Eliminar', cancelLabel='Cancelar'}) {
   return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:'var(--surface)',borderRadius:20,padding:28,maxWidth:340,width:'100%',textAlign:'center',boxShadow:'0 20px 60px rgba(0,0,0,0.2)'}}>
-        <div style={{fontSize:36,marginBottom:12}}>⚠️</div>
-        <div style={{fontSize:15,fontWeight:600,color:'var(--t)',marginBottom:18,lineHeight:1.5}}>{msg}</div>
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20,backdropFilter:'var(--glass-blur-sm)',webkitBackdropFilter:'var(--glass-blur-sm)'}}>
+      <div style={{background:'rgba(255,255,255,0.95)',backdropFilter:'var(--glass-blur)',webkitBackdropFilter:'var(--glass-blur)',borderRadius:24,padding:32,maxWidth:360,width:'100%',textAlign:'center',boxShadow:'var(--shadow-xl)',border:'1px solid rgba(255,255,255,0.5)'}}>
+        <div style={{fontSize:40,marginBottom:16}}>⚠️</div>
+        <div style={{fontSize:15,fontWeight:600,color:'var(--t)',marginBottom:22,lineHeight:1.5}}>{msg}</div>
         <div style={{display:'flex',gap:10,justifyContent:'center'}}>
           {cancelLabel && <button className="btn-o" style={{flex:1}} onClick={onCancel}>{cancelLabel}</button>}
-          <button className="btn" style={{flex:1,background:okLabel==='Eliminar'?'#B03030':'var(--primary)'}} onClick={onOk}>{okLabel}</button>
+          <button className="btn" style={{flex:1,background:okLabel==='Eliminar'?'linear-gradient(135deg, #B03030 0%, #D04040 100%)':'var(--gradient)'}} onClick={onOk}>{okLabel}</button>
         </div>
       </div>
     </div>
@@ -446,59 +563,524 @@ function SyncBadge({status,lastSync}) {
   return <div style={{background:c.bg,color:c.col,borderRadius:20,padding:'4px 10px',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>{c.l}</div>
 }
 
-/* ── Global CSS ── */
+/* ── Global CSS ── Modern Flat + Neumorphism + Glassmorphism ── */
 function GS() { return <style>{`
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
   :root{
     --primary:#B5524A;--primary-d:#8E3E38;--primary-l:#FAEAE8;
     --bg:#F7F0EC;--card:#FFFFFF;--surface:#FFFFFF;--border:#E8D0CC;
     --t:#1E0E0C;--t2:#7A5E5A;--gold:#C49A1A;--gold-bg:#FFF8E6;
     --green:#2E7D52;--green-bg:#EDF7F0;--red:#B03030;--red-bg:#FFF0F0;
     --warn-bg:#FFF4DC;--warn-t:#7A5000;--input-bg:#FFFFFF;
+    /* Gradient & Glassmorphism (updated by applyTheme) */
+    --gradient:linear-gradient(135deg, #B5524A 0%, #D47A6A 50%, #E8A898 100%);
+    --gradient-soft:linear-gradient(135deg, #FAEAE8 0%, #F7F0EC 50%, #E8D0CC 100%);
+    --glass:rgba(181, 82, 74, 0.12);
+    --glass-strong:rgba(181, 82, 74, 0.25);
+    /* Neumorphism */
+    --neo-light:#FFFFFF;
+    --neo-dark:#E8D0CC;
+    --neo-shadow:rgba(181, 82, 74, 0.15);
+    --neo-shadow-dark:rgba(142, 62, 56, 0.2);
+    /* Flat shadows */
+    --shadow-sm:0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md:0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+    --shadow-lg:0 12px 32px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.05);
+    --shadow-xl:0 20px 48px rgba(0,0,0,0.12), 0 8px 16px rgba(0,0,0,0.06);
+    --shadow-inner:inset 0 2px 4px rgba(0,0,0,0.04);
+    /* Glassmorphism blur */
+    --glass-blur:blur(20px);
+    --glass-blur-sm:blur(12px);
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{-webkit-tap-highlight-color:transparent;background:var(--bg)}
+  body{-webkit-tap-highlight-color:transparent;background:var(--bg);font-family:'DM Sans',system-ui,sans-serif}
   select,option{background:var(--input-bg)!important;color:var(--t)!important}
-  .nb{background:none;border:none;border-bottom:2.5px solid transparent;padding:11px 12px;font-size:13px;font-weight:500;cursor:pointer;color:var(--t2);white-space:nowrap;font-family:inherit;transition:all .15s;flex-shrink:0}
-  .nb.act{color:var(--primary);border-bottom-color:var(--primary);font-weight:700}
-  .card{background:var(--card);border-radius:16px;border:1px solid var(--border);padding:18px;margin-bottom:12px}
-  .inp{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;color:var(--t);background:var(--input-bg);outline:none;font-family:inherit;transition:border-color .15s;-webkit-appearance:none}
-  .inp:focus{border-color:var(--primary)}
-  .lbl{display:block;font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
-  .btn{background:var(--primary);color:white;border:none;border-radius:10px;padding:12px 22px;font-weight:600;font-size:15px;cursor:pointer;font-family:inherit;transition:background .15s}
-  .btn:active{background:var(--primary-d)}.btn:disabled{opacity:.4;cursor:not-allowed}
-  .btn-o{background:var(--surface);color:var(--primary);border:1.5px solid var(--primary);border-radius:10px;padding:10px 18px;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit}
-  .btn-sm{background:var(--primary-l);color:var(--primary);border:none;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
-  .btn-del{background:var(--red-bg);color:var(--red);border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
-  .btn-del:active{background:var(--red);color:white}
-  .btn-wa{background:#25D366;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
-  .btn-edit{background:var(--primary-l);color:var(--primary);border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
-  .btn-check{background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;color:var(--t)}
-  .btn-check.done{background:var(--green-bg);border-color:var(--green);color:var(--green)}
-  .tag{display:inline-block;background:var(--primary-l);color:var(--primary);border-radius:20px;padding:2px 10px;font-size:12px;font-weight:600}
-  .tag-g{display:inline-block;background:var(--green-bg);color:var(--green);border-radius:20px;padding:2px 10px;font-size:12px;font-weight:600}
-  .tag-gold{display:inline-block;background:var(--gold-bg);color:var(--gold);border-radius:20px;padding:2px 10px;font-size:12px;font-weight:600}
-  .tag-past{display:inline-block;background:var(--border);color:var(--t2);border-radius:20px;padding:2px 10px;font-size:12px;font-weight:600}
-  .row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)}
+  
+  /* ── Neumorphism base ── */
+  .neo{
+    background:var(--neo-light);
+    border-radius:16px;
+    box-shadow: 8px 8px 16px var(--neo-shadow), -8px -8px 16px var(--neo-light);
+    border:1px solid rgba(0,0,0,0.02);
+  }
+  .neo-pressed{
+    box-shadow: var(--shadow-inner), 4px 4px 8px var(--neo-shadow), -4px -4px 8px var(--neo-light);
+  }
+  .neo-inset{
+    box-shadow: var(--shadow-inner);
+    background:var(--neo-light);
+  }
+  
+  /* ── Glassmorphism base ── */
+  .glass{
+    background:var(--glass);
+    backdrop-filter:var(--glass-blur);
+    -webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid rgba(255,255,255,0.3);
+    border-radius:16px;
+  }
+  .glass-strong{
+    background:var(--glass-strong);
+    backdrop-filter:var(--glass-blur);
+    -webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid rgba(255,255,255,0.4);
+    border-radius:16px;
+  }
+  .glass-card{
+    background:rgba(255,255,255,0.7);
+    backdrop-filter:var(--glass-blur);
+    -webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid rgba(255,255,255,0.5);
+    border-radius:20px;
+    box-shadow:var(--shadow-md);
+  }
+  
+  /* ── Nav tabs ── */
+  .nb{
+    background:none;
+    border:none;
+    border-bottom:2.5px solid transparent;
+    padding:11px 12px;
+    font-size:13px;
+    font-weight:500;
+    cursor:pointer;
+    color:var(--t2);
+    white-space:nowrap;
+    font-family:inherit;
+    transition:all .15s;
+    flex-shrink:0
+  }
+  .nb.act{
+    color:var(--primary);
+    border-bottom-color:var(--primary);
+    font-weight:700
+  }
+  
+  /* ── Cards ── */
+  .card{
+    background:var(--card);
+    border-radius:20px;
+    border:1px solid var(--border);
+    padding:20px;
+    margin-bottom:14px;
+    box-shadow:var(--shadow-sm);
+    transition:box-shadow .2s, transform .2s;
+  }
+  .card:hover{
+    box-shadow:var(--shadow-md);
+  }
+  .card-neo{
+    background:var(--neo-light);
+    border-radius:20px;
+    border:1px solid rgba(0,0,0,0.02);
+    box-shadow: 10px 10px 20px var(--neo-shadow), -10px -10px 20px var(--neo-light);
+    padding:20px;
+    margin-bottom:14px;
+  }
+  .card-glass{
+    background:rgba(255,255,255,0.75);
+    backdrop-filter:var(--glass-blur);
+    -webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid rgba(255,255,255,0.5);
+    border-radius:20px;
+    box-shadow:var(--shadow-md);
+    padding:20px;
+    margin-bottom:14px;
+  }
+  
+  /* ── Inputs ── */
+  .inp{
+    width:100%;
+    padding:12px 16px;
+    border:1.5px solid var(--border);
+    border-radius:12px;
+    font-size:15px;
+    color:var(--t);
+    background:var(--input-bg);
+    outline:none;
+    font-family:inherit;
+    transition:all .15s;
+    -webkit-appearance:none;
+    box-shadow:var(--shadow-inner);
+  }
+  .inp:focus{
+    border-color:var(--primary);
+    box-shadow:0 0 0 3px var(--glass), var(--shadow-inner);
+  }
+  .inp::placeholder{color:var(--t2);opacity:.6}
+  
+  /* ── Labels ── */
+  .lbl{
+    display:block;
+    font-size:11px;
+    font-weight:600;
+    color:var(--t2);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    margin-bottom:6px
+  }
+  
+  /* ── Buttons ── */
+  .btn{
+    background:var(--gradient);
+    color:white;
+    border:none;
+    border-radius:12px;
+    padding:14px 24px;
+    font-weight:600;
+    font-size:15px;
+    cursor:pointer;
+    font-family:inherit;
+    transition:all .2s;
+    box-shadow:var(--shadow-sm);
+    position:relative;
+    overflow:hidden;
+  }
+  .btn::before{
+    content:'';
+    position:absolute;
+    inset:0;
+    background:linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%);
+    opacity:0;
+    transition:opacity .2s;
+  }
+  .btn:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
+  .btn:active{
+    transform:translateY(0);
+    box-shadow:var(--shadow-inner);
+  }
+  .btn:active::before{opacity:1}
+  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:var(--shadow-sm)}
+  
+  .btn-neo{
+    background:var(--neo-light);
+    color:var(--primary);
+    border:none;
+    border-radius:12px;
+    padding:14px 24px;
+    font-weight:600;
+    font-size:15px;
+    cursor:pointer;
+    font-family:inherit;
+    box-shadow: 6px 6px 12px var(--neo-shadow), -6px -6px 12px var(--neo-light);
+    transition:all .15s;
+  }
+  .btn-neo:hover{
+    box-shadow: 8px 8px 16px var(--neo-shadow), -8px -8px 16px var(--neo-light);
+    transform:translateY(-1px);
+  }
+  .btn-neo:active{
+    box-shadow: var(--shadow-inner), 3px 3px 6px var(--neo-shadow), -3px -3px 6px var(--neo-light);
+    transform:translateY(0);
+  }
+  
+  .btn-o{
+    background:var(--surface);
+    color:var(--primary);
+    border:1.5px solid var(--primary);
+    border-radius:12px;
+    padding:12px 20px;
+    font-weight:600;
+    font-size:14px;
+    cursor:pointer;
+    font-family:inherit;
+    transition:all .15s;
+    box-shadow:var(--shadow-sm);
+  }
+  .btn-o:hover{
+    background:var(--primary-l);
+    box-shadow:var(--shadow-md);
+  }
+  .btn-o:active{background:var(--primary);color:white}
+  
+  .btn-sm{
+    background:var(--primary-l);
+    color:var(--primary);
+    border:none;
+    border-radius:10px;
+    padding:8px 14px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    font-family:inherit;
+    transition:all .15s;
+    box-shadow:var(--shadow-sm);
+  }
+  .btn-sm:hover{background:var(--primary);color:white;box-shadow:var(--shadow-md)}
+  .btn-sm:active{box-shadow:var(--shadow-inner)}
+  
+  .btn-del{
+    background:var(--red-bg);
+    color:var(--red);
+    border:none;
+    border-radius:10px;
+    padding:8px 12px;
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+    font-family:inherit;
+    transition:all .15s;
+    box-shadow:var(--shadow-sm);
+  }
+  .btn-del:hover{background:var(--red);color:white;box-shadow:var(--shadow-md)}
+  .btn-del:active{box-shadow:var(--shadow-inner)}
+  
+  .btn-wa{
+    background:linear-gradient(135deg, #25D366 0%, #1DB954 100%);
+    color:white;
+    border:none;
+    border-radius:10px;
+    padding:8px 14px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    font-family:inherit;
+    transition:all .15s;
+    box-shadow:var(--shadow-sm);
+  }
+  .btn-wa:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
+  .btn-wa:active{box-shadow:var(--shadow-inner);transform:translateY(0)}
+  
+  .btn-edit{
+    background:var(--primary-l);
+    color:var(--primary);
+    border:none;
+    border-radius:10px;
+    padding:8px 12px;
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+    font-family:inherit;
+    transition:all .15s;
+    box-shadow:var(--shadow-sm);
+  }
+  .btn-edit:hover{background:var(--primary);color:white;box-shadow:var(--shadow-md)}
+  .btn-edit:active{box-shadow:var(--shadow-inner)}
+  
+  .btn-check{
+    background:var(--surface);
+    border:1.5px solid var(--border);
+    border-radius:10px;
+    padding:8px 12px;
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+    font-family:inherit;
+    transition:all .15s;
+    color:var(--t);
+    box-shadow:var(--shadow-sm);
+  }
+  .btn-check:hover{box-shadow:var(--shadow-md);border-color:var(--primary)}
+  .btn-check.done{
+    background:var(--green-bg);
+    border-color:var(--green);
+    color:var(--green);
+    box-shadow:var(--shadow-sm);
+  }
+  
+  /* ── Tags ── */
+  .tag{
+    display:inline-block;
+    background:var(--primary-l);
+    color:var(--primary);
+    border-radius:999px;
+    padding:4px 12px;
+    font-size:12px;
+    font-weight:600;
+    box-shadow:var(--shadow-sm);
+  }
+  .tag-g{
+    display:inline-block;
+    background:var(--green-bg);
+    color:var(--green);
+    border-radius:999px;
+    padding:4px 12px;
+    font-size:12px;
+    font-weight:600;
+    box-shadow:var(--shadow-sm);
+  }
+  .tag-gold{
+    display:inline-block;
+    background:var(--gold-bg);
+    color:var(--gold);
+    border-radius:999px;
+    padding:4px 12px;
+    font-size:12px;
+    font-weight:600;
+    box-shadow:var(--shadow-sm);
+  }
+  .tag-past{
+    display:inline-block;
+    background:var(--border);
+    color:var(--t2);
+    border-radius:999px;
+    padding:4px 12px;
+    font-size:12px;
+    font-weight:600;
+    box-shadow:var(--shadow-sm);
+  }
+  
+  /* ── Rows ── */
+  .row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:12px 0;
+    border-bottom:1px solid var(--border);
+  }
   .row:last-child{border-bottom:none}
-  .stat{background:var(--card);border-radius:14px;border:1px solid var(--border);padding:16px 12px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s}
-  .stat:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,0.12)}
-  .to{background:var(--surface);border:1.5px solid var(--border);border-radius:9px;padding:8px 2px;font-size:11px;font-weight:600;cursor:pointer;text-align:center;font-family:inherit;transition:all .12s;color:var(--t);line-height:1.2}
-  .to:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
-  .to.sel{background:var(--primary);border-color:var(--primary);color:white}
-  .to:disabled{background:var(--border);border-color:var(--border);color:var(--t2);opacity:.5;cursor:not-allowed}
-  .so{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:13px 15px;cursor:pointer;text-align:left;width:100%;font-family:inherit;transition:all .12s;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;color:var(--t)}
-  .so.sel{border-color:var(--primary);background:var(--primary-l)}
-  .warn-box{background:var(--warn-bg);border:1px solid var(--gold);border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--warn-t)}
-  .sugg-item{padding:11px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:14px;transition:background .12s;color:var(--t);background:var(--surface)}
+  
+  /* ── Stats ── */
+  .stat{
+    background:var(--card);
+    border-radius:16px;
+    border:1px solid var(--border);
+    padding:18px 14px;
+    text-align:center;
+    cursor:pointer;
+    transition:all .2s;
+    box-shadow:var(--shadow-sm);
+  }
+  .stat:hover{
+    transform:translateY(-2px);
+    box-shadow:var(--shadow-lg);
+  }
+  .stat-neo{
+    background:var(--neo-light);
+    border-radius:16px;
+    border:1px solid rgba(0,0,0,0.02);
+    box-shadow: 8px 8px 16px var(--neo-shadow), -8px -8px 16px var(--neo-light);
+    padding:18px 14px;
+    text-align:center;
+    cursor:pointer;
+    transition:all .2s;
+  }
+  .stat-neo:hover{
+    box-shadow: 12px 12px 24px var(--neo-shadow), -12px -12px 24px var(--neo-light);
+    transform:translateY(-2px);
+  }
+  
+  /* ── Time options ── */
+  .to{
+    background:var(--surface);
+    border:1.5px solid var(--border);
+    border-radius:10px;
+    padding:10px 4px;
+    font-size:11px;
+    font-weight:600;
+    cursor:pointer;
+    text-align:center;
+    font-family:inherit;
+    transition:all .12s;
+    color:var(--t);
+    line-height:1.2;
+    box-shadow:var(--shadow-inner);
+  }
+  .to:hover:not(:disabled){
+    border-color:var(--primary);
+    color:var(--primary);
+    box-shadow:var(--shadow-sm);
+  }
+  .to.sel{
+    background:var(--gradient);
+    border-color:transparent;
+    color:white;
+    box-shadow:var(--shadow-md);
+  }
+  .to:disabled{
+    background:var(--border);
+    border-color:var(--border);
+    color:var(--t2);
+    opacity:.5;
+    cursor:not-allowed;
+  }
+  
+  /* ── Service options ── */
+  .so{
+    background:var(--surface);
+    border:1.5px solid var(--border);
+    border-radius:14px;
+    padding:14px 16px;
+    cursor:pointer;
+    text-align:left;
+    width:100%;
+    font-family:inherit;
+    transition:all .12s;
+    margin-bottom:10px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    color:var(--t);
+    box-shadow:var(--shadow-sm);
+  }
+  .so:hover{
+    box-shadow:var(--shadow-md);
+    border-color:var(--primary);
+  }
+  .so.sel{
+    border-color:var(--primary);
+    background:var(--primary-l);
+    box-shadow:0 0 0 3px var(--glass);
+  }
+  
+  /* ── Warning box ── */
+  .warn-box{
+    background:var(--warn-bg);
+    border:1px solid var(--gold);
+    border-radius:14px;
+    padding:12px 16px;
+    margin-bottom:14px;
+    font-size:13px;
+    color:var(--warn-t);
+    box-shadow:var(--shadow-sm);
+  }
+  
+  /* ── Suggestions ── */
+  .sugg-item{
+    padding:12px 16px;
+    cursor:pointer;
+    border-bottom:1px solid var(--border);
+    font-size:14px;
+    transition:all .12s;
+    color:var(--t);
+    background:var(--surface);
+  }
   .sugg-item:last-child{border-bottom:none}
-  .sugg-item:hover{background:var(--primary-l)}
+  .sugg-item:hover{
+    background:var(--primary-l);
+    box-shadow:var(--shadow-inner);
+  }
+  
   nav::-webkit-scrollbar{display:none}
+  
   @keyframes spin{to{transform:rotate(360deg)}}
   @keyframes pulse{0%,100%{opacity:.7}50%{opacity:1}}
-  @keyframes remindPing{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(196,130,122,.6)}50%{transform:scale(1.03);box-shadow:0 0 0 6px rgba(196,130,122,0)}}
+  @keyframes remindPing{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(181,82,74,.4)}50%{transform:scale(1.03);box-shadow:0 0 0 8px rgba(181,82,74,0)}}
   @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
   .slide-in{animation:slideDown .18s ease forwards}
+  
+  /* ── Gradient text utility ── */
+  .gradient-text{
+    background:var(--gradient);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    background-clip:text;
+  }
+  
+  /* ── Glass header ── */
+  .glass-header{
+    background:rgba(255,255,255,0.85);
+    backdrop-filter:var(--glass-blur);
+    -webkit-backdrop-filter:var(--glass-blur);
+    border-bottom:1px solid rgba(0,0,0,0.04);
+    box-shadow:var(--shadow-sm);
+  }
+  
+  /* ── Gradient header ── */
+  .gradient-header{
+    background:var(--gradient);
+    box-shadow:var(--shadow-md);
+  }
 `}</style> }
 
 /* ══════════════════════════════════════════════════════════════
@@ -2592,7 +3174,7 @@ function IncomeDetail({appts,setTab,tabExtra}) {
 /* ══════════════════════════════════════════════════════════════
    SETTINGS TAB — Zona de peligro / Reset total
 ══════════════════════════════════════════════════════════════ */
-function SettingsTab({clients, appts, expenses, resetAll, themeMode, themePalette, setThemeMode, setThemePalette}) {
+function SettingsTab({clients, appts, expenses, resetAll, themePalette, setThemePalette}) {
   const [step, setStep] = useState(0)
   const [confirmWord, setConfirmWord] = useState('')
 
@@ -2608,7 +3190,7 @@ function SettingsTab({clients, appts, expenses, resetAll, themeMode, themePalett
         <button className="btn-sm" onClick={()=>setStep(0)}>← Volver</button>
         <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>Restablecer datos</span>
       </div>
-      <div style={{background:'var(--red-bg)',border:'2px solid #F5B0B0',borderRadius:20,padding:28,textAlign:'center'}}>
+      <div className="card-neo" style={{background:'var(--red-bg)',border:'2px solid #F5B0B0',borderRadius:20,padding:28,textAlign:'center'}}>
         <div style={{fontSize:52,marginBottom:16}}>⚠️</div>
         <div style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:700,color:'var(--red)',marginBottom:12}}>
           ¿Estás segura?
@@ -2623,7 +3205,7 @@ function SettingsTab({clients, appts, expenses, resetAll, themeMode, themePalett
         <div style={{display:'flex',gap:10}}>
           <button className="btn-o" style={{flex:1}} onClick={()=>setStep(0)}>Cancelar</button>
           <button onClick={()=>setStep(2)}
-            style={{flex:1,background:'var(--red)',color:'white',border:'none',borderRadius:10,padding:'12px 22px',fontWeight:700,fontSize:15,cursor:'pointer',fontFamily:'inherit'}}>
+            style={{flex:1,background:'linear-gradient(135deg, #B03030 0%, #D04040 100%)',color:'white',border:'none',borderRadius:10,padding:'12px 22px',fontWeight:700,fontSize:15,cursor:'pointer',fontFamily:'inherit',boxShadow:'var(--shadow-sm)'}}>
             Sí, continuar →
           </button>
         </div>
@@ -2639,7 +3221,7 @@ function SettingsTab({clients, appts, expenses, resetAll, themeMode, themePalett
           <button className="btn-sm" onClick={()=>{setStep(0);setConfirmWord('')}}>← Cancelar</button>
           <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>Confirmación final</span>
         </div>
-        <div style={{background:'var(--red-bg)',border:'2px solid var(--red)',borderRadius:20,padding:28,textAlign:'center'}}>
+        <div className="card-neo" style={{background:'var(--red-bg)',border:'2px solid var(--red)',borderRadius:20,padding:28,textAlign:'center'}}>
           <div style={{fontSize:52,marginBottom:12}}>🚨</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:19,fontWeight:700,color:'var(--red)',marginBottom:10}}>
             Última oportunidad
@@ -2648,7 +3230,7 @@ function SettingsTab({clients, appts, expenses, resetAll, themeMode, themePalett
             Si confirmas, <strong>todos los datos se borrarán</strong> del servidor.<br/>
             No hay forma de recuperarlos.
           </div>
-          <div style={{background:'var(--surface)',borderRadius:12,padding:'12px 16px',marginBottom:20,fontSize:13,color:'var(--t2)',border:'1px solid var(--border)'}}>
+          <div className="card-glass" style={{padding:'12px 16px',marginBottom:20,fontSize:13,color:'var(--t2)'}}>
             🗑️ Se eliminarán <strong style={{color:'var(--red)'}}>{totalClients} clientes, {totalAppts} citas y {totalExpenses} gastos</strong>
           </div>
           <div style={{marginBottom:20,textAlign:'left'}}>
@@ -2680,7 +3262,7 @@ function SettingsTab({clients, appts, expenses, resetAll, themeMode, themePalett
           <div style={{display:'flex',gap:10}}>
             <button className="btn-o" style={{flex:1}} onClick={()=>{setStep(0);setConfirmWord('')}}>No, cancelar</button>
             <button onClick={()=>{if(ok)handleReset()}} disabled={!ok}
-              style={{flex:1,background:ok?'var(--red)':'var(--border)',color:ok?'white':'var(--t2)',border:'none',borderRadius:10,padding:'12px 10px',fontWeight:700,fontSize:14,cursor:ok?'pointer':'not-allowed',fontFamily:'inherit',transition:'all .2s'}}>
+              style={{flex:1,background:ok?'linear-gradient(135deg, #B03030 0%, #D04040 100%)':'var(--border)',color:ok?'white':'var(--t2)',border:'none',borderRadius:10,padding:'12px 10px',fontWeight:700,fontSize:14,cursor:ok?'pointer':'not-allowed',fontFamily:'inherit',transition:'all .2s',boxShadow:ok?'var(--shadow-sm)':'none'}}>
               🗑️ Eliminar todo
             </button>
           </div>
@@ -2701,36 +3283,18 @@ function SettingsTab({clients, appts, expenses, resetAll, themeMode, themePalett
     <div>
       <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',marginBottom:20}}>⚙️ Ajustes</div>
 
-      {/* ── Modo ── */}
-      <div className="card" style={{marginBottom:12}}>
-        <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>🌓 Modo de visualización</div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-          {[['light','☀️','Claro'],['dark','🌙','Oscuro']].map(([val,ic,lb])=>{
-            const sel = themeMode===val
-            return (
-              <button key={val} onClick={()=>setThemeMode(val)}
-                style={{background:sel?'var(--primary)':'var(--surface)',color:sel?'white':'var(--t)',border:`2px solid ${sel?'var(--primary)':'var(--border)'}`,borderRadius:14,padding:'16px 12px',cursor:'pointer',fontFamily:'inherit',fontWeight:700,fontSize:15,transition:'all .2s',display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
-                <span style={{fontSize:28}}>{ic}</span>
-                <span style={{fontSize:13}}>{lb}</span>
-                {sel && <span style={{fontSize:10,opacity:.85,letterSpacing:'.05em'}}>ACTIVO</span>}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
       {/* ── Paleta ── */}
-      <div className="card" style={{marginBottom:12}}>
+      <div className="card-glass" style={{marginBottom:14}}>
         <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>🎨 Color principal</div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
           {PALETTES.map(pal=>{
             const sel = themePalette===pal.id
             return (
               <button key={pal.id} onClick={()=>setThemePalette(pal.id)}
-                style={{background:sel?pal.primary:'var(--surface)',border:`2px solid ${sel?pal.primary:'var(--border)'}`,borderRadius:14,padding:'14px 8px',cursor:'pointer',fontFamily:'inherit',transition:'all .2s',display:'flex',flexDirection:'column',alignItems:'center',gap:5}}>
-                <div style={{width:30,height:30,borderRadius:'50%',background:pal.primary,boxShadow:sel?`0 0 0 3px var(--surface), 0 0 0 5px ${pal.primary}`:'none',transition:'all .2s'}}/>
+                style={{background:sel?pal.gradient:'var(--neo-light)',border:`2px solid ${sel?pal.primary:'var(--border)'}`,borderRadius:16,padding:'16px 8px',cursor:'pointer',fontFamily:'inherit',transition:'all .2s',display:'flex',flexDirection:'column',alignItems:'center',gap:6,boxShadow:sel?'var(--shadow-md)':'var(--shadow-sm)',color:sel?'white':'var(--t)'}}>
+                <div style={{width:36,height:36,borderRadius:'50%',background:pal.gradient,boxShadow:sel?`0 0 0 3px var(--surface), 0 0 0 5px ${pal.primary}`:'0 4px 12px rgba(0,0,0,0.15)',transition:'all .2s'}}/>
                 <span style={{fontSize:12,fontWeight:700,color:sel?'white':'var(--t)'}}>{pal.emoji} {pal.name}</span>
-                {sel && <span style={{fontSize:9,color:'rgba(255,255,255,0.85)',letterSpacing:'.05em'}}>ACTIVO</span>}
+                {sel && <span style={{fontSize:9,color:sel?'rgba(255,255,255,0.85)':'var(--t2)',letterSpacing:'.05em'}}>ACTIVO</span>}
               </button>
             )
           })}
@@ -2738,7 +3302,7 @@ function SettingsTab({clients, appts, expenses, resetAll, themeMode, themePalett
       </div>
 
       {/* ── Datos ── */}
-      <div className="card" style={{marginBottom:12}}>
+      <div className="card-glass" style={{marginBottom:14}}>
         <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>📊 Datos actuales</div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
           {[
@@ -2746,9 +3310,9 @@ function SettingsTab({clients, appts, expenses, resetAll, themeMode, themePalett
             ['📅','Citas',totalAppts,'var(--green)','var(--green-bg)'],
             ['💸','Gastos',totalExpenses,'var(--red)','var(--red-bg)'],
           ].map(([ic,lb,val,col,bg])=>(
-            <div key={lb} style={{background:bg,borderRadius:12,padding:'14px 8px',textAlign:'center'}}>
-              <div style={{fontSize:20,marginBottom:4}}>{ic}</div>
-              <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:700,color:col}}>{val}</div>
+            <div key={lb} className="card-neo" style={{background:bg,borderRadius:14,padding:'16px 8px',textAlign:'center',boxShadow:'var(--shadow-sm)'}}>
+              <div style={{fontSize:22,marginBottom:4}}>{ic}</div>
+              <div style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700,color:col}}>{val}</div>
               <div style={{fontSize:11,color:col,fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em',marginTop:2}}>{lb}</div>
             </div>
           ))}
@@ -2756,19 +3320,19 @@ function SettingsTab({clients, appts, expenses, resetAll, themeMode, themePalett
       </div>
 
       {/* ── Zona de peligro ── */}
-      <div style={{border:'2px solid var(--red)',borderRadius:16,overflow:'hidden'}}>
-        <div style={{background:'var(--red-bg)',padding:'14px 18px',borderBottom:'1px solid var(--red)'}}>
+      <div className="card-neo" style={{border:'2px solid var(--red)',borderRadius:18,overflow:'hidden'}}>
+        <div style={{background:'var(--red-bg)',padding:'16px 20px',borderBottom:'1px solid var(--red)'}}>
           <div style={{fontWeight:700,fontSize:14,color:'var(--red)'}}>🚨 Zona de peligro</div>
           <div style={{fontSize:12,color:'var(--t2)',marginTop:3}}>Acciones irreversibles — procede con cuidado</div>
         </div>
-        <div style={{background:'var(--card)',padding:'18px'}}>
+        <div style={{background:'var(--card)',padding:'20px'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:14}}>
             <div>
               <div style={{fontWeight:700,fontSize:14,color:'var(--t)',marginBottom:3}}>Restablecer todo el programa</div>
               <div style={{fontSize:12,color:'var(--t2)',lineHeight:1.5}}>Elimina todos los clientes, citas y gastos. Los servicios vuelven al inicio.</div>
             </div>
             <button onClick={()=>setStep(1)}
-              style={{background:'var(--red-bg)',color:'var(--red)',border:'2px solid var(--red)',borderRadius:10,padding:'10px 16px',fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap',flexShrink:0}}>
+              style={{background:'var(--red-bg)',color:'var(--red)',border:'2px solid var(--red)',borderRadius:12,padding:'12px 18px',fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap',flexShrink:0,boxShadow:'var(--shadow-sm), transition:all .15s'}}>
               🗑️ Resetear
             </button>
           </div>
