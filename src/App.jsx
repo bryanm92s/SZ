@@ -2875,6 +2875,21 @@ function ReportTab({appts,expenses,services,setTab}) {
   const [month, setMonth] = useState(monthStr())
   const [from,  setFrom]  = useState(today)
   const [to,    setTo]    = useState(today)
+  // Rango siempre válido: Hasta nunca puede ser menor que Desde, y ninguna
+  // fecha puede ser futura. Se valida aquí (no solo con min/max) porque en
+  // iOS/Safari el selector de fecha no siempre respeta min/max.
+  const onFrom = v => {
+    if (!v) return
+    const f = v > today ? today : v
+    setFrom(f)
+    if (to < f) setTo(f)   // si Desde pasa a Hasta, Hasta se ajusta
+  }
+  const onTo = v => {
+    if (!v) return
+    let t = v > today ? today : v
+    if (t < from) t = from // Hasta no puede ser anterior a Desde
+    setTo(t)
+  }
   const [mvFilter, setMvFilter] = useState('all') // 'all'|'in'|'out'
 
   // Predicado de pertenencia al período (réplica del backend _inPeriod)
@@ -3131,8 +3146,8 @@ function ReportTab({appts,expenses,services,setTab}) {
         : mode==='month'
         ? <div style={{marginBottom:14}}><label className="lbl">Mes</label><input type="month" className="inp" value={month} max={monthStr()} onChange={e=>setMonth(e.target.value)}/></div>
         : <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
-            <div><label className="lbl">Desde</label><input type="date" className="inp" value={from} max={today} onChange={e=>setFrom(e.target.value)}/></div>
-            <div><label className="lbl">Hasta</label><input type="date" className="inp" value={to} max={today} onChange={e=>setTo(e.target.value)}/></div>
+            <div><label className="lbl">Desde</label><input type="date" className="inp" value={from} max={to < today ? to : today} onChange={e=>onFrom(e.target.value)}/></div>
+            <div><label className="lbl">Hasta</label><input type="date" className="inp" value={to} min={from} max={today} onChange={e=>onTo(e.target.value)}/></div>
           </div>
       }
 
