@@ -12,3 +12,18 @@ html, body {
 #root {
   min-height: 100%;
 }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Alto de pantalla: 100vh en iOS incluye la barra de Safari; dvh no. */
+.app-root, .cent-root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}

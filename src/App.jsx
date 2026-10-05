@@ -394,12 +394,13 @@ export default function App() {
   if (status==='noconfig') return <Cent><div style={{fontSize:36,marginBottom:8}}>⚙️</div><p style={{fontSize:16,fontWeight:600}}>Configura VITE_SCRIPT_URL y VITE_TOKEN en Vercel</p></Cent>
 
   return (
-    <div style={{fontFamily:"'DM Sans',system-ui,sans-serif",minHeight:'100vh',background:'var(--bg)',color:'var(--t)'}}>
+    <div className="app-root" style={{fontFamily:"'DM Sans',system-ui,sans-serif",background:'var(--bg)',color:'var(--t)'}}>
       <GS/>
       {modal?.type==='confirm' && <Modal msg={modal.msg} onOk={()=>{modal.onOk();setModal(null)}} onCancel={()=>setModal(null)}/>}
       {modal?.type==='info'    && <Modal msg={modal.msg} onOk={()=>setModal(null)} okLabel="Entendido" cancelLabel={null}/>}
 
-      <header style={{background:'var(--gradient)',padding:'14px 18px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100,boxShadow:'var(--shadow-md)',borderBottom:'1px solid rgba(255,255,255,0.2)'}}>
+      <div style={{position:'sticky',top:0,zIndex:100}}>
+      <header style={{background:'var(--gradient)',padding:'calc(14px + env(safe-area-inset-top, 0px)) max(18px, env(safe-area-inset-right, 0px)) 14px max(18px, env(safe-area-inset-left, 0px))',display:'flex',alignItems:'center',justifyContent:'space-between',boxShadow:'var(--shadow-md)',borderBottom:'1px solid rgba(255,255,255,0.2)'}}>
         <div style={{display:'flex',alignItems:'center',gap:11}}>
           {BIZ_LOGO
             ? <img src={BIZ_LOGO} alt={BIZ_NAME} style={{height:40,width:'auto',objectFit:'contain',flexShrink:0,filter:'drop-shadow(0 2px 8px rgba(0,0,0,0.15))'}}/>
@@ -411,12 +412,12 @@ export default function App() {
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={()=>refresh(true)} style={{background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:20,padding:'6px 12px',color:'white',fontSize:14,cursor:'pointer',fontFamily:'inherit',fontWeight:600,backdropFilter:'var(--glass-blur-sm)',webkitBackdropFilter:'var(--glass-blur-sm)',transition:'all .15s'}} onMouseOver={e=>e.target.style.background='rgba(255,255,255,0.3)'} onMouseOut={e=>e.target.style.background='rgba(255,255,255,0.2)'}>↻</button>
+          <button onClick={()=>refresh(true)} style={{background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:20,padding:'6px 12px',color:'white',fontSize:14,cursor:'pointer',fontFamily:'inherit',fontWeight:600,backdropFilter:'var(--glass-blur-sm)',WebkitBackdropFilter:'var(--glass-blur-sm)',transition:'all .15s'}} onMouseOver={e=>e.target.style.background='rgba(255,255,255,0.3)'} onMouseOut={e=>e.target.style.background='rgba(255,255,255,0.2)'}>↻</button>
           <SyncBadge status={status} lastSync={lastSync}/>
         </div>
       </header>
 
-      <nav style={{background:'rgba(255,255,255,0.8)',backdropFilter:'var(--glass-blur)',webkitBackdropFilter:'var(--glass-blur)',borderBottom:'1px solid rgba(0,0,0,0.04)',display:'flex',overflowX:'auto',padding:'0 2px',position:'sticky',top:62,zIndex:99,scrollbarWidth:'none',boxShadow:'var(--shadow-sm)'}}>
+      <nav style={{background:'rgba(255,255,255,0.8)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)',borderBottom:'1px solid rgba(0,0,0,0.04)',display:'flex',overflowX:'auto',padding:'0 2px',scrollbarWidth:'none',boxShadow:'var(--shadow-sm)'}}>
         {[
           ['dashboard',  'grid',   'Panel'],
           ['appointments','cal',   'Citas'],
@@ -433,8 +434,9 @@ export default function App() {
           </button>
         ))}
       </nav>
+      </div>
 
-      <main style={{padding:'16px 14px',maxWidth:680,margin:'0 auto'}}>
+      <main style={{padding:'16px max(14px, env(safe-area-inset-right, 0px)) 16px max(14px, env(safe-area-inset-left, 0px))',maxWidth:680,margin:'0 auto'}}>
         {status==='error' && <div className="warn-box">⚠️ Modo sin conexión — {errMsg}</div>}
         {tab==='dashboard'     && <Dashboard      {...p}/>}
         {tab==='appointments'  && <ApptsTab       {...p}/>}
@@ -451,7 +453,7 @@ export default function App() {
         {tab==='report'          && <ReportTab       {...p}/>}
       </main>
 
-      <footer style={{textAlign:'center',padding:'20px 14px 28px',borderTop:'1px solid var(--border)',marginTop:8,background:'rgba(255,255,255,0.7)',backdropFilter:'var(--glass-blur)',webkitBackdropFilter:'var(--glass-blur)'}}>
+      <footer style={{textAlign:'center',padding:'20px 14px calc(28px + env(safe-area-inset-bottom, 0px))',borderTop:'1px solid var(--border)',marginTop:8,background:'rgba(255,255,255,0.7)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)'}}>
         <span style={{fontSize:11,color:'var(--t2)',letterSpacing:'.03em',display:'inline-flex',alignItems:'center',gap:6,flexWrap:'wrap',justifyContent:'center'}}>
           <span>{BIZ_EMOJI} {BIZ_NAME}</span>
           <span style={{color:'var(--border)'}}>|</span>
@@ -470,8 +472,8 @@ export default function App() {
 
 function Modal({msg, onOk, onCancel, okLabel='Eliminar', cancelLabel='Cancelar'}) {
   return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20,backdropFilter:'var(--glass-blur-sm)',webkitBackdropFilter:'var(--glass-blur-sm)'}}>
-      <div style={{background:'rgba(255,255,255,0.95)',backdropFilter:'var(--glass-blur)',webkitBackdropFilter:'var(--glass-blur)',borderRadius:24,padding:32,maxWidth:360,width:'100%',textAlign:'center',boxShadow:'var(--shadow-xl)',border:'1px solid rgba(255,255,255,0.5)'}}>
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20,backdropFilter:'var(--glass-blur-sm)',WebkitBackdropFilter:'var(--glass-blur-sm)'}}>
+      <div style={{background:'rgba(255,255,255,0.95)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)',borderRadius:24,padding:32,maxWidth:360,width:'100%',maxHeight:'calc(100dvh - 40px)',overflowY:'auto',textAlign:'center',boxShadow:'var(--shadow-xl)',border:'1px solid rgba(255,255,255,0.5)'}}>
         <div style={{fontSize:40,marginBottom:16}}>⚠️</div>
         <div style={{fontSize:15,fontWeight:600,color:'var(--t)',marginBottom:22,lineHeight:1.5}}>{msg}</div>
         <div style={{display:'flex',gap:10,justifyContent:'center'}}>
@@ -488,7 +490,7 @@ function PayModal({appt, onPick, onCancel}) {
   const icons = {Efectivo:'💵', Transferencia:'🏦'}
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}} onClick={onCancel}>
-      <div style={{background:'rgba(255,255,255,0.97)',borderRadius:24,padding:28,maxWidth:360,width:'100%',textAlign:'center',boxShadow:'0 10px 40px rgba(0,0,0,.2)'}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:'rgba(255,255,255,0.97)',borderRadius:24,padding:28,maxWidth:360,width:'100%',maxHeight:'calc(100dvh - 40px)',overflowY:'auto',textAlign:'center',boxShadow:'0 10px 40px rgba(0,0,0,.2)'}} onClick={e=>e.stopPropagation()}>
         <div style={{fontSize:36,marginBottom:10}}>💳</div>
         <div style={{fontSize:16,fontWeight:700,color:'var(--t)',marginBottom:4}}>¿Cómo se pagó el servicio?</div>
         <div style={{fontSize:12,color:'var(--t2)',marginBottom:18}}>{appt.clientName} · {fmtM(appt.totalPrice||appt.servicePrice)}</div>
@@ -503,7 +505,7 @@ function PayModal({appt, onPick, onCancel}) {
   )
 }
 
-const Cent = ({children}) => <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100vh',background:'var(--bg)',gap:8,padding:24}}>{children}</div>
+const Cent = ({children}) => <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--bg)',gap:8,padding:24}} className="cent-root">{children}</div>
 
 /* ── NavIcon — crisp SVG icons for navigation ── */
 function NavIcon({type, active}) {
@@ -1077,6 +1079,21 @@ function GS() { return <style>{`
   }
   
   nav::-webkit-scrollbar{display:none}
+
+  /* ── iOS / pantallas táctiles ── */
+  @supports (-webkit-touch-callout:none){
+    /* iOS hace zoom al enfocar campos con letra < 16px */
+    input,select,textarea{font-size:16px!important}
+    input[type="date"].inp,input[type="time"].inp{min-height:46px;display:block;text-align:left}
+  }
+  @media (hover:none){
+    /* sin "hover pegado" al tocar en celular */
+    .btn:hover,.btn-wa:hover,.stat:hover,.stat-neo:hover{transform:none}
+  }
+  @media (pointer:coarse){
+    .btn-o,.btn-sm,.btn-del,.btn-edit,.btn-check,.btn-wa{min-height:40px}
+    button,a,input,select,label{touch-action:manipulation}
+  }
   
   @keyframes spin{to{transform:rotate(360deg)}}
   @keyframes pulse{0%,100%{opacity:.7}50%{opacity:1}}
@@ -1243,20 +1260,20 @@ function Dashboard({clients,appts,expenses,setTab}) {
         </div>
       )}
 
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,padding:'14px 16px'}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:10,padding:'14px 16px'}}>
         <div style={{textAlign:'center',background:'var(--green-bg)',borderRadius:12,padding:'11px 6px',cursor:'pointer'}} onClick={()=>setTab('income-detail', isMonth?{month:selMonth,origin:'dashboard'}:{origin:'dashboard'})}>
           <div style={{fontSize:10,color:'var(--green)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Recibido</div>
-          <div style={{fontFamily:'Georgia,serif',fontSize:14,fontWeight:700,color:'var(--green)'}}>{fmtM(aRevDone)}</div>
+          <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--green)'}}>{fmtM(aRevDone)}</div>
           <div style={{fontSize:10,color:'var(--green)',marginTop:2}}>{aDone.length} citas</div>
         </div>
         <div style={{textAlign:'center',background:'var(--gold-bg)',borderRadius:12,padding:'11px 6px',cursor:'pointer'}} onClick={()=>setTab('income-detail', isMonth?{filter:'pending',month:selMonth,origin:'dashboard'}:{filter:'pending',origin:'dashboard'})}>
           <div style={{fontSize:10,color:'var(--gold)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Pendiente</div>
-          <div style={{fontFamily:'Georgia,serif',fontSize:14,fontWeight:700,color:'var(--gold)'}}>{fmtM(aRevPend)}</div>
+          <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--gold)'}}>{fmtM(aRevPend)}</div>
           <div style={{fontSize:10,color:'var(--gold)',marginTop:2}}>{aPend.length} {'\u2192'}</div>
         </div>
         <div style={{textAlign:'center',background:'var(--primary-l)',borderRadius:12,padding:'11px 6px'}}>
           <div style={{fontSize:10,color:'var(--primary)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Proyectado</div>
-          <div style={{fontFamily:'Georgia,serif',fontSize:14,fontWeight:700,color:'var(--primary)'}}>{fmtM(aRevAll)}</div>
+          <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--primary)'}}>{fmtM(aRevAll)}</div>
           <div style={{fontSize:10,color:'var(--primary)',marginTop:2}}>{aAll.length} citas</div>
         </div>
       </div>
@@ -1323,20 +1340,20 @@ function MonthlyIncomeState({appts,selMonth,setSelMonth,setTab}) {
       <div style={{fontSize:11,color:'var(--t2)',marginBottom:10}}>
         {label}
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:10}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,marginBottom:10}}>
         <div style={{textAlign:'center',background:'var(--green-bg)',borderRadius:12,padding:'12px 8px',cursor:'pointer'}} onClick={()=>setTab('income-detail',{month:selMonth})}>
           <div style={{fontSize:10,color:'var(--green)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Recibido</div>
-          <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'var(--green)'}}>{fmtM(revDone)}</div>
+          <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.8vw,15px)',fontWeight:700,color:'var(--green)'}}>{fmtM(revDone)}</div>
           <div style={{fontSize:10,color:'var(--green)',marginTop:2}}>{done.length} citas {'\u2713'}</div>
         </div>
         <div style={{textAlign:'center',background:'var(--gold-bg)',borderRadius:12,padding:'12px 8px',cursor:'pointer'}} onClick={()=>setTab('income-detail',{filter:'pending',month:selMonth})}>
           <div style={{fontSize:10,color:'var(--gold)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Pendiente</div>
-          <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'var(--gold)'}}>{fmtM(revPend)}</div>
+          <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.8vw,15px)',fontWeight:700,color:'var(--gold)'}}>{fmtM(revPend)}</div>
           <div style={{fontSize:10,color:'var(--gold)',marginTop:2}}>{pend.length} citas {'\u2192'}</div>
         </div>
         <div style={{textAlign:'center',background:'var(--primary-l)',borderRadius:12,padding:'12px 8px'}}>
           <div style={{fontSize:10,color:'var(--primary)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Proyectado</div>
-          <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'var(--primary)'}}>{fmtM(revTotal)}</div>
+          <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.8vw,15px)',fontWeight:700,color:'var(--primary)'}}>{fmtM(revTotal)}</div>
           <div style={{fontSize:10,color:'var(--primary)',marginTop:2}}>{ma.length} citas</div>
         </div>
       </div>
@@ -1397,20 +1414,20 @@ function MonthlyBalance({appts,expenses,selMonth,setSelMonth,setTab}) {
       </div>
 
       {/* 3 pills */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8}}>
         <div style={{background:'var(--green-bg)',borderRadius:10,padding:'10px 8px',textAlign:'center',cursor:'pointer'}} onClick={()=>setTab('income-detail',{month:selMonth})}>
           <div style={{fontSize:10,color:'var(--green)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Recibido</div>
-          <div style={{fontFamily:'Georgia,serif',fontSize:14,fontWeight:700,color:'var(--green)'}}>{fmtM(revDone)}</div>
+          <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--green)'}}>{fmtM(revDone)}</div>
           <div style={{fontSize:10,color:'var(--green)',marginTop:1}}>{ma.filter(a=>bool(a.completed)).length} citas</div>
         </div>
         <div style={{background:'var(--gold-bg)',borderRadius:10,padding:'10px 8px',textAlign:'center',cursor:'pointer'}} onClick={()=>setTab('income-detail',{filter:'pending',month:selMonth})}>
           <div style={{fontSize:10,color:'var(--gold)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Pendiente</div>
-          <div style={{fontFamily:'Georgia,serif',fontSize:14,fontWeight:700,color:'var(--gold)'}}>{fmtM(revPend)}</div>
+          <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--gold)'}}>{fmtM(revPend)}</div>
           <div style={{fontSize:10,color:'var(--gold)',marginTop:1}}>{ma.filter(a=>!bool(a.completed)&&!isPastAppt(a)).length} citas</div>
         </div>
         <div style={{background:'var(--primary-l)',borderRadius:10,padding:'10px 8px',textAlign:'center'}}>
           <div style={{fontSize:10,color:'var(--primary)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Proyectado</div>
-          <div style={{fontFamily:'Georgia,serif',fontSize:14,fontWeight:700,color:'var(--primary)'}}>{fmtM(revTotal)}</div>
+          <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--primary)'}}>{fmtM(revTotal)}</div>
           <div style={{fontSize:10,color:'var(--primary)',marginTop:1}}>{ma.length} citas</div>
         </div>
       </div>
@@ -1786,7 +1803,7 @@ function EditAppt({appt,services,appts,SA,sync,priceHistory,onClose}) {
 
       {/* Time */}
       <label className="lbl">Hora</label>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:14}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:6,marginBottom:14}}>
         {slots.map(({time:t,disabled,reason})=>{
           const t2=cleanTime(t), isSel=cleanTime(time)===t2
           return <button key={t} className={`to${isSel?' sel':''}`} disabled={disabled} title={disabled?reason:''} onClick={()=>!disabled&&setTime(t)}>
@@ -2035,7 +2052,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose}) {
       <label className="lbl">Fecha</label>
       <input type="date" className="inp" value={date} min={todayStr()} onChange={e=>{setDate(e.target.value);setTime('')}} style={{marginBottom:16}}/>
       <label className="lbl">Hora disponible</label>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:14}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:6,marginBottom:14}}>
         {slots.map(({time:t,disabled,reason})=>{
           const t2=cleanTime(t), isSel=cleanTime(time)===t2
           return <button key={t} className={`to${isSel?' sel':''}`} disabled={disabled} title={disabled?reason:''} onClick={()=>!disabled&&setTime(t)}>
@@ -2306,20 +2323,20 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
         {months.map(m=><option key={m} value={m}>{new Date(m+'-01T12:00:00').toLocaleDateString('es-CO',{month:'long',year:'numeric'})}</option>)}
       </select>
     </div>
-    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:14}}>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,marginBottom:14}}>
       <div style={{background:'var(--green-bg)',borderRadius:14,padding:'14px 10px',textAlign:'center',cursor:'pointer'}} onClick={()=>setTab('income-detail',{month})}>
         <div style={{fontSize:11,color:'var(--green)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Recibido</div>
-        <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'var(--green)'}}>{fmtM(revDone)}</div>
+        <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.8vw,15px)',fontWeight:700,color:'var(--green)'}}>{fmtM(revDone)}</div>
         <div style={{fontSize:10,color:'var(--green)',marginTop:2}}>Ver →</div>
       </div>
       <div style={{background:'var(--red-bg)',borderRadius:14,padding:'14px 10px',textAlign:'center',cursor:'pointer'}} onClick={()=>setTab('expense-detail',{month})}>
         <div style={{fontSize:11,color:'var(--red)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Gastos</div>
-        <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'var(--red)'}}>{fmtM(tot)}</div>
+        <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.8vw,15px)',fontWeight:700,color:'var(--red)'}}>{fmtM(tot)}</div>
         <div style={{fontSize:10,color:'var(--red)',marginTop:2}}>Ver →</div>
       </div>
       <div style={{background:revDone-tot>=0?'var(--green-bg)':'var(--red-bg)',borderRadius:14,padding:'14px 10px',textAlign:'center',border:`1px solid ${revDone-tot>=0?'var(--green)':'var(--red)'}`}}>
         <div style={{fontSize:11,color:revDone-tot>=0?'var(--green)':'var(--red)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Neto</div>
-        <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:revDone-tot>=0?'var(--green)':'var(--red)'}}>{fmtM(revDone-tot)}</div>
+        <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.8vw,15px)',fontWeight:700,color:revDone-tot>=0?'var(--green)':'var(--red)'}}>{fmtM(revDone-tot)}</div>
       </div>
     </div>
     {revTotal>revDone&&<div style={{background:'var(--warn-bg)',borderRadius:12,padding:'10px 14px',marginBottom:14,fontSize:13,color:'var(--warn-t)',display:'flex',justifyContent:'space-between'}}>
@@ -2479,7 +2496,7 @@ function ClientHistory({appts,setTab,tabExtra}) {
       </div>
 
       {/* Stats row */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:14}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:14}}>
         {[
           [cAppts.length,'Citas','var(--primary)','var(--primary-l)'],
           [done.length,'Completadas','var(--green)','#EDF7F0'],
@@ -3129,7 +3146,7 @@ function ReportTab({appts,expenses,services,setTab}) {
       <div style={{fontSize:11,color:'var(--t2)',marginBottom:10}}>
         <strong style={{color:'var(--t)'}}>Creadas</strong> = registradas en el período (aunque la cita sea para otro día) · <strong style={{color:'var(--t)'}}>Agendadas</strong> = citas para el período (aunque se hayan creado antes)
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:18}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,marginBottom:18}}>
         <Metric label="Creadas"     value={created}   big />
         <Metric label="Agendadas"   value={scheduled} />
         <Metric label="Completadas" value={completed} color="var(--green)" big />
@@ -3144,7 +3161,7 @@ function ReportTab({appts,expenses,services,setTab}) {
         <div style={{fontFamily:'Georgia,serif',fontSize:28,fontWeight:700}}>{fmtM(revenue)}</div>
         <div style={{fontSize:12,opacity:.9,marginTop:6}}>Servicios {fmtM(ledger.totalService)} + 🛵 Domicilios {fmtM(ledger.totalDelivery)}</div>
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:18}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,marginBottom:18}}>
         <Metric label="Proyectado" value={fmtM(projected)} color="var(--gold)" />
         <Metric label="Domicilios" value={`${domicilios} · ${fmtM(domRevenue)}`} sub="separados de servicios" />
         <Metric label="Gastos"      value={fmtM(totalExpenses)} color="var(--red)" />
@@ -3242,7 +3259,7 @@ function IncomeDetail({appts,setTab,tabExtra}) {
       {months.map(m=><option key={m} value={m}>{new Date(m+'-01T12:00:00').toLocaleDateString('es-CO',{month:'long',year:'numeric'})}</option>)}
     </select>
 
-    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:7,marginBottom:14}}>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:7,marginBottom:14}}>
       {[['all','Todo',fmtM(revTotal),ma.length,'var(--primary)','var(--primary-l)'],
         ['completed','Recibido',fmtM(revDone),done.length,'var(--green)','#EDF7F0'],
         ['pending','Pendiente',fmtM(revPend),pend.length,'var(--gold)','#FFF8E6'],
@@ -3250,7 +3267,7 @@ function IncomeDetail({appts,setTab,tabExtra}) {
       ].map(([v,l,val,cnt,col,bg])=>(
         <div key={v} onClick={()=>setF(v)} style={{background:filter===v?col:bg,borderRadius:12,padding:'12px 8px',textAlign:'center',cursor:'pointer',border:`2px solid ${filter===v?col:'transparent'}`,transition:'all .15s'}}>
           <div style={{fontSize:11,color:filter===v?'white':col,fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>{l}</div>
-          <div style={{fontFamily:'Georgia,serif',fontSize:14,fontWeight:700,color:filter===v?'white':col}}>{val}</div>
+          <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:filter===v?'white':col}}>{val}</div>
           <div style={{fontSize:10,color:filter===v?'rgba(255,255,255,0.8)':col,marginTop:2}}>{cnt} citas</div>
         </div>
       ))}
@@ -3408,7 +3425,7 @@ function SettingsTab({clients, appts, expenses, resetAll, themePalette, setTheme
       {/* ── Paleta ── */}
       <div className="card-glass" style={{marginBottom:14}}>
         <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>🎨 Color principal</div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:10}}>
           {PALETTES.map(pal=>{
             const sel = themePalette===pal.id
             return (
@@ -3426,7 +3443,7 @@ function SettingsTab({clients, appts, expenses, resetAll, themePalette, setTheme
       {/* ── Datos ── */}
       <div className="card-glass" style={{marginBottom:14}}>
         <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>📊 Datos actuales</div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:10}}>
           {[
             ['👥','Clientes',totalClients,'var(--primary)','var(--primary-l)'],
             ['📅','Citas',totalAppts,'var(--green)','var(--green-bg)'],
@@ -3817,7 +3834,7 @@ function CalendarView({ clients, appts, setTab, confirm, deleteAppt }) {
 
       {/* ── Stats strip ── */}
       {view === 'month' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8, marginBottom: 12 }}>
           {[
             { label: 'Citas', val: stripMonth.length, color: 'var(--primary)', bg: 'var(--primary-l)' },
             { label: 'Listas ✓', val: stripDone,  color: 'var(--green)',   bg: 'var(--green-bg)' },
@@ -3838,7 +3855,7 @@ function CalendarView({ clients, appts, setTab, confirm, deleteAppt }) {
       {view === 'month' && (
         <div className="card" style={{ marginBottom: 12, padding: '10px 8px' }}>
           {/* Day-of-week headers */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', marginBottom: 4 }}>
             {['D', 'L', 'M', 'X', 'J', 'V', 'S'].map(d => (
               <div key={d} style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.06em', paddingBottom: 4 }}>{d}</div>
             ))}
@@ -3846,7 +3863,7 @@ function CalendarView({ clients, appts, setTab, confirm, deleteAppt }) {
 
           {/* Weeks */}
           {weeks.map((week, wi) => (
-            <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '3px 3px', marginBottom: 3 }}>
+            <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', gap: '3px 3px', marginBottom: 3 }}>
               {week.map(dateStr => {
                 const isThisMonth = parseInt(dateStr.slice(5, 7), 10) - 1 === curMonth
                 const isToday     = dateStr === todStr
@@ -3915,7 +3932,7 @@ function CalendarView({ clients, appts, setTab, confirm, deleteAppt }) {
       ═══════════════════════ */}
       {view === 'week' && (
         <div className="card" style={{ marginBottom: 12, padding: '10px 8px', overflowX: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, minWidth: 320 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', gap: 4, minWidth: 320 }}>
             {weekDays.map(dateStr => {
               const isToday  = dateStr === todStr
               const isSel    = dateStr === selDay

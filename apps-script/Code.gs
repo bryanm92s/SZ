@@ -12,7 +12,7 @@ const JS_KEYS = {
   appointments: ['id','clientId','clientName','clientPhone',
                  'serviceIds','serviceNames','servicePrice','servicePrices',
                  'domicilio','domicilioPrice','totalPrice','address',
-                 'date','time','createdAt','calendarCreated','calendarEventId','completed','duration'],
+                 'date','time','createdAt','calendarCreated','calendarEventId','completed','duration','paymentMethod'],
   expenses:     ['id','description','amount','category','date'],
   priceHistory: ['serviceId','serviceName','price','changedAt'],
 };
@@ -23,7 +23,7 @@ const HEADERS_ES = {
   appointments: ['ID','ID Cliente','Nombre Cliente','Celular',
                  'IDs Servicios','Nombres Servicios','Precio Servicios','Precios x Servicio',
                  'Domicilio','Precio Domicilio','Total','Dirección',
-                 'Fecha','Hora','Fecha Creación','Evento Creado','ID Evento Calendar','Completada','Duración (min)'],
+                 'Fecha','Hora','Fecha Creación','Evento Creado','ID Evento Calendar','Completada','Duración (min)','Método de pago'],
   expenses:     ['ID','Descripción','Monto','Categoría','Fecha'],
   priceHistory: ['ID Servicio','Nombre Servicio','Precio','Fecha Cambio'],
 };
