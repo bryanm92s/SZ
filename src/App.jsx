@@ -2865,9 +2865,7 @@ function ReportTab({appts,expenses,services,setTab}) {
   // Domicilios (cantidad de citas + ingresos por domicilio, estos últimos
   // ya van incluidos en `revenue` como parte de totalPrice)
   const domicilios = apptsInPeriod.filter(a => bool(a.domicilio)).length
-  const domRevenue = apptsInPeriod
-    .filter(a => bool(a.completed) && a.completed!=='noshow' && bool(a.domicilio))
-    .reduce((s,a) => s + toN(a.domicilioPrice||0), 0)
+  const domRevenue = ledger.totalDelivery
 
   // Top servicios del período (por demanda en completadas)
   const svcStats = {}
@@ -2888,24 +2886,31 @@ function ReportTab({appts,expenses,services,setTab}) {
     const peso = '"$"#,##0'
 
     // ── Hoja Movimientos: una fila por cita completada y por gasto ──
-    const movs = [['Fecha','Hora','Tipo','Cliente / Categoría','Detalle (servicios / gasto)','Domicilio','Ingreso','Gasto']]
-    ledger.rows.forEach(r => movs.push([
-      r.date, r.time, r.kind==='in'?'Ingreso':'Gasto', r.who, r.detail,
-      r.domicilio?'Sí':'', r.kind==='in'?r.amount:'', r.kind==='out'?r.amount:'',
-    ]))
+    // Columnas: A Fecha, B Hora, C Tipo, D Cliente/Categoría, E Detalle,
+    //           F Servicios, G Domicilio, H Ingreso (=F+G), I Gasto
+    const movs = [['Fecha','Hora','Tipo','Cliente / Categoría','Detalle (servicios / gasto)','Servicios','Domicilio','Ingreso (total cita)','Gasto']]
+    ledger.rows.forEach((r, i) => {
+      const n = i + 2
+      movs.push(r.kind==='in'
+        ? [r.date, r.time, 'Ingreso', r.who, r.detail,
+           {t:'n', v:r.service, z:peso}, {t:'n', v:r.delivery, z:peso},
+           {t:'n', f:`F${n}+G${n}`, v:r.amount, z:peso}, '']
+        : [r.date, r.time, 'Gasto', r.who, r.detail, '', '', '', {t:'n', v:r.amount, z:peso}])
+    })
     const first = 2, last = ledger.rows.length + 1
     const tRow = last + 2
+    const sumCell = (col, v) => ({t:'n', f:`SUM(${col}${first}:${col}${last})`, v, z:peso})
     movs.push([])
-    movs.push(['','','','','TOTAL','',
-      {t:'n', f:`SUM(G${first}:G${last})`, v:ledger.totalIncome},
-      {t:'n', f:`SUM(H${first}:H${last})`, v:ledger.totalExpenses}])
-    movs.push(['','','','','NETO (Ingreso − Gasto)','',
-      {t:'n', f:`G${tRow}-H${tRow}`, v:ledger.neto}])
+    movs.push(['','','','','TOTAL',
+      sumCell('F', ledger.totalService), sumCell('G', ledger.totalDelivery),
+      sumCell('H', ledger.totalIncome),  sumCell('I', ledger.totalExpenses)])
+    movs.push(['','','','','NETO (Ingreso − Gasto)','','',
+      {t:'n', f:`H${tRow}-I${tRow}`, v:ledger.neto, z:peso}])
     const wsM = XLSX.utils.aoa_to_sheet(movs)
-    wsM['!cols'] = [{wch:11},{wch:7},{wch:9},{wch:22},{wch:40},{wch:10},{wch:13},{wch:13}]
-    for (let r = first; r <= tRow + 1; r++) ['G','H'].forEach(c => { const cell = wsM[c+r]; if (cell && cell.t==='n') cell.z = peso })
+    wsM['!cols'] = [{wch:11},{wch:7},{wch:9},{wch:22},{wch:40},{wch:13},{wch:13},{wch:18},{wch:13}]
 
-    // ── Hoja Resumen: ingresos/gastos/neto apuntan a Movimientos ──
+    // ── Hoja Resumen: todo apunta a los totales de Movimientos ──
+    const link = (col, v) => ({t:'n', f:`Movimientos!${col}${tRow}`, v, z:peso})
     const resumen = [
       ['REPORTE DE ACTIVIDAD'],
       ['Período', periodLabel()],
@@ -2919,37 +2924,42 @@ function ReportTab({appts,expenses,services,setTab}) {
       ['No asistió', noshow],
       ['Tasa de completado (%)', completionRate],
       [''],
-      ['Ingresos (citas completadas, incl. domicilios)', {t:'n', f:`Movimientos!G${tRow}`, v:revenue, z:peso}],
-      ['Gastos del período',                             {t:'n', f:`Movimientos!H${tRow}`, v:totalExpenses, z:peso}],
-      ['NETO (ingresos − gastos)',                       null],
+      ['Ingresos por servicios', link('F', ledger.totalService)],
+      ['Ingresos por domicilios', link('G', ledger.totalDelivery)],
+      ['TOTAL INGRESOS', null],
+      ['Gastos del período', link('I', totalExpenses)],
+      ['NETO (ingresos − gastos)', null],
       [''],
-      ['Ingresos proyectados (con pendientes)', {t:'n', v:projected, z:peso}],
-      ['Domicilios (cantidad)', domicilios],
-      ['Domicilios ingresos (ya incluidos en Ingresos)', {t:'n', v:domRevenue, z:peso}],
+      ['Domicilios (cantidad de citas)', domicilios],
+      ['Ingresos proyectados (con pendientes, incl. domicilios)', {t:'n', v:projected, z:peso}],
     ]
-    const netoIdx = resumen.findIndex(r => r[0]==='NETO (ingresos − gastos)')
-    resumen[netoIdx][1] = {t:'n', f:`B${netoIdx-1}-B${netoIdx}`, v:neto, z:peso}
+    const iTot = resumen.findIndex(r => r[0]==='TOTAL INGRESOS')
+    resumen[iTot][1] = {t:'n', f:`B${iTot-1}+B${iTot}`, v:revenue, z:peso}
+    const iNeto = resumen.findIndex(r => r[0]==='NETO (ingresos − gastos)')
+    resumen[iNeto][1] = {t:'n', f:`B${iTot+1}-B${iNeto}`, v:neto, z:peso}
     const wsR = XLSX.utils.aoa_to_sheet(resumen)
-    wsR['!cols'] = [{wch:48},{wch:18}]
+    wsR['!cols'] = [{wch:52},{wch:18}]
 
     // ── Hoja Citas: todas (también pendientes y no-show) para consulta ──
     const detailSet = new Map()
     apptsInPeriod.forEach(a => detailSet.set(a.id, a))
     createdInPeriod.forEach(a => { if (!detailSet.has(a.id)) detailSet.set(a.id, a) })
-    const citasRows = [['Fecha','Hora','Cliente','Teléfono','Servicios','Total','Domicilio','Dirección','Estado','Creada el']]
+    const citasRows = [['Fecha','Hora','Cliente','Teléfono','Servicios','Valor servicios','Valor domicilio','Total','Domicilio','Dirección','Estado','Creada el']]
     Array.from(detailSet.values()).slice().sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date))).forEach(a => {
       const status = a.completed==='noshow' ? 'No asistió'
                    : bool(a.completed)      ? 'Completada'
                    :                          'Pendiente'
+      const tot = toN(a.totalPrice||a.servicePrice||0)
+      const dv  = bool(a.domicilio) ? Math.min(toN(a.domicilioPrice||0), tot) : 0
       citasRows.push([
         cleanDate(a.date), cleanTime(a.time), a.clientName||'', a.clientPhone||'',
-        a.serviceNames||'', toN(a.totalPrice||a.servicePrice||0),
+        a.serviceNames||'', tot-dv, dv, tot,
         bool(a.domicilio) ? 'Sí' : 'No', a.address||'', status,
         (a.createdAt||'').slice(0,19).replace('T',' ')
       ])
     })
     const wsC = XLSX.utils.aoa_to_sheet(citasRows)
-    wsC['!cols'] = [{wch:10},{wch:6},{wch:20},{wch:14},{wch:30},{wch:10},{wch:10},{wch:30},{wch:12},{wch:20}]
+    wsC['!cols'] = [{wch:10},{wch:6},{wch:20},{wch:14},{wch:30},{wch:14},{wch:14},{wch:12},{wch:10},{wch:30},{wch:12},{wch:20}]
 
     XLSX.utils.book_append_sheet(wb, wsR, 'Resumen')
     XLSX.utils.book_append_sheet(wb, wsM, 'Movimientos')
@@ -2977,12 +2987,14 @@ function ReportTab({appts,expenses,services,setTab}) {
       `• Tasa completado: *${completionRate}%*`,
       '',
       `${MONEY} *Ingresos*`,
-      `• Recibido (incl. domicilios): *${fmtM(revenue)}*`,
+      `• Servicios: *${fmtM(ledger.totalService)}*`,
+      `• Domicilios: *${fmtM(ledger.totalDelivery)}*`,
+      `• Total recibido: *${fmtM(revenue)}*`,
       `• Proyectado: *${fmtM(projected)}*`,
       `• Gastos: *${fmtM(totalExpenses)}*`,
       `• Neto: *${fmtM(neto)}*`,
     ]
-    if (domicilios>0) lines.push('', `${MOTO} *Domicilios*: ${domicilios} · ${fmtM(domRevenue)} (incl. en ingresos)`)
+    if (domicilios>0) lines.push('', `${MOTO} *Domicilios*: ${domicilios} citas · ${fmtM(domRevenue)}`)
     if (topByDemand.length>0) {
       lines.push('', `${SPARK} *Top servicios*`)
       topByDemand.slice(0,3).forEach((s,i) => lines.push(`${['1.','2.','3.'][i]} ${s.name} — ${s.count}x (${fmtM(Math.round(s.revenue))})`))
@@ -3058,12 +3070,13 @@ function ReportTab({appts,expenses,services,setTab}) {
       {/* Métricas de dinero */}
       <div style={{fontWeight:700,fontSize:14,marginBottom:10}}>💰 Dinero</div>
       <div style={{background:'linear-gradient(135deg,var(--primary),var(--primary-d))',borderRadius:14,padding:'14px 18px',marginBottom:8,color:'white'}}>
-        <div style={{fontSize:11,opacity:.8,textTransform:'uppercase',letterSpacing:'.05em',fontWeight:600,marginBottom:4}}>Ingresos completadas (incl. domicilios)</div>
+        <div style={{fontSize:11,opacity:.8,textTransform:'uppercase',letterSpacing:'.05em',fontWeight:600,marginBottom:4}}>Total ingresos (servicios + domicilios)</div>
         <div style={{fontFamily:'Georgia,serif',fontSize:28,fontWeight:700}}>{fmtM(revenue)}</div>
+        <div style={{fontSize:12,opacity:.9,marginTop:6}}>Servicios {fmtM(ledger.totalService)} + 🛵 Domicilios {fmtM(ledger.totalDelivery)}</div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:18}}>
         <Metric label="Proyectado" value={fmtM(projected)} color="var(--gold)" />
-        <Metric label="Domicilios" value={`${domicilios} · ${fmtM(domRevenue)}`} sub="incl. en ingresos" />
+        <Metric label="Domicilios" value={`${domicilios} · ${fmtM(domRevenue)}`} sub="separados de servicios" />
         <Metric label="Gastos"      value={fmtM(totalExpenses)} color="var(--red)" />
         <Metric label="Neto"        value={fmtM(neto)} color={neto>=0?'var(--green)':'var(--red)'} />
       </div>
@@ -3098,7 +3111,7 @@ function ReportTab({appts,expenses,services,setTab}) {
               <div style={{flexShrink:0,width:46,fontSize:11,color:'var(--t2)',fontWeight:600}}>{r.date.slice(8)}/{r.date.slice(5,7)}</div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.kind==='in'?r.who:r.detail}</div>
-                <div style={{fontSize:11,color:'var(--t2)'}}>{r.kind==='in'?r.detail:r.who}{r.domicilio?' 🛵':''}</div>
+                <div style={{fontSize:11,color:'var(--t2)'}}>{r.kind==='in'?r.detail:r.who}{r.delivery>0?` · 🛵 ${fmtM(r.delivery)} dom. + ${fmtM(r.service)} serv.`:''}</div>
               </div>
               <div style={{flexShrink:0,fontWeight:700,color:r.kind==='in'?'var(--green)':'var(--red)'}}>{r.kind==='in'?'+':'−'}{fmtM(r.amount)}</div>
             </div>

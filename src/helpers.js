@@ -141,23 +141,30 @@ export const periodLedger = (appts, expenses, from, to) => {
   const inP = d => { const x = cleanDate(d); return !!x && x >= from && x <= to }
   const incomes = A
     .filter(a => inP(a.date) && bool(a.completed))
-    .map(a => ({
-      id: a.id, kind: 'in', date: cleanDate(a.date), time: cleanTime(a.time),
-      who: a.clientName || '', detail: a.serviceNames || '',
-      domicilio: bool(a.domicilio), amount: toN(a.totalPrice || a.servicePrice || 0),
-    }))
+    .map(a => {
+      const amount = toN(a.totalPrice || a.servicePrice || 0)
+      // El domicilio viene sumado dentro del total de la cita; aquí se separa.
+      const delivery = bool(a.domicilio) ? Math.min(toN(a.domicilioPrice || 0), amount) : 0
+      return {
+        id: a.id, kind: 'in', date: cleanDate(a.date), time: cleanTime(a.time),
+        who: a.clientName || '', detail: a.serviceNames || '',
+        domicilio: bool(a.domicilio), amount, delivery, service: amount - delivery,
+      }
+    })
   const outs = E
     .filter(e => inP(e.date))
     .map(e => ({
       id: e.id, kind: 'out', date: cleanDate(e.date), time: '',
       who: e.category || '', detail: e.description || '',
-      domicilio: false, amount: toN(e.amount || 0),
+      domicilio: false, amount: toN(e.amount || 0), delivery: 0, service: 0,
     }))
   const totalIncome = incomes.reduce((s, r) => s + r.amount, 0)
+  const totalService = incomes.reduce((s, r) => s + r.service, 0)
+  const totalDelivery = incomes.reduce((s, r) => s + r.delivery, 0)
   const totalExpenses = outs.reduce((s, r) => s + r.amount, 0)
   const rows = [...incomes, ...outs].sort((a, b) =>
     a.date.localeCompare(b.date) || a.time.localeCompare(b.time) || (a.kind === b.kind ? 0 : a.kind === 'in' ? -1 : 1))
-  return { incomes, outs, rows, totalIncome, totalExpenses, neto: totalIncome - totalExpenses }
+  return { incomes, outs, rows, totalIncome, totalService, totalDelivery, totalExpenses, neto: totalIncome - totalExpenses }
 }
 
 // Atajo para un mes completo ('YYYY-MM')
