@@ -179,6 +179,13 @@ export const getSlots = (date, _taken, allAppts, excludeId = null, duration = SE
   })
 }
 
+// Métodos de pago al completar una cita. Citas antiguas no tienen el dato → ''.
+export const PAYMENT_METHODS = ['Efectivo', 'Transferencia']
+export const payMethodOf = a => {
+  const m = String((a && a.paymentMethod) || '').trim()
+  return PAYMENT_METHODS.includes(m) ? m : ''
+}
+
 /**
  * Libro de movimientos de un PERÍODO (from..to, 'YYYY-MM-DD', inclusivo).
  * FUENTE ÚNICA del neto: Finanzas, Reporte y el Excel usan esta función.
@@ -198,6 +205,7 @@ export const periodLedger = (appts, expenses, from, to) => {
         id: a.id, kind: 'in', date: cleanDate(a.date), time: cleanTime(a.time),
         who: a.clientName || '', detail: a.serviceNames || '',
         domicilio: bool(a.domicilio), amount, delivery, service: amount - delivery,
+        payMethod: payMethodOf(a),
       }
     })
   const outs = E
@@ -205,15 +213,22 @@ export const periodLedger = (appts, expenses, from, to) => {
     .map(e => ({
       id: e.id, kind: 'out', date: cleanDate(e.date), time: '',
       who: e.category || '', detail: e.description || '',
-      domicilio: false, amount: toN(e.amount || 0), delivery: 0, service: 0,
+      domicilio: false, amount: toN(e.amount || 0), delivery: 0, service: 0, payMethod: '',
     }))
   const totalIncome = incomes.reduce((s, r) => s + r.amount, 0)
   const totalService = incomes.reduce((s, r) => s + r.service, 0)
   const totalDelivery = incomes.reduce((s, r) => s + r.delivery, 0)
   const totalExpenses = outs.reduce((s, r) => s + r.amount, 0)
+  const sumBy = m => incomes.filter(r => r.payMethod === m).reduce((s, r) => s + r.amount, 0)
+  const totalCash = sumBy('Efectivo')
+  const totalTransfer = sumBy('Transferencia')
+  const totalNoMethod = totalIncome - totalCash - totalTransfer // citas completadas antes de existir el método
   const rows = [...incomes, ...outs].sort((a, b) =>
     a.date.localeCompare(b.date) || a.time.localeCompare(b.time) || (a.kind === b.kind ? 0 : a.kind === 'in' ? -1 : 1))
-  return { incomes, outs, rows, totalIncome, totalService, totalDelivery, totalExpenses, neto: totalIncome - totalExpenses }
+  return {
+    incomes, outs, rows, totalIncome, totalService, totalDelivery, totalExpenses,
+    totalCash, totalTransfer, totalNoMethod, neto: totalIncome - totalExpenses,
+  }
 }
 
 // Atajo para un mes completo ('YYYY-MM')

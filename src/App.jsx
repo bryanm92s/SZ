@@ -4,7 +4,7 @@ import { loadData, saveData } from './api.js'
 import {
   toN, localDateStr, todayStr, tomorrowStr, monthStr, localNowISO,
   bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots, periodLedger, monthLedger,
-  svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, openWhatsApp,
+  svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, openWhatsApp, PAYMENT_METHODS, payMethodOf,
 } from './helpers.js'
 
 /* ══════════════════════════════════════════════════════════════
@@ -478,6 +478,26 @@ function Modal({msg, onOk, onCancel, okLabel='Eliminar', cancelLabel='Cancelar'}
           {cancelLabel && <button className="btn-o" style={{flex:1}} onClick={onCancel}>{cancelLabel}</button>}
           <button className="btn" style={{flex:1,background:okLabel==='Eliminar'?'linear-gradient(135deg, #B03030 0%, #D04040 100%)':'var(--gradient)'}} onClick={onOk}>{okLabel}</button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// Pregunta cómo se pagó el servicio al marcar una cita como completada.
+function PayModal({appt, onPick, onCancel}) {
+  const icons = {Efectivo:'💵', Transferencia:'🏦'}
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}} onClick={onCancel}>
+      <div style={{background:'rgba(255,255,255,0.97)',borderRadius:24,padding:28,maxWidth:360,width:'100%',textAlign:'center',boxShadow:'0 10px 40px rgba(0,0,0,.2)'}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:36,marginBottom:10}}>💳</div>
+        <div style={{fontSize:16,fontWeight:700,color:'var(--t)',marginBottom:4}}>¿Cómo se pagó el servicio?</div>
+        <div style={{fontSize:12,color:'var(--t2)',marginBottom:18}}>{appt.clientName} · {fmtM(appt.totalPrice||appt.servicePrice)}</div>
+        <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:14}}>
+          {PAYMENT_METHODS.map(m=>(
+            <button key={m} className="btn" style={{width:'100%'}} onClick={()=>onPick(m)}>{icons[m]} {m}</button>
+          ))}
+        </div>
+        <button className="btn-o" style={{width:'100%'}} onClick={onCancel}>Cancelar</button>
       </div>
     </div>
   )
@@ -1411,6 +1431,7 @@ function MonthlyBalance({appts,expenses,selMonth,setSelMonth,setTab}) {
 function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModal,priceHistory}) {
   const [showNew,  setNew]  = useState(false)
   const [editAppt, setEdit] = useState(null)
+  const [payFor,  setPayFor] = useState(null) // {appt, change} → modal de método de pago
   // Only "today" open by default — each group toggles independently
   const [open, setOpen] = useState({today:true, tomorrow:false, upcoming:false, noshow:false, past:false})
   const td = todayStr(), tm = tomorrowStr()
@@ -1431,10 +1452,23 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
   const toggleCompleted = (a, newStatus) => {
     // cycle: pending -> done -> pending; noshow is a separate button
     const cur = a.completed==='noshow'?'noshow': bool(a.completed)?'done':'pending'
+    // Completar una cita pendiente → primero preguntar cómo se pagó
+    if (newStatus==='done' && cur!=='done') { setPayFor({appt:a, change:false}); return }
     let next_val
-    if (newStatus==='done')   next_val = cur==='done'   ? false : true
+    if (newStatus==='done')   next_val = false            // desmarcar completada
     if (newStatus==='noshow') next_val = cur==='noshow' ? false : 'noshow'
-    const next = appts.map(x=>x.id===a.id?{...x,completed:next_val}:x)
+    // Si deja de estar completada, se borra el método de pago
+    const next = appts.map(x=>x.id===a.id?{...x,completed:next_val,paymentMethod:''}:x)
+    SA(next)
+  }
+
+  // Confirma el método elegido en el modal (completar, o solo cambiar el método)
+  const pickPayment = (method) => {
+    const a = payFor.appt
+    const next = appts.map(x=>x.id===a.id
+      ? (payFor.change ? {...x,paymentMethod:method} : {...x,completed:true,paymentMethod:method})
+      : x)
+    setPayFor(null)
     SA(next)
   }
 
@@ -1464,6 +1498,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
             {sortG(items).map(a=>(
               <ApptCard key={a.id} appt={a} canEdit={canEdit}
                 onToggle={(s)=>toggleCompleted(a,s)}
+                onChangePay={()=>setPayFor({appt:a, change:true})}
                 onEdit={()=>setEdit(a)}
                 onDelete={()=>confirm(`¿Eliminar la cita de ${a.clientName}? También se borrará el evento de Google Calendar.`,()=>deleteAppt(a))}
               />
@@ -1479,6 +1514,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
       <span style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)'}}>Citas</span>
       <button className="btn" onClick={()=>setNew(true)}>+ Nueva cita</button>
     </div>
+    {payFor && <PayModal appt={payFor.appt} onPick={pickPayment} onCancel={()=>setPayFor(null)}/>}
     <AccGroup label="Hoy"         color="#B5524A" gKey="today"    items={groups.today}    canEdit={true}/>
     <AccGroup label="Mañana"      color="#B8742A" gKey="tomorrow" items={groups.tomorrow} canEdit={true}/>
     <AccGroup label="Próximas"    color="#2E6EA6" gKey="upcoming" items={groups.upcoming} canEdit={true}/>
@@ -1493,7 +1529,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
   </>
 }
 
-function ApptCard({appt,canEdit,onToggle,onEdit,onDelete}) {
+function ApptCard({appt,canEdit,onToggle,onEdit,onDelete,onChangePay}) {
   const calOk  = bool(appt.calendarCreated)
   const dom    = bool(appt.domicilio)
   const status = appt.completed==='noshow' ? 'noshow' : bool(appt.completed) ? 'done' : 'pending'
@@ -1542,6 +1578,9 @@ function ApptCard({appt,canEdit,onToggle,onEdit,onDelete}) {
         <span className="tag" style={{fontSize:11}}>🕐 {fmtTime(appt.time)} – {fmtTime(endTime(appt.time,apptDuration(appt)))}</span>
         {dom && <span className="tag-gold" style={{fontSize:11}}>🛵 Domicilio</span>}
         {status==='done'   && <span className="tag-g"    style={{fontSize:11}}>✓ Completada</span>}
+        {status==='done'   && (payMethodOf(appt)
+          ? <span className="tag-g" style={{fontSize:11,cursor:onChangePay?'pointer':'default'}} title="Cambiar método de pago" onClick={onChangePay}>{payMethodOf(appt)==='Efectivo'?'💵':'🏦'} {payMethodOf(appt)}</span>
+          : <span className="tag-gold" style={{fontSize:11,cursor:onChangePay?'pointer':'default'}} title="Registrar método de pago" onClick={onChangePay}>💳 Sin método de pago · registrar</span>)}
         {status==='noshow' && <span style={{display:'inline-block',background:'#FFF0EC',color:'var(--red)',borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>✗ No asistió</span>}
         {status==='pending'&& past && <span className="tag-past" style={{fontSize:11}}>● Pasada</span>}
       </div>
@@ -2503,7 +2542,7 @@ function ClientHistory({appts,setTab,tabExtra}) {
                 </div>
                 <div style={{textAlign:'right',flexShrink:0}}>
                   <div style={{fontSize:13,fontWeight:700,color:stCfg.col,textDecoration:st==='noshow'?'line-through':''}}>{fmtM(a.totalPrice||a.servicePrice)}</div>
-                  <div style={{background:stCfg.bg,color:stCfg.col,borderRadius:20,padding:'1px 8px',fontSize:10,fontWeight:700,marginTop:2}}>{stCfg.lbl}</div>
+                  <div style={{background:stCfg.bg,color:stCfg.col,borderRadius:20,padding:'1px 8px',fontSize:10,fontWeight:700,marginTop:2}}>{stCfg.lbl}{st==='done'&&payMethodOf(a)?' · '+payMethodOf(a):''}</div>
                 </div>
               </div>
             )
@@ -2911,15 +2950,15 @@ function ReportTab({appts,expenses,services,setTab}) {
 
     // ── Hoja Movimientos: una fila por cita completada y por gasto ──
     // Columnas: A Fecha, B Hora, C Tipo, D Cliente/Categoría, E Detalle,
-    //           F Servicios, G Domicilio, H Ingreso (=F+G), I Gasto
-    const movs = [['Fecha','Hora','Tipo','Cliente / Categoría','Detalle (servicios / gasto)','Servicios','Domicilio','Ingreso (total cita)','Gasto']]
+    //           F Servicios, G Domicilio, H Ingreso (=F+G), I Gasto, J Método de pago
+    const movs = [['Fecha','Hora','Tipo','Cliente / Categoría','Detalle (servicios / gasto)','Servicios','Domicilio','Ingreso (total cita)','Gasto','Método de pago']]
     ledger.rows.forEach((r, i) => {
       const n = i + 2
       movs.push(r.kind==='in'
         ? [r.date, r.time, 'Ingreso', r.who, r.detail,
            {t:'n', v:r.service, z:peso}, {t:'n', v:r.delivery, z:peso},
-           {t:'n', f:`F${n}+G${n}`, v:r.amount, z:peso}, '']
-        : [r.date, r.time, 'Gasto', r.who, r.detail, '', '', '', {t:'n', v:r.amount, z:peso}])
+           {t:'n', f:`F${n}+G${n}`, v:r.amount, z:peso}, '', r.payMethod || 'Sin registrar']
+        : [r.date, r.time, 'Gasto', r.who, r.detail, '', '', '', {t:'n', v:r.amount, z:peso}, ''])
     })
     const first = 2, last = ledger.rows.length + 1
     const tRow = last + 2
@@ -2931,7 +2970,7 @@ function ReportTab({appts,expenses,services,setTab}) {
     movs.push(['','','','','NETO (Ingreso − Gasto)','','',
       {t:'n', f:`H${tRow}-I${tRow}`, v:ledger.neto, z:peso}])
     const wsM = XLSX.utils.aoa_to_sheet(movs)
-    wsM['!cols'] = [{wch:11},{wch:7},{wch:9},{wch:22},{wch:40},{wch:13},{wch:13},{wch:18},{wch:13}]
+    wsM['!cols'] = [{wch:11},{wch:7},{wch:9},{wch:22},{wch:40},{wch:13},{wch:13},{wch:18},{wch:13},{wch:16}]
 
     // ── Hoja Resumen: todo apunta a los totales de Movimientos ──
     const link = (col, v) => ({t:'n', f:`Movimientos!${col}${tRow}`, v, z:peso})
@@ -2956,6 +2995,10 @@ function ReportTab({appts,expenses,services,setTab}) {
       [''],
       ['Domicilios (cantidad de citas)', domicilios],
       ['Ingresos proyectados (con pendientes, incl. domicilios)', {t:'n', v:projected, z:peso}],
+      [''],
+      ['Cobrado en efectivo', {t:'n', f:`SUMIF(Movimientos!J${first}:J${last},"Efectivo",Movimientos!H${first}:H${last})`, v:ledger.totalCash, z:peso}],
+      ['Cobrado por transferencia', {t:'n', f:`SUMIF(Movimientos!J${first}:J${last},"Transferencia",Movimientos!H${first}:H${last})`, v:ledger.totalTransfer, z:peso}],
+      ['Cobrado sin método registrado', {t:'n', f:`SUMIF(Movimientos!J${first}:J${last},"Sin registrar",Movimientos!H${first}:H${last})`, v:ledger.totalNoMethod, z:peso}],
     ]
     const iTot = resumen.findIndex(r => r[0]==='TOTAL INGRESOS')
     resumen[iTot][1] = {t:'n', f:`B${iTot-1}+B${iTot}`, v:revenue, z:peso}
@@ -2968,7 +3011,7 @@ function ReportTab({appts,expenses,services,setTab}) {
     const detailSet = new Map()
     apptsInPeriod.forEach(a => detailSet.set(a.id, a))
     createdInPeriod.forEach(a => { if (!detailSet.has(a.id)) detailSet.set(a.id, a) })
-    const citasRows = [['Fecha','Hora','Cliente','Teléfono','Servicios','Valor servicios','Valor domicilio','Total','Domicilio','Dirección','Estado','Creada el']]
+    const citasRows = [['Fecha','Hora','Cliente','Teléfono','Servicios','Valor servicios','Valor domicilio','Total','Domicilio','Dirección','Estado','Método de pago','Creada el']]
     Array.from(detailSet.values()).slice().sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date))).forEach(a => {
       const status = a.completed==='noshow' ? 'No asistió'
                    : bool(a.completed)      ? 'Completada'
@@ -2979,11 +3022,12 @@ function ReportTab({appts,expenses,services,setTab}) {
         cleanDate(a.date), cleanTime(a.time), a.clientName||'', a.clientPhone||'',
         a.serviceNames||'', tot-dv, dv, tot,
         bool(a.domicilio) ? 'Sí' : 'No', a.address||'', status,
+        bool(a.completed) && a.completed!=='noshow' ? (payMethodOf(a) || 'Sin registrar') : '',
         (a.createdAt||'').slice(0,19).replace('T',' ')
       ])
     })
     const wsC = XLSX.utils.aoa_to_sheet(citasRows)
-    wsC['!cols'] = [{wch:10},{wch:6},{wch:20},{wch:14},{wch:30},{wch:14},{wch:14},{wch:12},{wch:10},{wch:30},{wch:12},{wch:20}]
+    wsC['!cols'] = [{wch:10},{wch:6},{wch:20},{wch:14},{wch:30},{wch:14},{wch:14},{wch:12},{wch:10},{wch:30},{wch:12},{wch:16},{wch:20}]
 
     XLSX.utils.book_append_sheet(wb, wsR, 'Resumen')
     XLSX.utils.book_append_sheet(wb, wsM, 'Movimientos')
@@ -3014,6 +3058,9 @@ function ReportTab({appts,expenses,services,setTab}) {
       `• Servicios: *${fmtM(ledger.totalService)}*`,
       `• Domicilios: *${fmtM(ledger.totalDelivery)}*`,
       `• Total recibido: *${fmtM(revenue)}*`,
+      `   - Efectivo: *${fmtM(ledger.totalCash)}*`,
+      `   - Transferencia: *${fmtM(ledger.totalTransfer)}*`,
+      ...(ledger.totalNoMethod>0 ? [`   - Sin método registrado: *${fmtM(ledger.totalNoMethod)}*`] : []),
       `• Proyectado: *${fmtM(projected)}*`,
       `• Gastos: *${fmtM(totalExpenses)}*`,
       `• Neto: *${fmtM(neto)}*`,
@@ -3237,7 +3284,7 @@ function IncomeDetail({appts,setTab,tabExtra}) {
             </div>
             <div style={{flexShrink:0,textAlign:'right'}}>
               <div style={{fontWeight:700,color:bool(a.completed)?'var(--green)':'var(--gold)',fontSize:13}}>{fmtM(a.totalPrice||a.servicePrice)}</div>
-              <div style={{fontSize:10,color:bool(a.completed)?'var(--green)':'var(--gold)'}}>{bool(a.completed)?'✓ Recibido':'Pendiente'}</div>
+              <div style={{fontSize:10,color:bool(a.completed)?'var(--green)':'var(--gold)'}}>{bool(a.completed)?('✓ Recibido'+(payMethodOf(a)?' · '+payMethodOf(a):'')):'Pendiente'}</div>
             </div>
           </div>)}
         </div>
@@ -3671,7 +3718,7 @@ function CalendarView({ clients, appts, setTab, confirm, deleteAppt }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--t)' }}>{a.clientName}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: status.color, background: status.bg, borderRadius: 6, padding: '2px 7px' }}>{status.label}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: status.color, background: status.bg, borderRadius: 6, padding: '2px 7px' }}>{status.label}{done && payMethodOf(a) ? ' · ' + payMethodOf(a) : ''}</span>
             </div>
             <div style={{ fontSize: 12, color: 'var(--t2)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.serviceNames}</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)', marginTop: 5 }}>{fmtM(a.totalPrice || a.servicePrice)}</div>
