@@ -4,7 +4,7 @@ import { loadData, saveData } from './api.js'
 import {
   toN, localDateStr, todayStr, tomorrowStr, monthStr, localNowISO,
   bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots, periodLedger, monthLedger,
-  svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME,
+  svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, waUrl,
 } from './helpers.js'
 
 /* ══════════════════════════════════════════════════════════════
@@ -236,9 +236,8 @@ const openWA = (phone, name, time, date, serviceNames, total, isDom) => {
     end,
   ]
   const msg = lines.join('\n')
-  // Use api.whatsapp.com/send which handles encoded text more reliably than wa.me
-  const url = 'https://api.whatsapp.com/send/?phone=' + p + '&text=' + encodeURIComponent(msg) + '&type=phone_number&app_absent=0'
-  window.open(url, '_blank')
+  // wa.me permite elegir WhatsApp o WhatsApp Business en iOS
+  window.location.href = waUrl(p, msg)
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -3027,8 +3026,7 @@ function ReportTab({appts,expenses,services,setTab}) {
     }
     lines.push('', `_Generado ${new Date().toLocaleString('es-CO')}_`)
     const msg = lines.join('\n')
-    const url = 'https://api.whatsapp.com/send/?phone=' + p + '&text=' + encodeURIComponent(msg) + '&type=phone_number&app_absent=0'
-    window.open(url, '_blank')
+    window.location.href = waUrl(p, msg)
   }
 
   const Metric = ({label, value, color, big, sub}) => (

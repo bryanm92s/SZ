@@ -219,3 +219,9 @@ export const periodLedger = (appts, expenses, from, to) => {
 // Atajo para un mes completo ('YYYY-MM')
 export const monthLedger = (appts, expenses, month) =>
   periodLedger(appts, expenses, month + '-01', month + '-31')
+
+// URL de WhatsApp. Usa wa.me (enlace universal) para que iOS permita elegir
+// entre WhatsApp y WhatsApp Business. Evitar api.whatsapp.com/send, que abre
+// WhatsApp normal directamente.
+export const waUrl = (phone, msg) =>
+  'https://wa.me/' + String(phone).replace(/\D/g, '') + '?text=' + encodeURIComponent(msg)
