@@ -3,7 +3,7 @@ import { loadData, saveData } from './api.js'
 // Helpers puros extraídos para poder testearlos sin React:
 import {
   toN, localDateStr, todayStr, tomorrowStr, monthStr, localNowISO,
-  bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots, monthLedger,
+  bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots, periodLedger, monthLedger,
 } from './helpers.js'
 
 /* ══════════════════════════════════════════════════════════════
@@ -444,7 +444,6 @@ export default function App() {
         {tab==='comparison'      && <MonthComparison {...p}/>}
         {tab==='top-services'    && <TopServices     {...p}/>}
         {tab==='report'          && <ReportTab       {...p}/>}
-        {tab==='movements'       && <MovementsTab    {...p}/>}
       </main>
 
       <footer style={{textAlign:'center',padding:'20px 14px 28px',borderTop:'1px solid var(--border)',marginTop:8,background:'rgba(255,255,255,0.7)',backdropFilter:'var(--glass-blur)',webkitBackdropFilter:'var(--glass-blur)'}}>
@@ -2278,13 +2277,8 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
       </div>
       <div className="card" style={{marginBottom:0,cursor:'pointer',textAlign:'center',padding:'16px 12px'}} onClick={()=>setTab('report')}>
         <div style={{fontSize:26,marginBottom:6}}><svg width="26" height="22" viewBox="0 0 26 22" fill="none"><rect x="2" y="2" width="22" height="18" rx="2" stroke="var(--primary)" strokeWidth="2" fill="none"/><path d="M6 8h14M6 12h14M6 16h8" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round"/></svg></div>
-        <div style={{fontWeight:700,fontSize:13,color:'var(--t)'}}>Reporte</div>
-        <div style={{fontSize:11,color:'var(--t2)',marginTop:3}}>Exportar / WhatsApp →</div>
-      </div>
-      <div className="card" style={{marginBottom:0,cursor:'pointer',textAlign:'center',padding:'16px 12px'}} onClick={()=>setTab('movements',{month})}>
-        <div style={{fontSize:26,marginBottom:6}}>🧾</div>
-        <div style={{fontWeight:700,fontSize:13,color:'var(--t)'}}>Movimientos</div>
-        <div style={{fontSize:11,color:'var(--t2)',marginTop:3}}>Todo el mes + Excel →</div>
+        <div style={{fontWeight:700,fontSize:13,color:'var(--t)'}}>Reporte y Excel</div>
+        <div style={{fontSize:11,color:'var(--t2)',marginTop:3}}>Día, mes o rango · Excel →</div>
       </div>
     </div>
 
@@ -2801,6 +2795,7 @@ function ReportTab({appts,expenses,services,setTab}) {
   const [month, setMonth] = useState(monthStr())
   const [from,  setFrom]  = useState(today)
   const [to,    setTo]    = useState(today)
+  const [mvFilter, setMvFilter] = useState('all') // 'all'|'in'|'out'
 
   // Predicado de pertenencia al período (réplica del backend _inPeriod)
   const inPeriod = d => {
@@ -2851,19 +2846,19 @@ function ReportTab({appts,expenses,services,setTab}) {
   const cancelledRate  = scheduled>0 ? Math.round(noshow/scheduled*100) : 0
   const completionRate = scheduled>0 ? Math.round(completed/scheduled*100) : 0
 
-  // Ingresos: solo citas completadas (sin no-show) — incluyen el domicilio
-  const revenue = apptsInPeriod
-    .filter(a => bool(a.completed) && a.completed!=='noshow')
-    .reduce((s,a) => s + toN(a.totalPrice||a.servicePrice||0), 0)
+  // LIBRO ÚNICO del período: ingresos (citas completadas) y gastos.
+  // Pantalla, WhatsApp y Excel salen de aquí, así el neto siempre cuadra.
+  const ledger = periodLedger(safeA, safeE, fromVal(), toVal())
+  const revenue = ledger.totalIncome
 
   // Ingresos potenciales (incluye pendientes)
   const projected = apptsInPeriod
     .reduce((s,a) => a.completed==='noshow' ? s : s + toN(a.totalPrice||a.servicePrice||0), 0)
 
-  // Gastos del período + neto
-  const expensesInPeriod = safeE.filter(e => inRange(cleanDate(e.date), fromVal(), toVal()))
-  const totalExpenses = expensesInPeriod.reduce((s,e) => s + toN(e.amount||0), 0)
-  const neto = revenue - totalExpenses
+  // Gastos del período + neto (del libro único)
+  const expensesInPeriod = ledger.outs
+  const totalExpenses = ledger.totalExpenses
+  const neto = ledger.neto
 
   const avgTicket = completed>0 ? Math.round(revenue/completed) : 0
 
@@ -2890,8 +2885,27 @@ function ReportTab({appts,expenses,services,setTab}) {
   const exportExcel = async () => {
     const XLSX = await import('xlsx')
     const wb = XLSX.utils.book_new()
+    const peso = '"$"#,##0'
 
-    // Hoja 1: Resumen
+    // ── Hoja Movimientos: una fila por cita completada y por gasto ──
+    const movs = [['Fecha','Hora','Tipo','Cliente / Categoría','Detalle (servicios / gasto)','Domicilio','Ingreso','Gasto']]
+    ledger.rows.forEach(r => movs.push([
+      r.date, r.time, r.kind==='in'?'Ingreso':'Gasto', r.who, r.detail,
+      r.domicilio?'Sí':'', r.kind==='in'?r.amount:'', r.kind==='out'?r.amount:'',
+    ]))
+    const first = 2, last = ledger.rows.length + 1
+    const tRow = last + 2
+    movs.push([])
+    movs.push(['','','','','TOTAL','',
+      {t:'n', f:`SUM(G${first}:G${last})`, v:ledger.totalIncome},
+      {t:'n', f:`SUM(H${first}:H${last})`, v:ledger.totalExpenses}])
+    movs.push(['','','','','NETO (Ingreso − Gasto)','',
+      {t:'n', f:`G${tRow}-H${tRow}`, v:ledger.neto}])
+    const wsM = XLSX.utils.aoa_to_sheet(movs)
+    wsM['!cols'] = [{wch:11},{wch:7},{wch:9},{wch:22},{wch:40},{wch:10},{wch:13},{wch:13}]
+    for (let r = first; r <= tRow + 1; r++) ['G','H'].forEach(c => { const cell = wsM[c+r]; if (cell && cell.t==='n') cell.z = peso })
+
+    // ── Hoja Resumen: ingresos/gastos/neto apuntan a Movimientos ──
     const resumen = [
       ['REPORTE DE ACTIVIDAD'],
       ['Período', periodLabel()],
@@ -2902,23 +2916,23 @@ function ReportTab({appts,expenses,services,setTab}) {
       ['Citas agendadas para el período', scheduled],
       ['Citas completadas', completed],
       ['Citas pendientes', pending],
+      ['No asistió', noshow],
       ['Tasa de completado (%)', completionRate],
       [''],
-      ['Ingresos completadas (incl. domicilios)', revenue],
-      ['Ingresos proyectados (con pendientes)', projected],
+      ['Ingresos (citas completadas, incl. domicilios)', {t:'n', f:`Movimientos!G${tRow}`, v:revenue, z:peso}],
+      ['Gastos del período',                             {t:'n', f:`Movimientos!H${tRow}`, v:totalExpenses, z:peso}],
+      ['NETO (ingresos − gastos)',                       null],
       [''],
-      ['Gastos del período', totalExpenses],
-      ['Neto (ingresos - gastos)', neto],
-      [''],
+      ['Ingresos proyectados (con pendientes)', {t:'n', v:projected, z:peso}],
       ['Domicilios (cantidad)', domicilios],
-      ['Domicilios ingresos', domRevenue],
-      ['Nota: dom. ingresos ya incluidos en Ingresos completadas', ''],
+      ['Domicilios ingresos (ya incluidos en Ingresos)', {t:'n', v:domRevenue, z:peso}],
     ]
-    const ws1 = XLSX.utils.aoa_to_sheet(resumen)
-    ws1['!cols'] = [{wch:48},{wch:18}]
-    XLSX.utils.book_append_sheet(wb, ws1, 'Resumen')
+    const netoIdx = resumen.findIndex(r => r[0]==='NETO (ingresos − gastos)')
+    resumen[netoIdx][1] = {t:'n', f:`B${netoIdx-1}-B${netoIdx}`, v:neto, z:peso}
+    const wsR = XLSX.utils.aoa_to_sheet(resumen)
+    wsR['!cols'] = [{wch:48},{wch:18}]
 
-    // Hoja 2: Detalle de citas
+    // ── Hoja Citas: todas (también pendientes y no-show) para consulta ──
     const detailSet = new Map()
     apptsInPeriod.forEach(a => detailSet.set(a.id, a))
     createdInPeriod.forEach(a => { if (!detailSet.has(a.id)) detailSet.set(a.id, a) })
@@ -2934,22 +2948,12 @@ function ReportTab({appts,expenses,services,setTab}) {
         (a.createdAt||'').slice(0,19).replace('T',' ')
       ])
     })
-    const ws2 = XLSX.utils.aoa_to_sheet(citasRows)
-    ws2['!cols'] = [{wch:10},{wch:6},{wch:20},{wch:14},{wch:30},{wch:10},{wch:10},{wch:30},{wch:12},{wch:20}]
-    XLSX.utils.book_append_sheet(wb, ws2, 'Citas')
+    const wsC = XLSX.utils.aoa_to_sheet(citasRows)
+    wsC['!cols'] = [{wch:10},{wch:6},{wch:20},{wch:14},{wch:30},{wch:10},{wch:10},{wch:30},{wch:12},{wch:20}]
 
-    // Hoja 3: Gastos del período
-    const gastosRows = [['Fecha','Descripción','Categoría','Monto']]
-    expensesInPeriod.slice().sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date))).forEach(e => {
-      gastosRows.push([cleanDate(e.date), e.description||'', e.category||'', toN(e.amount||0)])
-    })
-    if (expensesInPeriod.length>0) {
-      gastosRows.push(['', '', 'TOTAL', totalExpenses])
-    }
-    const ws3 = XLSX.utils.aoa_to_sheet(gastosRows)
-    ws3['!cols'] = [{wch:10},{wch:30},{wch:18},{wch:12}]
-    XLSX.utils.book_append_sheet(wb, ws3, 'Gastos')
-
+    XLSX.utils.book_append_sheet(wb, wsR, 'Resumen')
+    XLSX.utils.book_append_sheet(wb, wsM, 'Movimientos')
+    XLSX.utils.book_append_sheet(wb, wsC, 'Citas')
     const name = `reporte_${mode==='day'?day:mode==='month'?month:`${from}_${to}`}.xlsx`
     XLSX.writeFile(wb, name)
   }
@@ -3077,16 +3081,44 @@ function ReportTab({appts,expenses,services,setTab}) {
         </div>
       )}
 
+      {/* Movimientos del período: lo mismo que irá en la hoja 'Movimientos' del Excel */}
+      <div className="card" style={{marginBottom:14}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+          <div style={{fontWeight:700,fontSize:14}}>🧾 Movimientos del período</div>
+          <div style={{display:'flex',gap:6}}>
+            {[['all','Todo'],['in','Ingresos'],['out','Gastos']].map(([v,l])=>(
+              <button key={v} onClick={()=>setMvFilter(v)} style={{...chipStyle(mvFilter===v),flex:'none',padding:'4px 10px',fontSize:11}}>{l}</button>
+            ))}
+          </div>
+        </div>
+        {ledger.rows.filter(r=>mvFilter==='all'||r.kind===mvFilter).length===0
+          ? <div style={{textAlign:'center',color:'var(--t2)',fontSize:13,padding:'14px 0'}}>Sin movimientos en este período</div>
+          : ledger.rows.filter(r=>mvFilter==='all'||r.kind===mvFilter).map(r=>(
+            <div key={r.kind+r.id} className="row" style={{fontSize:13}}>
+              <div style={{flexShrink:0,width:46,fontSize:11,color:'var(--t2)',fontWeight:600}}>{r.date.slice(8)}/{r.date.slice(5,7)}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.kind==='in'?r.who:r.detail}</div>
+                <div style={{fontSize:11,color:'var(--t2)'}}>{r.kind==='in'?r.detail:r.who}{r.domicilio?' 🛵':''}</div>
+              </div>
+              <div style={{flexShrink:0,fontWeight:700,color:r.kind==='in'?'var(--green)':'var(--red)'}}>{r.kind==='in'?'+':'−'}{fmtM(r.amount)}</div>
+            </div>
+          ))}
+        <div style={{display:'flex',justifyContent:'space-between',marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)',fontWeight:700,fontSize:13}}>
+          <span>Neto del período</span>
+          <span style={{color:neto>=0?'var(--green)':'var(--red)'}}>{fmtM(neto)}</span>
+        </div>
+      </div>
+
       {/* Botones de acción */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
-        <button className="btn-o" onClick={exportExcel} disabled={created===0} style={{padding:'14px 12px'}}>
+        <button className="btn-o" onClick={exportExcel} disabled={created===0&&ledger.rows.length===0} style={{padding:'14px 12px'}}>
           📊 Exportar Excel
         </button>
         <button className="btn-wa" onClick={sendWA} disabled={created===0} style={{padding:'14px 12px'}}>
           💬 WhatsApp admin
         </button>
       </div>
-      {created===0 && <div style={{textAlign:'center',fontSize:12,color:'var(--t2)',marginBottom:14}}>No hay citas en este período para exportar.</div>}
+      {created===0&&ledger.rows.length===0 && <div style={{textAlign:'center',fontSize:12,color:'var(--t2)',marginBottom:14}}>No hay movimientos en este período para exportar.</div>}
 
       {/* Pista de destinatario */}
       <div style={{textAlign:'center',fontSize:11,color:'var(--t2)',marginBottom:6}}>
@@ -3175,88 +3207,6 @@ function IncomeDetail({appts,setTab,tabExtra}) {
         </div>
       })
     }
-  </>
-}
-
-/* ══════════════════════════════════════════════════════════════
-   MOVIMIENTOS — cada cita completada y cada gasto del mes,
-   con exportación a Excel que cuadra con el Neto de Finanzas.
-══════════════════════════════════════════════════════════════ */
-function MovementsTab({appts,expenses,setTab,tabExtra}) {
-  const [month,setM]=useState(tabExtra?.month || monthStr())
-  const [filter,setF]=useState('all') // 'all'|'in'|'out'
-  const safeA=Array.isArray(appts)?appts:[]
-  const safeE=Array.isArray(expenses)?expenses:[]
-  const months=[...new Set([...safeA.map(a=>cleanDate(a.date).slice(0,7)),...safeE.map(e=>cleanDate(e.date).slice(0,7)),monthStr()].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
-  const L=monthLedger(safeA,safeE,month)
-  const shown=L.rows.filter(r=>filter==='all'||r.kind===filter)
-
-  const exportExcel = async () => {
-    const XLSX = await import('xlsx')
-    const wb = XLSX.utils.book_new()
-    const head = ['Fecha','Hora','Tipo','Cliente / Categoría','Detalle (servicios / gasto)','Domicilio','Ingreso','Gasto']
-    const aoa = [head]
-    L.rows.forEach(r => aoa.push([
-      r.date, r.time, r.kind==='in'?'Ingreso':'Gasto', r.who, r.detail,
-      r.domicilio?'Sí':'', r.kind==='in'?r.amount:'', r.kind==='out'?r.amount:'',
-    ]))
-    const first = 2, last = L.rows.length + 1
-    const tRow = last + 2   // fila de TOTAL (deja una fila en blanco)
-    aoa.push([])
-    aoa.push(['','','','','TOTAL','',
-      {t:'n', f:`SUM(G${first}:G${last})`, v:L.totalIncome},
-      {t:'n', f:`SUM(H${first}:H${last})`, v:L.totalExpenses}])
-    aoa.push(['','','','','NETO (Ingreso − Gasto)','',
-      {t:'n', f:`G${tRow}-H${tRow}`, v:L.neto}])
-    const ws = XLSX.utils.aoa_to_sheet(aoa)
-    ws['!cols'] = [{wch:11},{wch:7},{wch:9},{wch:22},{wch:40},{wch:10},{wch:13},{wch:13}]
-    // Formato de pesos en columnas G y H
-    for (let r = first; r <= tRow + 1; r++) ['G','H'].forEach(c => { const cell = ws[c+r]; if (cell && cell.t==='n') cell.z = '"$"#,##0' })
-    XLSX.utils.book_append_sheet(wb, ws, 'Movimientos')
-    XLSX.writeFile(wb, `movimientos_${month}.xlsx`)
-  }
-
-  return <>
-    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
-      <button className="btn-sm" onClick={()=>setTab(tabExtra?.origin||'finances')}>← Volver</button>
-      <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>🧾 Movimientos</span>
-    </div>
-    <select className="inp" value={month} onChange={e=>setM(e.target.value)} style={{marginBottom:12}}>
-      {months.map(m=><option key={m} value={m}>{new Date(m+'-01T12:00:00').toLocaleDateString('es-CO',{month:'long',year:'numeric'})}</option>)}
-    </select>
-
-    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:14}}>
-      {[['in','Ingresos',L.totalIncome,L.incomes.length,'var(--green)','var(--green-bg)'],
-        ['out','Gastos',L.totalExpenses,L.outs.length,'var(--red)','var(--red-bg)']
-      ].map(([v,l,val,cnt,col,bg])=>(
-        <div key={v} onClick={()=>setF(filter===v?'all':v)} style={{background:filter===v?col:bg,borderRadius:14,padding:'12px 8px',textAlign:'center',cursor:'pointer'}}>
-          <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',color:filter===v?'white':col}}>{l}</div>
-          <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:filter===v?'white':col}}>{fmtM(val)}</div>
-          <div style={{fontSize:10,color:filter===v?'rgba(255,255,255,0.8)':col}}>{cnt} registro{cnt!==1?'s':''}</div>
-        </div>
-      ))}
-      <div style={{background:L.neto>=0?'var(--green-bg)':'var(--red-bg)',borderRadius:14,padding:'12px 8px',textAlign:'center',border:`1px solid ${L.neto>=0?'var(--green)':'var(--red)'}`}}>
-        <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',color:L.neto>=0?'var(--green)':'var(--red)'}}>Neto</div>
-        <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:L.neto>=0?'var(--green)':'var(--red)'}}>{fmtM(L.neto)}</div>
-      </div>
-    </div>
-
-    <button className="btn" style={{width:'100%',marginBottom:14}} onClick={exportExcel} disabled={L.rows.length===0}>📊 Exportar Excel del mes</button>
-
-    {shown.length===0
-      ?<div className="card" style={{textAlign:'center',padding:30,color:'var(--t2)'}}>Sin movimientos este mes</div>
-      :<div className="card">
-        {shown.map(r=>(
-          <div key={r.kind+r.id} className="row" style={{fontSize:13}}>
-            <div style={{flexShrink:0,width:46,fontSize:11,color:'var(--t2)',fontWeight:600}}>{r.date.slice(8)}/{r.date.slice(5,7)}</div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.kind==='in'?r.who:r.detail}</div>
-              <div style={{fontSize:11,color:'var(--t2)'}}>{r.kind==='in'?r.detail:r.who}{r.domicilio?' 🛵':''}</div>
-            </div>
-            <div style={{flexShrink:0,fontWeight:700,color:r.kind==='in'?'var(--green)':'var(--red)'}}>{r.kind==='in'?'+':'−'}{fmtM(r.amount)}</div>
-          </div>
-        ))}
-      </div>}
   </>
 }
 

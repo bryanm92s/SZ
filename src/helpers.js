@@ -131,22 +131,23 @@ export const getSlots = (date, _taken, allAppts, excludeId = null) => {
 }
 
 /**
- * Libro de movimientos de un mes (YYYY-MM). FUENTE ÚNICA del neto:
- * Finanzas, Movimientos y el Excel usan esta misma función, así siempre cuadran.
- * Ingreso = cita completada (no cuenta pendiente ni 'noshow'), igual que antes.
+ * Libro de movimientos de un PERÍODO (from..to, 'YYYY-MM-DD', inclusivo).
+ * FUENTE ÚNICA del neto: Finanzas, Reporte y el Excel usan esta función.
+ * Ingreso = cita completada (no cuenta pendiente ni 'noshow').
  */
-export const monthLedger = (appts, expenses, month) => {
+export const periodLedger = (appts, expenses, from, to) => {
   const A = Array.isArray(appts) ? appts : []
   const E = Array.isArray(expenses) ? expenses : []
+  const inP = d => { const x = cleanDate(d); return !!x && x >= from && x <= to }
   const incomes = A
-    .filter(a => cleanDate(a.date).slice(0, 7) === month && bool(a.completed))
+    .filter(a => inP(a.date) && bool(a.completed))
     .map(a => ({
       id: a.id, kind: 'in', date: cleanDate(a.date), time: cleanTime(a.time),
       who: a.clientName || '', detail: a.serviceNames || '',
       domicilio: bool(a.domicilio), amount: toN(a.totalPrice || a.servicePrice || 0),
     }))
   const outs = E
-    .filter(e => cleanDate(e.date).slice(0, 7) === month)
+    .filter(e => inP(e.date))
     .map(e => ({
       id: e.id, kind: 'out', date: cleanDate(e.date), time: '',
       who: e.category || '', detail: e.description || '',
@@ -158,3 +159,7 @@ export const monthLedger = (appts, expenses, month) => {
     a.date.localeCompare(b.date) || a.time.localeCompare(b.time) || (a.kind === b.kind ? 0 : a.kind === 'in' ? -1 : 1))
   return { incomes, outs, rows, totalIncome, totalExpenses, neto: totalIncome - totalExpenses }
 }
+
+// Atajo para un mes completo ('YYYY-MM')
+export const monthLedger = (appts, expenses, month) =>
+  periodLedger(appts, expenses, month + '-01', month + '-31')
