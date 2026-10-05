@@ -129,3 +129,32 @@ export const getSlots = (date, _taken, allAppts, excludeId = null) => {
     return { time: t, disabled: isOverlap || isPast, reason: isPast ? 'Hora pasada' : 'Ocupada' }
   })
 }
+
+/**
+ * Libro de movimientos de un mes (YYYY-MM). FUENTE ÚNICA del neto:
+ * Finanzas, Movimientos y el Excel usan esta misma función, así siempre cuadran.
+ * Ingreso = cita completada (no cuenta pendiente ni 'noshow'), igual que antes.
+ */
+export const monthLedger = (appts, expenses, month) => {
+  const A = Array.isArray(appts) ? appts : []
+  const E = Array.isArray(expenses) ? expenses : []
+  const incomes = A
+    .filter(a => cleanDate(a.date).slice(0, 7) === month && bool(a.completed))
+    .map(a => ({
+      id: a.id, kind: 'in', date: cleanDate(a.date), time: cleanTime(a.time),
+      who: a.clientName || '', detail: a.serviceNames || '',
+      domicilio: bool(a.domicilio), amount: toN(a.totalPrice || a.servicePrice || 0),
+    }))
+  const outs = E
+    .filter(e => cleanDate(e.date).slice(0, 7) === month)
+    .map(e => ({
+      id: e.id, kind: 'out', date: cleanDate(e.date), time: '',
+      who: e.category || '', detail: e.description || '',
+      domicilio: false, amount: toN(e.amount || 0),
+    }))
+  const totalIncome = incomes.reduce((s, r) => s + r.amount, 0)
+  const totalExpenses = outs.reduce((s, r) => s + r.amount, 0)
+  const rows = [...incomes, ...outs].sort((a, b) =>
+    a.date.localeCompare(b.date) || a.time.localeCompare(b.time) || (a.kind === b.kind ? 0 : a.kind === 'in' ? -1 : 1))
+  return { incomes, outs, rows, totalIncome, totalExpenses, neto: totalIncome - totalExpenses }
+}
