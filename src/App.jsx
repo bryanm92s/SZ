@@ -1290,7 +1290,7 @@ function Dashboard({clients,appts,expenses,setTab}) {
     <div className="card">
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
         <span style={{fontWeight:700,fontSize:15}}>{'\uD83C\uDF38'} Citas de Hoy</span>
-        <button className="btn" style={{fontSize:12,padding:'7px 14px'}} onClick={()=>setTab('appointments')}>+ Nueva cita</button>
+        <button className="btn" style={{fontSize:12,padding:'7px 14px'}} onClick={()=>setTab('appointments',{newAppt:true,origin:'dashboard'})}>+ Nueva cita</button>
       </div>
       {ta.length===0
         ?<div style={{textAlign:'center',padding:'16px 0',color:'var(--t2)',fontSize:14}}>No hay citas para hoy</div>
@@ -1445,8 +1445,10 @@ function MonthlyBalance({appts,expenses,selMonth,setSelMonth,setTab}) {
 /* ══════════════════════════════════════════════════════════════
    APPOINTMENTS TAB — Fixed accordion (independent toggle)
 ══════════════════════════════════════════════════════════════ */
-function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModal,priceHistory}) {
-  const [showNew,  setNew]  = useState(false)
+function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModal,priceHistory,tabExtra,setTab}) {
+  // Si se llega desde otra pestaña con "+ Nueva cita" (Calendario, Panel),
+  // el formulario se abre directo. tabExtra: {newAppt, date?, origin?}
+  const [showNew,  setNew]  = useState(()=>!!(tabExtra && tabExtra.newAppt))
   const [editAppt, setEdit] = useState(null)
   const [payFor,  setPayFor] = useState(null) // {appt, change} → modal de método de pago
   // Only "today" open by default — each group toggles independently
@@ -1489,7 +1491,9 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
     SA(next)
   }
 
-  if (showNew)  return <NewWizard  clients={clients} services={services} appts={appts} SA={SA} SC={SC} sync={sync} infoModal={infoModal} onClose={()=>setNew(false)}/>
+  if (showNew)  return <NewWizard  clients={clients} services={services} appts={appts} SA={SA} SC={SC} sync={sync} infoModal={infoModal}
+    initialDate={tabExtra && tabExtra.date && tabExtra.date >= todayStr() ? tabExtra.date : undefined}
+    onClose={()=>{ setNew(false); if (tabExtra && tabExtra.origin && setTab) setTab(tabExtra.origin) }}/>
   if (editAppt) return <EditAppt   appt={editAppt} services={services} appts={appts} SA={SA} sync={sync} priceHistory={priceHistory} onClose={()=>setEdit(null)}/>
 
   const AccGroup = ({label,color,gKey,items,canEdit=true}) => {
@@ -1832,7 +1836,7 @@ function EditAppt({appt,services,appts,SA,sync,priceHistory,onClose}) {
 /* ══════════════════════════════════════════════════════════════
    NEW APPOINTMENT WIZARD
 ══════════════════════════════════════════════════════════════ */
-function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose}) {
+function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialDate}) {
   const [step,    setStep]  = useState(1)
   const [query,   setQ]     = useState('')
   const [suggs,   setSuggs] = useState([])
@@ -1844,7 +1848,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose}) {
   const [dom,     setDom]   = useState(false)
   const [domP,    setDomP]  = useState(10000)
   const [addr,    setAddr]  = useState('')
-  const [date,    setDate]  = useState(todayStr())
+  const [date,    setDate]  = useState(initialDate || todayStr())
   const [time,    setTime]  = useState('')
   const [loading, setL]     = useState(false)
   const [calR,    setCalR]  = useState(null)
@@ -3801,7 +3805,7 @@ function CalendarView({ clients, appts, setTab, confirm, deleteAppt }) {
           📅 Calendario
         </div>
         <button className="btn" style={{ fontSize: 12, padding: '7px 14px' }}
-          onClick={() => setTab('appointments')}>
+          onClick={() => setTab('appointments', { newAppt: true, origin: 'calendar' })}>
           + Nueva cita
         </button>
       </div>
@@ -4007,7 +4011,7 @@ function CalendarView({ clients, appts, setTab, confirm, deleteAppt }) {
               </div>
             </div>
             <button
-              onClick={() => setTab('appointments')}
+              onClick={() => setTab('appointments', { newAppt: true, date: selDay, origin: 'calendar' })}
               className="btn" style={{ fontSize: 11, padding: '6px 12px' }}>
               + Cita
             </button>
