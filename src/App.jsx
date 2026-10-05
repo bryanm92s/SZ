@@ -4,6 +4,7 @@ import { loadData, saveData } from './api.js'
 import {
   toN, localDateStr, todayStr, tomorrowStr, monthStr, localNowISO,
   bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots, periodLedger, monthLedger,
+  svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME,
 } from './helpers.js'
 
 /* ══════════════════════════════════════════════════════════════
@@ -202,11 +203,17 @@ const isPastAppt = a => {
 }
 
 const DEFAULT_SERVICES = [
-  {id:uid(),name:'Diseño de cejas',     price:35000},
-  {id:uid(),name:'Lifting de pestañas', price:85000},
-  {id:uid(),name:'Tinte de cejas',      price:25000},
-  {id:uid(),name:'Laminado de cejas',   price:60000},
+  {id:uid(),name:'Micropigmentación cejas',          price:350000, duration:90},
+  {id:uid(),name:'Retoque micropigmentación cejas',  price:150000, duration:60},
+  {id:uid(),name:'Diseño y depilación',              price:50000,  duration:30},
+  {id:uid(),name:'Diseño, depilación y sombreado',   price:60000,  duration:30},
+  {id:uid(),name:'Extensiones de pestañas',          price:160000, duration:90},
+  {id:uid(),name:'Retoque extensiones de pestañas',  price:70000,  duration:60},
+  {id:uid(),name:'Lifting de pestañas',              price:130000, duration:60},
+  {id:uid(),name:'Remoción con láser',               price:200000, duration:60},
+  {id:uid(),name:'Laminado de cejas',                price:130000, duration:60},
 ]
+const DURATION_OPTIONS = [30, 60, 90, 120, 150, 180]
 
 // WhatsApp with proper emoji encoding
 const openWA = (phone, name, time, date, serviceNames, total, isDom) => {
@@ -1534,7 +1541,7 @@ function ApptCard({appt,canEdit,onToggle,onEdit,onDelete}) {
       <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:10}}>
         <span className="tag" style={{fontSize:11}}>✨ {appt.serviceNames}</span>
         <span className="tag" style={{fontSize:11}}>📅 {fmtDate(appt.date)}</span>
-        <span className="tag" style={{fontSize:11}}>🕐 {fmtTime(appt.time)}</span>
+        <span className="tag" style={{fontSize:11}}>🕐 {fmtTime(appt.time)} – {fmtTime(endTime(appt.time,apptDuration(appt)))}</span>
         {dom && <span className="tag-gold" style={{fontSize:11}}>🛵 Domicilio</span>}
         {status==='done'   && <span className="tag-g"    style={{fontSize:11}}>✓ Completada</span>}
         {status==='noshow' && <span style={{display:'inline-block',background:'#FFF0EC',color:'var(--red)',borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>✗ No asistió</span>}
@@ -1633,9 +1640,15 @@ function EditAppt({appt,services,appts,SA,sync,priceHistory,onClose}) {
     return savedPrices[id] !== undefined && savedPrices[id] !== toN(svc.price)
   })
 
-  const slots    = getSlots(date, [], appts, appt.id)
   const toggleSvc= id => setSvcIds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id])
   const selSvcs  = safeSvcs.filter(s=>svcIds.includes(s.id))
+  // Duración: si los servicios no cambiaron se respeta la guardada en la cita
+  // (aunque el catálogo haya cambiado); si cambiaron, se recalcula con la suma.
+  const sameSvcs = svcIds.length===originalIds.length && originalIds.every(id=>svcIds.includes(id))
+  const totalDur = (sameSvcs && toN(appt.duration)>0) ? apptDuration(appt) : sumDuration(selSvcs)
+  const slots    = getSlots(date, [], appts, appt.id, totalDur)
+  const curSlot  = time ? slots.find(s=>cleanTime(s.time)===cleanTime(time)) : null
+  const timeBlocked = !!(curSlot && curSlot.conflict)   // choca con otra cita o pasa del cierre
   // Price: original price for pre-existing services, current price for newly added
   const svcTotal = svcIds.reduce((s,id)=>s+getPriceFor(id),0)
   const safeDomP = Math.max(0, toN(domP)) // nunca negativo
@@ -1652,13 +1665,13 @@ function EditAppt({appt,services,appts,SA,sync,priceHistory,onClose}) {
       serviceIds:selSvcs.map(s=>s.id).join(','), serviceNames:svcNames,
       servicePrices:updatedServicePrices,
       servicePrice:svcTotal, domicilio:dom, domicilioPrice:dom?safeDomP:0,
-      totalPrice:grand, address:dom?addr:''
+      totalPrice:grand, address:dom?addr:'', duration:totalDur
     }
     const next = appts.map(a=>a.id===appt.id?updated:a)
     await sync({appointments:next},null,null)
     SA(next)
     if (appt.calendarEventId && bool(appt.calendarCreated)) {
-      const r = await saveData({action:'updateCalendarEvent',eventId:appt.calendarEventId,calendarEvent:{date,time}}).catch(e=>({calResult:{ok:false,error:e.message}}))
+      const r = await saveData({action:'updateCalendarEvent',eventId:appt.calendarEventId,calendarEvent:{date,time,duration:totalDur}}).catch(e=>({calResult:{ok:false,error:e.message}}))
       setR(r?.calResult||null)
     } else setR({ok:null})
     setL(false)
@@ -1685,7 +1698,7 @@ function EditAppt({appt,services,appts,SA,sync,priceHistory,onClose}) {
             <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${svcIds.includes(s.id)?'var(--primary)':'#ccc'}`,background:svcIds.includes(s.id)?'var(--primary)':'white',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
               {svcIds.includes(s.id)&&<span style={{color:'white',fontSize:11}}>✓</span>}
             </div>
-            <span style={{fontWeight:600,fontSize:14}}>{s.name}</span>
+            <div><div style={{fontWeight:600,fontSize:14}}>{s.name}</div><div style={{fontSize:11,color:'var(--t2)'}}>⏱ {fmtDuration(svcDuration(s))}</div></div>
           </div>
           <div style={{textAlign:'right',flexShrink:0}}>
             <span style={{fontWeight:700,color:'var(--primary)',fontSize:14}}>{fmtM(getPriceFor(s.id))}</span>
@@ -1744,7 +1757,8 @@ function EditAppt({appt,services,appts,SA,sync,priceHistory,onClose}) {
           </button>
         })}
       </div>
-      {time && <div style={{background:'var(--primary-l)',borderRadius:10,padding:10,fontSize:13,marginBottom:14}}>✅ <strong>{fmtTime(time)}</strong> — {fmtDate(date)}</div>}
+      {time && !timeBlocked && <div style={{background:'var(--primary-l)',borderRadius:10,padding:10,fontSize:13,marginBottom:14}}>✅ <strong>{fmtTime(time)}</strong> – <strong>{fmtTime(endTime(time,totalDur))}</strong> · {fmtDuration(totalDur)} — {fmtDate(date)}</div>}
+      {time && timeBlocked && <div style={{background:'var(--warn-bg)',color:'var(--warn-t)',borderRadius:10,padding:10,fontSize:13,marginBottom:14}}>⚠️ Con una duración de <strong>{fmtDuration(totalDur)}</strong>, las {fmtTime(time)} chocan con otra cita o pasan de las {fmtTime(CLOSING_TIME)}. Elige otra hora.</div>}
 
       {result!==null && <div style={{background:result.ok||result.ok===null?'#EDF7F0':'var(--warn-bg)',borderRadius:10,padding:10,fontSize:13,marginBottom:14,color:result.ok||result.ok===null?'var(--green)':'var(--warn-t)'}}>
         {result.ok===null?'✅ Cita actualizada':result.ok?'✅ Cita y Calendar actualizados':`✅ Cita guardada. Calendar: ${result.error}`}
@@ -1754,7 +1768,7 @@ function EditAppt({appt,services,appts,SA,sync,priceHistory,onClose}) {
         ? <button className="btn" style={{width:'100%'}} onClick={onClose}>Listo</button>
         : <div style={{display:'flex',gap:8}}>
             <button className="btn-o" onClick={onClose}>Cancelar</button>
-            <button className="btn" style={{flex:1}} onClick={save} disabled={!time||svcIds.length===0||loading||(dom&&!addr.trim())}>{loading?'⏳ Guardando…':'Guardar cambios'}</button>
+            <button className="btn" style={{flex:1}} onClick={save} disabled={!time||timeBlocked||svcIds.length===0||loading||(dom&&!addr.trim())}>{loading?'⏳ Guardando…':'Guardar cambios'}</button>
           </div>
       }
     </div>
@@ -1822,12 +1836,14 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose}) {
     setStep(3)
   }
 
-  const toggleSvc = id => setSvcIds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id])
+  // Al cambiar servicios cambia la duración → la hora elegida antes puede dejar de caber.
+  const toggleSvc = id => { setSvcIds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]); setTime('') }
   const selSvcs   = (Array.isArray(services)?services:[]).filter(s=>svcIds.includes(s.id))
   const svcTotal  = selSvcs.reduce((s,x)=>s+toN(x.price),0)
   const safeDomP  = Math.max(0, toN(domP)) // nunca negativo
   const grand     = svcTotal+(dom?safeDomP:0)
-  const slots     = getSlots(date,[],appts)
+  const totalDur  = sumDuration(selSvcs)
+  const slots     = getSlots(date,[],appts,null,totalDur)
 
   const confirm = async () => {
     setL(true)
@@ -1837,13 +1853,13 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose}) {
       serviceIds:selSvcs.map(s=>s.id).join(','), serviceNames:svcNames,
       servicePrices:JSON.stringify(Object.fromEntries(selSvcs.map(s=>[s.id, toN(s.price)]))),
       servicePrice:svcTotal, domicilio:dom, domicilioPrice:dom?safeDomP:0,
-      totalPrice:grand, address:dom?addr:'',
+      totalPrice:grand, address:dom?addr:'', duration:totalDur,
       date, time:cleanTime(time)||time,
       createdAt:localNowISO(), calendarCreated:false, calendarEventId:'', completed:false
     }
     const res = await sync({
       appointments:[...appts,appt],
-      calendarEvent:{clientName:fc.name,clientPhone:fc.phone,serviceNames:svcNames,totalPrice:grand,domicilio:dom,domicilioPrice:dom?safeDomP:0,address:addr,date,time}
+      calendarEvent:{clientName:fc.name,clientPhone:fc.phone,serviceNames:svcNames,totalPrice:grand,domicilio:dom,domicilioPrice:dom?safeDomP:0,address:addr,date,time,duration:totalDur}
     },null,null)
     if (res?.calResult?.ok) { appt.calendarCreated=true; appt.calendarEventId=res.calResult.eventId||'' }
     SA([...appts,appt]); setCalR(res?.calResult||null); setL(false); setDone(true)
@@ -1934,7 +1950,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose}) {
             <div style={{width:20,height:20,borderRadius:4,border:`2px solid ${svcIds.includes(s.id)?'var(--primary)':'#ccc'}`,background:svcIds.includes(s.id)?'var(--primary)':'white',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
               {svcIds.includes(s.id)&&<span style={{color:'white',fontSize:13}}>✓</span>}
             </div>
-            <span style={{fontWeight:600,fontSize:14}}>{s.name}</span>
+            <div><div style={{fontWeight:600,fontSize:14}}>{s.name}</div><div style={{fontSize:11,color:'var(--t2)'}}>⏱ {fmtDuration(svcDuration(s))}</div></div>
           </div>
           <span style={{fontWeight:700,color:'var(--primary)',fontSize:14,flexShrink:0}}>{fmtM(s.price)}</span>
         </button>
@@ -1991,7 +2007,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose}) {
         })}
       </div>
       {time && <div style={{background:'var(--primary-l)',borderRadius:10,padding:10,fontSize:13,marginBottom:14}}>
-        ✅ <strong>{fmtTime(time)}</strong> hasta aprox. <strong>{fmtTime(`${String(parseInt(time)+1).padStart(2,'0')}:${time.split(':')[1]}`)}</strong>
+        ✅ <strong>{fmtTime(time)}</strong> hasta <strong>{fmtTime(endTime(time,totalDur))}</strong> · {fmtDuration(totalDur)}
       </div>}
       <div style={{display:'flex',gap:8}}>
         <button className="btn-o" onClick={()=>setStep(3)}>Atrás</button>
@@ -2006,7 +2022,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose}) {
         .map(([l,v])=><div key={l} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--border)',fontSize:14}}><span style={{color:'var(--t2)'}}>{l}</span><span style={{fontWeight:600,maxWidth:'60%',textAlign:'right'}}>{v}</span></div>)
       }
       <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0',fontSize:16}}><span style={{fontWeight:700}}>💎 Total</span><span style={{fontWeight:700,color:'var(--primary)',fontSize:18}}>{fmtM(grand)}</span></div>
-      {[['📅 Fecha',fmtDate(date)],['🕐 Hora',fmtTime(time)]].map(([l,v])=>(
+      {[['📅 Fecha',fmtDate(date)],['🕐 Hora',`${fmtTime(time)} – ${fmtTime(endTime(time,totalDur))}`],['⏱ Duración',fmtDuration(totalDur)]].map(([l,v])=>(
         <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',fontSize:14}}><span style={{color:'var(--t2)'}}>{l}</span><span style={{fontWeight:600}}>{v}</span></div>
       ))}
       <div style={{marginTop:12,background:'var(--green-bg)',borderRadius:10,padding:10,fontSize:13,color:'var(--green)',marginBottom:16}}>📅 Se creará automáticamente en Google Calendar</div>
@@ -2032,7 +2048,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose}) {
         <div style={{color:'var(--t2)',marginBottom:2}}>{selSvcs.map(s=>s.name).join(' + ')}</div>
         {dom&&<div style={{color:'var(--gold)',marginBottom:2}}>🛵 {fmtM(domP)}{addr?` — ${addr}`:''}</div>}
         <div style={{color:'var(--primary)',fontWeight:700,marginBottom:2}}>💎 {fmtM(grand)}</div>
-        <div style={{color:'var(--t2)'}}>{fmtDate(date)} · {fmtTime(time)}</div>
+        <div style={{color:'var(--t2)'}}>{fmtDate(date)} · {fmtTime(time)} – {fmtTime(endTime(time,totalDur))}</div>
       </div>
       {/* WhatsApp note */}
       <div style={{background:'var(--green-bg)',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:12,color:'var(--green)',textAlign:'left'}}>
@@ -2144,9 +2160,10 @@ function ClientsTab({clients,appts,SC,confirm,infoModal,setTab}) {
 ══════════════════════════════════════════════════════════════ */
 function ServicesTab({services,SS,confirm}) {
   const [name,setN]=useState(''), [price,setP]=useState(''), [editId,setEI]=useState(null), [eP,setEP]=useState('')
+  const [dur,setDur]=useState(60), [eD,setED]=useState(60)   // duración (min) al crear / al editar
   const [priceErr,setPErr]=useState('')   // mensaje "no puede ser negativo"
   const safe=Array.isArray(services)?services:[]
-  const add=()=>{if(!name.trim()||!price)return;SS([...safe,{id:uid(),name:name.trim(),price:Math.max(0,Number(price)||0)}]);setN('');setP('');setPErr('')}
+  const add=()=>{if(!name.trim()||!price)return;SS([...safe,{id:uid(),name:name.trim(),price:Math.max(0,Number(price)||0),duration:dur}]);setN('');setP('');setDur(60);setPErr('')}
   return <>
     <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',marginBottom:16}}>Servicios</div>
     <div className="card">
@@ -2162,6 +2179,12 @@ function ServicesTab({services,SS,confirm}) {
           }}/>
           {priceErr&&<div style={{color:'var(--red)',fontSize:11,marginTop:4}}>{priceErr}</div>}
         </div>
+        <div style={{gridColumn:'1 / -1'}}>
+          <label className="lbl">Duración</label>
+          <select className="inp" value={dur} onChange={e=>setDur(Number(e.target.value))}>
+            {DURATION_OPTIONS.map(m=><option key={m} value={m}>{fmtDuration(m)}</option>)}
+          </select>
+        </div>
       </div>
       <button className="btn" style={{width:'100%'}} onClick={add} disabled={!name.trim()||!price}>{'Agregar servicio'}</button>
     </div>
@@ -2170,19 +2193,22 @@ function ServicesTab({services,SS,confirm}) {
       {safe.length===0?<div style={{textAlign:'center',padding:20,color:'var(--t2)'}}>No hay servicios</div>
         :safe.map(s=><div key={s.id} className="row">
           <div style={{fontSize:20,flexShrink:0}}>✨</div>
-          <div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,fontSize:14}}>{s.name}</div><div style={{fontSize:12,color:'var(--t2)'}}>~1 hora</div></div>
+          <div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,fontSize:14}}>{s.name}</div><div style={{fontSize:12,color:'var(--t2)'}}>⏱ {fmtDuration(svcDuration(s))}</div></div>
           {editId===s.id
             ?<div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
               <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <select className="inp" value={eD} onChange={e=>setED(Number(e.target.value))} style={{width:92,padding:'6px 6px',fontSize:12}}>
+                  {(DURATION_OPTIONS.includes(eD)?DURATION_OPTIONS:[...DURATION_OPTIONS,eD].sort((p,q)=>p-q)).map(m=><option key={m} value={m}>{fmtDuration(m)}</option>)}
+                </select>
                 <input className="inp" type="number" min="0" value={eP} onChange={e=>setEP(e.target.value)} style={{width:100,padding:'6px 10px',fontSize:13}}/>
-                <button className="btn" style={{padding:'6px 12px',fontSize:13}} disabled={Number(eP)<0} onClick={()=>{SS(safe.map(x=>x.id===s.id?{...x,price:Math.max(0,Number(eP)||0)}:x));setEI(null)}}>✓</button>
+                <button className="btn" style={{padding:'6px 12px',fontSize:13}} disabled={Number(eP)<0} onClick={()=>{SS(safe.map(x=>x.id===s.id?{...x,price:Math.max(0,Number(eP)||0),duration:eD}:x));setEI(null)}}>✓</button>
                 <button className="btn-del" onClick={()=>setEI(null)}>✕</button>
               </div>
               {Number(eP)<0&&<div style={{color:'var(--red)',fontSize:10,whiteSpace:'nowrap'}}>El precio del servicio no puede ser negativo</div>}
             </div>
             :<div style={{display:'flex',alignItems:'center',gap:6}}>
               <span style={{fontWeight:700,color:'var(--primary)',fontSize:15}}>{fmtM(s.price)}</span>
-              <button className="btn-edit" onClick={()=>{setEI(s.id);setEP(String(s.price))}}>✏️</button>
+              <button className="btn-edit" onClick={()=>{setEI(s.id);setEP(String(s.price));setED(svcDuration(s))}}>✏️</button>
               <button className="btn-del" onClick={()=>confirm(`¿Eliminar el servicio "${s.name}"?`,()=>SS(safe.filter(x=>x.id!==s.id)))}>✕</button>
             </div>
           }

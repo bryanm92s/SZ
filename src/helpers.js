@@ -97,36 +97,85 @@ export const toMin = t => {
   return h * 60 + m
 }
 
+// ── Duración por servicio ──────────────────────────────────────────────
+// Hora de cierre: una cita no puede TERMINAR después de esta hora.
+export const CLOSING_TIME = '21:00'
+
+// Duración (min) de un servicio; si no tiene (servicios antiguos) → 60.
+export const svcDuration = s => {
+  const n = Math.round(toN(s && s.duration))
+  return n > 0 ? n : SERVICE_DURATION
+}
+
+// Duración total de varios servicios seleccionados (suma).
+export const sumDuration = list => {
+  const L = Array.isArray(list) ? list : []
+  return L.reduce((t, s) => t + svcDuration(s), 0) || SERVICE_DURATION
+}
+
+// Duración (min) guardada en una cita; citas antiguas sin dato → 60.
+export const apptDuration = a => {
+  const n = Math.round(toN(a && a.duration))
+  return n > 0 ? n : SERVICE_DURATION
+}
+
+// 90 → '1 h 30 min' · 60 → '1 h' · 30 → '30 min'
+export const fmtDuration = min => {
+  const n = Math.round(toN(min))
+  if (n <= 0) return '—'
+  const h = Math.floor(n / 60), m = n % 60
+  if (h && m) return `${h} h ${m} min`
+  return h ? `${h} h` : `${m} min`
+}
+
+// Hora de fin 'HH:MM' = inicio + duración en minutos
+export const endTime = (t, durationMin) => {
+  const start = toMin(t)
+  if (isNaN(start)) return ''
+  const m = start + Math.round(toN(durationMin))
+  return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+}
+
 /**
  * Calcula los slots disponibles para una fecha.
- * - Bloquea los slots que se solapan con una cita existente de 60 min.
+ * - Bloquea los slots que se solapan con una cita existente, usando la
+ *   duración REAL de cada cita (campo `duration`; si falta → 60 min).
+ * - La cita nueva ocupa [inicio, inicio + duration). Si no cabe antes de
+ *   CLOSING_TIME, el slot queda bloqueado.
  * - Si la fecha es hoy, marca como pasadas las horas anteriores a ahora.
  * - excludeId permite ignorar la propia cita al editarla (para que no se
  *   bloquee a sí misma).
+ * - `conflict` = true cuando el bloqueo es por choque o cierre (no por
+ *   hora pasada). Sirve para validar al editar una cita.
  *
  * @param {string} date        Fecha ISO 'YYYY-MM-DD'
  * @param {Array}  _taken      (legacy, no usado) se mantiene por compat
- * @param {Array}  allAppts    Lista de citas {id, date, time}
+ * @param {Array}  allAppts    Lista de citas {id, date, time, duration}
  * @param {string} excludeId   ID a ignorar (la cita que se edita)
+ * @param {number} duration    Duración (min) de la cita que se agenda
  */
-export const getSlots = (date, _taken, allAppts, excludeId = null) => {
+export const getSlots = (date, _taken, allAppts, excludeId = null, duration = SERVICE_DURATION) => {
   const now = new Date()
   const isToday = date === todayStr()
+  const dur = Math.round(toN(duration)) > 0 ? Math.round(toN(duration)) : SERVICE_DURATION
+  const closeMin = toMin(CLOSING_TIME)
   const booked = (Array.isArray(allAppts) ? allAppts : [])
     .filter(a => cleanDate(a.date) === date && a.id !== excludeId)
-    .map(a => toMin(a.time))
+    .map(a => ({ start: toMin(a.time), dur: apptDuration(a) }))
 
   return TIME_SLOTS.map(t => {
     const slotMin = toMin(t)
-    // Solapamiento: nueva cita [slotMin, slotMin+60) vs existente [b, b+60)
-    const isOverlap = booked.some(b => slotMin < b + SERVICE_DURATION && b < slotMin + SERVICE_DURATION)
+    // Solapamiento: nueva cita [slotMin, slotMin+dur) vs existente [b.start, b.start+b.dur)
+    const isOverlap = booked.some(b => slotMin < b.start + b.dur && b.start < slotMin + dur)
+    const tooLate = slotMin + dur > closeMin
     const isPast = isToday && (() => {
       const [h, m] = cleanTime(t).split(':').map(Number)
       const slot = new Date()
       slot.setHours(h, m, 0, 0)
       return slot <= now
     })()
-    return { time: t, disabled: isOverlap || isPast, reason: isPast ? 'Hora pasada' : 'Ocupada' }
+    const reason = isPast ? 'Hora pasada' : isOverlap ? 'Ocupada' : 'No alcanza antes del cierre'
+    return { time: t, disabled: isOverlap || tooLate || isPast, conflict: isOverlap || tooLate, reason }
   })
 }
 

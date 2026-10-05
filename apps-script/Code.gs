@@ -8,22 +8,22 @@ const SHEETS = { clients:'Clientes', services:'Servicios', appointments:'Citas',
 
 const JS_KEYS = {
   clients:      ['id','name','phone','createdAt'],
-  services:     ['id','name','price'],
+  services:     ['id','name','price','duration'],
   appointments: ['id','clientId','clientName','clientPhone',
                  'serviceIds','serviceNames','servicePrice','servicePrices',
                  'domicilio','domicilioPrice','totalPrice','address',
-                 'date','time','createdAt','calendarCreated','calendarEventId','completed'],
+                 'date','time','createdAt','calendarCreated','calendarEventId','completed','duration'],
   expenses:     ['id','description','amount','category','date'],
   priceHistory: ['serviceId','serviceName','price','changedAt'],
 };
 
 const HEADERS_ES = {
   clients:      ['ID','Nombre','Celular','Fecha Registro'],
-  services:     ['ID','Nombre','Precio'],
+  services:     ['ID','Nombre','Precio','Duración (min)'],
   appointments: ['ID','ID Cliente','Nombre Cliente','Celular',
                  'IDs Servicios','Nombres Servicios','Precio Servicios','Precios x Servicio',
                  'Domicilio','Precio Domicilio','Total','Dirección',
-                 'Fecha','Hora','Fecha Creación','Evento Creado','ID Evento Calendar','Completada'],
+                 'Fecha','Hora','Fecha Creación','Evento Creado','ID Evento Calendar','Completada','Duración (min)'],
   expenses:     ['ID','Descripción','Monto','Categoría','Fecha'],
   priceHistory: ['ID Servicio','Nombre Servicio','Precio','Fecha Cambio'],
 };
@@ -89,7 +89,8 @@ function doPost(e) {
 function createCalEvent(evt) {
   try {
     const cal=CalendarApp.getDefaultCalendar();
-    const s=mkDate(evt.date,evt.time,0), e=mkDate(evt.date,evt.time,60);
+    const dur=safeDuration(evt.duration);
+    const s=mkDate(evt.date,evt.time,0), e=mkDate(evt.date,evt.time,dur);
     const dom=evt.domicilio==='true'||evt.domicilio===true;
     const desc='👤 '+evt.clientName+'\n📱 '+evt.clientPhone+
                 '\n✨ '+evt.serviceNames+
@@ -107,7 +108,10 @@ function updateCalEvent(eventId,evt) {
     if(!eventId) return {ok:false,error:'Sin ID'};
     const event=CalendarApp.getEventById(eventId);
     if(!event) return {ok:false,error:'Evento no encontrado'};
-    event.setTime(mkDate(evt.date,evt.time,0),mkDate(evt.date,evt.time,60));
+    // Duración: la que envía la app; si no viene, se conserva la que ya tenía el evento.
+    const sent=Number(evt.duration);
+    const dur=sent>0 ? safeDuration(sent) : (Math.round((event.getEndTime().getTime()-event.getStartTime().getTime())/60000) || 60);
+    event.setTime(mkDate(evt.date,evt.time,0),mkDate(evt.date,evt.time,dur));
     return {ok:true};
   } catch(ex){return {ok:false,error:ex.message};}
 }
@@ -120,6 +124,13 @@ function deleteCalEvent(eventId) {
     event.deleteEvent();
     return {ok:true};
   } catch(ex){return {ok:false,error:ex.message};}
+}
+
+// Duración válida en minutos: entero entre 15 y 480; si no es válida → 60.
+function safeDuration(v) {
+  const n = Math.round(Number(v));
+  if (!(n > 0)) return 60;
+  return Math.min(Math.max(n, 15), 480);
 }
 
 function mkDate(dateStr,timeStr,offsetMin) {
@@ -823,10 +834,15 @@ function sanitizeNumberField(obj, field) {
   obj[field] = clip0(obj[field]);
 }
 
+function sanitizeDurationField(obj) {
+  if (!obj || obj.duration === undefined || obj.duration === null || obj.duration === '') return;
+  obj.duration = safeDuration(obj.duration);
+}
+
 function sanitizePayload(b) {
-  // Servicios: price
+  // Servicios: price y duración
   if (Array.isArray(b.services)) {
-    b.services.forEach(s => sanitizeNumberField(s, 'price'));
+    b.services.forEach(s => { sanitizeNumberField(s, 'price'); sanitizeDurationField(s); });
   }
   // Gastos: amount
   if (Array.isArray(b.expenses)) {
@@ -839,6 +855,7 @@ function sanitizePayload(b) {
       sanitizeNumberField(a, 'servicePrice');
       sanitizeNumberField(a, 'domicilioPrice');
       sanitizeNumberField(a, 'totalPrice');
+      sanitizeDurationField(a);
       if (a.servicePrices !== undefined && a.servicePrices !== null && a.servicePrices !== '') {
         let sp = a.servicePrices;
         let parsed = null;
@@ -858,6 +875,7 @@ function sanitizePayload(b) {
   if (b.calendarEvent) {
     sanitizeNumberField(b.calendarEvent, 'totalPrice');
     sanitizeNumberField(b.calendarEvent, 'domicilioPrice');
+    sanitizeDurationField(b.calendarEvent);
   }
   // Historial de precios (cuando se reseedea)
   if (b.action !== 'updateCalendarEvent' && b.action !== 'deleteCalendarEvent') {
