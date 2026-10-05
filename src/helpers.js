@@ -220,8 +220,30 @@ export const periodLedger = (appts, expenses, from, to) => {
 export const monthLedger = (appts, expenses, month) =>
   periodLedger(appts, expenses, month + '-01', month + '-31')
 
-// URL de WhatsApp. Usa wa.me (enlace universal) para que iOS permita elegir
-// entre WhatsApp y WhatsApp Business. Evitar api.whatsapp.com/send, que abre
-// WhatsApp normal directamente.
-export const waUrl = (phone, msg) =>
-  'https://wa.me/' + String(phone).replace(/\D/g, '') + '?text=' + encodeURIComponent(msg)
+// ¿iPhone/iPad? (incluye iPadOS, que se reporta como Mac con pantalla táctil)
+export const isIOS = () => {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+}
+
+// URL de WhatsApp según dispositivo:
+// - iOS: wa.me (enlace universal) → iOS deja elegir WhatsApp o WhatsApp Business.
+// - Escritorio: api.whatsapp.com/send → wa.me redirige a WhatsApp Web y ahí se
+//   dañan los emojis (salen como �).
+export const waUrl = (phone, msg, ios = false) => {
+  const p = String(phone).replace(/\D/g, '')
+  const text = encodeURIComponent(msg)
+  return ios
+    ? 'https://wa.me/' + p + '?text=' + text
+    : 'https://api.whatsapp.com/send/?phone=' + p + '&text=' + text + '&type=phone_number&app_absent=0'
+}
+
+// Abre WhatsApp: en iOS navega directo (para que salga el selector);
+// en escritorio abre pestaña nueva y no saca al usuario de la app.
+export const openWhatsApp = (phone, msg) => {
+  const ios = isIOS()
+  const url = waUrl(phone, msg, ios)
+  if (ios) window.location.href = url
+  else window.open(url, '_blank')
+}

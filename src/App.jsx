@@ -4,7 +4,7 @@ import { loadData, saveData } from './api.js'
 import {
   toN, localDateStr, todayStr, tomorrowStr, monthStr, localNowISO,
   bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots, periodLedger, monthLedger,
-  svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, waUrl,
+  svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, openWhatsApp,
 } from './helpers.js'
 
 /* ══════════════════════════════════════════════════════════════
@@ -236,8 +236,7 @@ const openWA = (phone, name, time, date, serviceNames, total, isDom) => {
     end,
   ]
   const msg = lines.join('\n')
-  // wa.me permite elegir WhatsApp o WhatsApp Business en iOS
-  window.location.href = waUrl(p, msg)
+  openWhatsApp(p, msg)
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -3026,7 +3025,7 @@ function ReportTab({appts,expenses,services,setTab}) {
     }
     lines.push('', `_Generado ${new Date().toLocaleString('es-CO')}_`)
     const msg = lines.join('\n')
-    window.location.href = waUrl(p, msg)
+    openWhatsApp(p, msg)
   }
 
   const Metric = ({label, value, color, big, sub}) => (
