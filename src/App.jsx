@@ -1351,7 +1351,7 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab}) 
       const groupAllowsEdit = (g === 'noshow' || g === 'past') ? false : true
       return <ApptDetail appt={det} services={services} canEdit={groupAllowsEdit}
         onClose={()=>setDetailId(null)}
-        onEdit={()=>{ setDetailId(null); setTab('appointments',{focusAppt:det.id}) }}
+        onEdit={()=>{ setDetailId(null); setTab('appointments',{focusAppt:det.id,editAppt:true}) }}
         onDelete={()=>{
           setDetailId(null)
           confirm(`¿Eliminar la cita de ${det.clientName}? También se borrará el evento de Google Calendar.`,()=>deleteAppt(det))
@@ -1663,6 +1663,9 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
   // por su ID real. NO se abre el detalle: la navegación y la consulta son
   // acciones separadas. Si ya no existe se avisa y NO se abre ninguna otra
   // cita por error.
+  // Con tabExtra.editAppt («✏️ Editar» del detalle del Panel) se abre
+  // directamente el formulario de edición de ESA cita, sin pasar por la
+  // lista.
   useEffect(() => {
     if (!tabExtra || !tabExtra.focusAppt) return
     const target = tabExtra.focusAppt
@@ -1671,6 +1674,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
       infoModal('No se encontró la cita seleccionada. Puede que ya no exista.')
       return
     }
+    if (tabExtra.editAppt) { setEdit(found); return }
     setOpen(p => ({...p, [apptGroup(found)]: true}))
     setFocusId(target)
     // eslint-disable-next-line react-hooks/exhaustive-deps
