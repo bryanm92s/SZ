@@ -5,6 +5,8 @@ import {
   toN, localDateStr, todayStr, tomorrowStr, monthStr, localNowISO,
   bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots, periodLedger, monthLedger,
   svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, openWhatsApp, PAYMENT_METHODS, payMethodOf,
+  apptStatus, canModifyAppt, checkSlot, confirmOutcome, projectedIncome, movsRanges,
+  serviceDeletionCheck,
 } from './helpers.js'
 
 /* ══════════════════════════════════════════════════════════════
@@ -1153,7 +1155,7 @@ function Dashboard({clients,appts,expenses,setTab}) {
   const allPend  = safeA.filter(a=>!bool(a.completed)&&a.completed!=='noshow'&&!isPastAppt(a))
   const gRevDone = allDone.reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
   const gRevPend = allPend.reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
-  const gRevAll  = safeA.reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
+  const gRevAll  = projectedIncome(safeA) // «Proyectado»: excluye 'noshow'
   const gExp     = safeE.reduce((s,e)=>s+toN(e.amount||0),0)
   const gNeto    = gRevDone - gExp
 
@@ -1177,7 +1179,8 @@ function Dashboard({clients,appts,expenses,setTab}) {
   const aDone    = isMonth?mDone:allDone
   const aPend    = isMonth?mPend:allPend
   const aNoShow  = isMonth?mA.filter(a=>a.completed==='noshow'):allNoShow
-  const aAll     = isMonth?mA:safeA
+  // Citas que componen el «Proyectado» (excluye 'noshow', igual que el importe)
+  const aAll     = (isMonth?mA:safeA).filter(a=>a.completed!=='noshow')
   const netoPos  = aNeto>=0
 
   return <>
@@ -1550,10 +1553,10 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
   </>
 }
 
-function ApptCard({appt,canEdit,onToggle,onEdit,onDelete,onChangePay}) {
+function ApptCard({appt,canEdit=true,onToggle,onEdit,onDelete,onChangePay}) {
   const calOk  = bool(appt.calendarCreated)
   const dom    = bool(appt.domicilio)
-  const status = appt.completed==='noshow' ? 'noshow' : bool(appt.completed) ? 'done' : 'pending'
+  const status = apptStatus(appt)
   const past   = isPastAppt(appt)
   // Es una cita futura si su fecha es posterior a HOY (aún no llega
   // el día). En ese caso no se puede marcar como Completada ni como
@@ -1618,8 +1621,10 @@ function ApptCard({appt,canEdit,onToggle,onEdit,onDelete,onChangePay}) {
           ✗ No asistió
         </button>
         {status==='pending' && <button className="btn-wa" onClick={()=>openWA(appt.clientPhone,appt.clientName,appt.time,appt.date,appt.serviceNames,appt.totalPrice||appt.servicePrice,dom)}>💬 Recordatorio</button>}
-        {status==='pending' && <button className="btn-edit" onClick={onEdit}>✏️ Editar</button>}
-        {status==='pending' && <button className="btn-del" onClick={onDelete}>🗑️ Eliminar</button>}
+        {/* Editar/Eliminar: solo pendientes Y solo si el grupo lo permite
+            (canEdit={false} en «Pasadas» y «No asistió»). */}
+        {status==='pending' && canEdit && <button className="btn-edit" onClick={onEdit}>✏️ Editar</button>}
+        {status==='pending' && canEdit && <button className="btn-del" onClick={onDelete}>🗑️ Eliminar</button>}
       </div>
     </div>
   )
@@ -1853,6 +1858,9 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
   const [loading, setL]     = useState(false)
   const [calR,    setCalR]  = useState(null)
   const [done,    setDone]  = useState(false)
+  // Bloqueo síncrono para evitar dobles envíos mientras confirma
+  // (el estado `loading` de React se actualiza tarde ante un doble clic).
+  const confirming = useRef(false)
 
   const isPhoneQ = q => /^\d+$/.test(q.replace(/[^0-9]/g,''))
 
@@ -1904,6 +1912,27 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
   const slots     = getSlots(date,[],appts,null,totalDur)
 
   const confirm = async () => {
+    // 1) Sin dobles envíos mientras se procesa la confirmación.
+    if (confirming.current || loading || done) return
+    // 2) Revalida la disponibilidad en este instante: el asistente puede llevar
+    //    un rato abierto y el refresco periódico puede traer una cita que solape
+    //    con la hora elegida. Validación en el cliente (no protege frente a
+    //    reservas simultáneas de distintos usuarios).
+    const slotProblem = checkSlot(date, time, appts, totalDur)
+    const problem =
+      slotProblem ||
+      (svcIds.length === 0 ? 'Selecciona al menos un servicio.' : null) ||
+      (fc ? null : 'Selecciona la clienta.')
+    const outcome = confirmOutcome(problem, slotProblem)
+    if (!outcome.ok) {
+      infoModal(outcome.message)
+      // La hora ya no está disponible: limpiarla antes de volver al paso 4
+      // para que la interfaz no muestre el banner de "hora elegida" ni
+      // permita avanzar con una hora que ya no se puede ocupar.
+      if (outcome.clearTime) { setTime(''); setStep(4) }
+      return
+    }
+    confirming.current = true
     setL(true)
     const svcNames = selSvcs.map(s=>s.name).join(', ')
     const appt = {
@@ -1921,6 +1950,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
     },null,null)
     if (res?.calResult?.ok) { appt.calendarCreated=true; appt.calendarEventId=res.calResult.eventId||'' }
     SA([...appts,appt]); setCalR(res?.calResult||null); setL(false); setDone(true)
+    confirming.current = false
   }
 
   const Dots = () => <div style={{display:'flex',alignItems:'center',marginBottom:22,gap:4}}>
@@ -2216,12 +2246,28 @@ function ClientsTab({clients,appts,SC,confirm,infoModal,setTab}) {
 /* ══════════════════════════════════════════════════════════════
    SERVICES TAB
 ══════════════════════════════════════════════════════════════ */
-function ServicesTab({services,SS,confirm}) {
+function ServicesTab({services,appts,SS,confirm,infoModal}) {
   const [name,setN]=useState(''), [price,setP]=useState(''), [editId,setEI]=useState(null), [eP,setEP]=useState('')
   const [dur,setDur]=useState(60), [eD,setED]=useState(60)   // duración (min) al crear / al editar
   const [priceErr,setPErr]=useState('')   // mensaje "no puede ser negativo"
   const safe=Array.isArray(services)?services:[]
   const add=()=>{if(!name.trim()||!price)return;SS([...safe,{id:uid(),name:name.trim(),price:Math.max(0,Number(price)||0),duration:dur}]);setN('');setP('');setDur(60);setPErr('')}
+
+  // Regla de negocio: no eliminar un servicio con citas futuras activas o
+  // citas en curso. El backend valida lo mismo (Code.gs), así que aunque
+  // aquí no se bloqueara, la escritura se rechazaría igual.
+  const tryDelete=s=>{
+    const check=serviceDeletionCheck(s,appts,safe)
+    if(!check.ok){infoModal(check.message);return}
+    confirm(`¿Eliminar el servicio "${s.name}"?`,async ()=>{
+      const next=safe.filter(x=>x.id!==s.id)
+      const r=await SS(next)
+      // El backend pudo rechazar la eliminación (p.ej. una cita creada desde
+      // otro dispositivo): restaurar la lista local para no mostrar de más
+      // un servicio que sigue guardado en la hoja.
+      if(r===null) SS(safe)
+    })
+  }
   return <>
     <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',marginBottom:16}}>Servicios</div>
     <div className="card">
@@ -2267,7 +2313,7 @@ function ServicesTab({services,SS,confirm}) {
             :<div style={{display:'flex',alignItems:'center',gap:6}}>
               <span style={{fontWeight:700,color:'var(--primary)',fontSize:15}}>{fmtM(s.price)}</span>
               <button className="btn-edit" onClick={()=>{setEI(s.id);setEP(String(s.price));setED(svcDuration(s))}}>✏️</button>
-              <button className="btn-del" onClick={()=>confirm(`¿Eliminar el servicio "${s.name}"?`,()=>SS(safe.filter(x=>x.id!==s.id)))}>✕</button>
+              <button className="btn-del" onClick={()=>tryDelete(s)}>✕</button>
             </div>
           }
         </div>)
@@ -2309,7 +2355,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
   const me=safe.filter(e=>cleanDate(e.date).slice(0,7)===month)
   const ledger=monthLedger(safeA,safe,month)
   const revDone=ledger.totalIncome
-  const revTotal=ma.reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
+  const revTotal=projectedIncome(ma) // «Proyectado»: excluye 'noshow'
   const tot=ledger.totalExpenses
 
   const add=()=>{
@@ -2950,9 +2996,9 @@ function ReportTab({appts,expenses,services,setTab}) {
   const ledger = periodLedger(safeA, safeE, fromVal(), toVal())
   const revenue = ledger.totalIncome
 
-  // Ingresos potenciales (incluye pendientes)
-  const projected = apptsInPeriod
-    .reduce((s,a) => a.completed==='noshow' ? s : s + toN(a.totalPrice||a.servicePrice||0), 0)
+  // Ingresos potenciales (incluye pendientes, excluye 'noshow').
+  // Mismo criterio que Panel, Finanzas y Detalle de ingresos.
+  const projected = projectedIncome(apptsInPeriod)
 
   // Gastos del período + neto (del libro único)
   const expensesInPeriod = ledger.outs
@@ -2980,6 +3026,9 @@ function ReportTab({appts,expenses,services,setTab}) {
 
   // ─── Exportar a Excel (.xlsx) ──────────────────────────────────
   const exportExcel = async () => {
+    // Sin filas exportables no hay nada que generar: evita rangos
+    // invertidos como SUM(F2:F1) en la hoja Movimientos.
+    if (!movsRanges(ledger.rows.length)) return
     const XLSX = await import('xlsx')
     const wb = XLSX.utils.book_new()
     const peso = '"$"#,##0'
@@ -2996,8 +3045,8 @@ function ReportTab({appts,expenses,services,setTab}) {
            {t:'n', f:`F${n}+G${n}`, v:r.amount, z:peso}, '', r.payMethod || 'Sin registrar']
         : [r.date, r.time, 'Gasto', r.who, r.detail, '', '', '', {t:'n', v:r.amount, z:peso}, ''])
     })
-    const first = 2, last = ledger.rows.length + 1
-    const tRow = last + 2
+    const rng = movsRanges(ledger.rows.length)
+    const { first, last, tRow } = rng
     const sumCell = (col, v) => ({t:'n', f:`SUM(${col}${first}:${col}${last})`, v, z:peso})
     movs.push([])
     movs.push(['','','','','TOTAL',
@@ -3230,14 +3279,14 @@ function ReportTab({appts,expenses,services,setTab}) {
 
       {/* Botones de acción */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
-        <button className="btn-o" onClick={exportExcel} disabled={created===0&&ledger.rows.length===0} style={{padding:'14px 12px'}}>
+        <button className="btn-o" onClick={exportExcel} disabled={ledger.rows.length===0} style={{padding:'14px 12px'}}>
           📊 Exportar Excel
         </button>
         <button className="btn-wa" onClick={sendWA} disabled={created===0} style={{padding:'14px 12px'}}>
           💬 WhatsApp admin
         </button>
       </div>
-      {created===0&&ledger.rows.length===0 && <div style={{textAlign:'center',fontSize:12,color:'var(--t2)',marginBottom:14}}>No hay movimientos en este período para exportar.</div>}
+      {ledger.rows.length===0 && <div style={{textAlign:'center',fontSize:12,color:'var(--t2)',marginBottom:14}}>No hay movimientos en este período para exportar.</div>}
 
       {/* Pista de destinatario */}
       <div style={{textAlign:'center',fontSize:11,color:'var(--t2)',marginBottom:6}}>
@@ -3763,7 +3812,7 @@ function CalendarView({ clients, appts, setTab, confirm, deleteAppt }) {
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8, marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-          {!done && !noshow && (
+          {canModifyAppt(a) && (
             <button className="btn-sm" style={{ flex: 1 }}
               onClick={() => setTab('appointments')}>
               ✏️ Editar
@@ -3778,10 +3827,14 @@ function CalendarView({ clients, appts, setTab, confirm, deleteAppt }) {
               💬 WhatsApp
             </button>
           )}
-          <button className="btn-del"
-            onClick={() => confirm(`¿Eliminar la cita de ${a.clientName}?`, () => deleteAppt(a))}>
-            ✕
-          </button>
+          {/* Misma regla que en la pestaña Citas: solo se elimina una cita
+              pendiente (no completada ni «no asistió»). */}
+          {canModifyAppt(a) && (
+            <button className="btn-del"
+              onClick={() => confirm(`¿Eliminar la cita de ${a.clientName}?`, () => deleteAppt(a))}>
+              ✕
+            </button>
+          )}
         </div>
       </div>
     )

@@ -4,11 +4,12 @@
    el contexto del navegador. App.jsx las reutiliza.
 ══════════════════════════════════════════════════════════════ */
 
-// 30-min time slots 07:00 → 20:30
+// 30-min time slots 07:00 → 20:30 (la cita de las 20:30 solo cabe si dura
+// 30 min y termina exactamente a las 21:00; ver CLOSING_TIME en getSlots)
 export const TIME_SLOTS = []
 for (let h = 7; h <= 20; h++) {
   TIME_SLOTS.push(`${String(h).padStart(2, '0')}:00`)
-  if (h < 20) TIME_SLOTS.push(`${String(h).padStart(2, '0')}:30`)
+  TIME_SLOTS.push(`${String(h).padStart(2, '0')}:30`)
 }
 
 export const SERVICE_DURATION = 60 // minutes per service
@@ -186,6 +187,193 @@ export const payMethodOf = a => {
   return PAYMENT_METHODS.includes(m) ? m : ''
 }
 
+// ── Estado de la cita (fuente única para la UI) ──────────────────────
+export const apptStatus = a => {
+  if (a && a.completed === 'noshow') return 'noshow'
+  return bool(a && a.completed) ? 'done' : 'pending'
+}
+
+// Restricción compartida de editar/eliminar: solo citas pendientes.
+// La pestaña Citas y el Calendario usan esta misma regla.
+export const canModifyAppt = a => apptStatus(a) === 'pending'
+
+/* ══════════════════════════════════════════════════════════════
+   ELIMINACIÓN DE SERVICIOS — relación cita ⇄ servicio
+   La cita guarda el identificador real en `serviceIds` (CSV) y,
+   como respaldo de la relación, `servicePrices` (JSON {id: precio}).
+   `serviceNames` es solo un SNAPSHOT del nombre en el momento de
+   agendar, por lo que NO se usa como clave principal: el nombre
+   puede repetirse entre servicios distintos y además cambia si se
+   renombra el servicio.
+   El nombre solo se usa como último recurso, y únicamente cuando
+   la cita no trae ningún id y ese nombre es único en el catálogo.
+══════════════════════════════════════════════════════════════ */
+
+// Normaliza un nombre de servicio para compararlo (minúsculas + espacios).
+const normName = v =>
+  String(v === null || v === undefined ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ')
+
+/**
+ * IDs de servicio que referencia una cita.
+ * 1) `serviceIds`  (CSV)  — campo real de la relación.
+ * 2) claves de `servicePrices` (JSON {id: precio}) — respaldo si el CSV vino vacío.
+ * Devuelve [] si la cita no aporta ningún id.
+ */
+export const apptServiceIds = a => {
+  if (!a) return []
+  const out = String(a.serviceIds || '').split(',').map(s => s.trim()).filter(Boolean)
+  if (out.length > 0) return out
+  const sp = a.servicePrices
+  if (sp && typeof sp === 'object' && !Array.isArray(sp)) return Object.keys(sp).filter(Boolean)
+  if (typeof sp === 'string' && sp.trim()) {
+    try {
+      const parsed = JSON.parse(sp)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return Object.keys(parsed).filter(Boolean)
+    } catch { /* snapshot ilegible → sin ids */ }
+  }
+  return []
+}
+
+// Nombres de servicio snapshot en la cita (fallback de la relación).
+export const apptServiceNames = a =>
+  String((a && a.serviceNames) || '').split(',').map(s => s.trim()).filter(Boolean)
+
+// Duración efectiva de una cita en minutos (idéntico a apptDuration).
+const apptMinutes = a => {
+  const n = Math.round(toN(a && a.duration))
+  return n > 0 ? n : SERVICE_DURATION
+}
+
+/**
+ * Momento de la cita respecto a `now` (Date local, por defecto ahora).
+ *
+ * Usa fecha + hora + duración + estado, nunca solo la fecha:
+ *   'done'    → finalizada (completada o 'noshow'); es histórico.
+ *   'past'    → su franja [inicio, fin) ya terminó; sigue pendiente.
+ *   'live'    → EN CURSO ahora: inicio <= now < fin.
+ *   'future'  → aún no empieza.
+ *   'unknown' → sin fecha/hora válida: no se puede evaluar.
+ */
+export const apptLife = (a, now = new Date()) => {
+  if (!a) return 'unknown'
+  if (bool(a.completed) || a.completed === 'noshow') return 'done'
+  const d = cleanDate(a.date)
+  const t = cleanTime(a.time)
+  if (!d || !t) return 'unknown'
+  const start = new Date(`${d}T${t}:00`)
+  if (isNaN(start.getTime())) return 'unknown'
+  const end = new Date(start.getTime() + apptMinutes(a) * 60000)
+  if (now.getTime() >= end.getTime()) return 'past'
+  if (now.getTime() >= start.getTime()) return 'live'
+  return 'future'
+}
+
+// ¿La cita referencia al servicio? Usa ids si la cita los trae; solo si no
+// tiene ninguno recurre al nombre, y solo si ese nombre es único en el catálogo
+// (si no, la coincidencia sería ambigua y podría bloquear un servicio ajeno).
+const apptUsesService = (a, ids, nameKey, nameAmbiguous) => {
+  const aid = apptServiceIds(a)
+  if (aid.length > 0) return aid.some(id => ids[id])
+  if (!nameKey || nameAmbiguous) return false
+  return apptServiceNames(a).some(n => normName(n) === nameKey)
+}
+
+/**
+ * Regla de negocio: no permitir eliminar un servicio con citas futuras
+ * activas o citas en curso.
+ *
+ * @param {object} service  Servicio a eliminar {id, name}
+ * @param {Array}  appts    Todas las citas
+ * @param {Array}  services Catálogo completo (para detectar nombres ambiguos)
+ * @param {Date}   now      Reloj inyectable (para tests)
+ * @returns {{ok:boolean, count:number, blockers:Array, message:string|null}}
+ */
+export const serviceDeletionCheck = (service, appts, services, now = new Date()) => {
+  const svc = service || {}
+  const list = Array.isArray(appts) ? appts : []
+  const catalog = Array.isArray(services) ? services : []
+
+  const ids = {}
+  const rawId = String(svc.id === null || svc.id === undefined ? '' : svc.id).trim()
+  if (rawId) ids[rawId] = true
+
+  const nameKey = normName(svc.name)
+  const nameAmbiguous = !!nameKey &&
+    catalog.filter(s => s && normName(s.name) === nameKey).length > 1
+
+  const blockers = list.filter(a => {
+    const life = apptLife(a, now)
+    // Solo bloquean las que aún van a ocurrir o están ocurriendo.
+    if (life !== 'future' && life !== 'live') return false
+    return apptUsesService(a, ids, nameKey, nameAmbiguous)
+  })
+
+  const count = blockers.length
+  const name = svc.name || rawId || 'este servicio'
+  return {
+    ok: count === 0,
+    count,
+    blockers,
+    message: count === 0 ? null
+      : `No se puede eliminar el servicio "${name}": ${count} cita${count === 1 ? '' : 's'} ` +
+        `programada${count === 1 ? '' : 's'} o en curso aún lo utiliza${count === 1 ? '' : 'n'}. ` +
+        `Completa o elimina esas citas primero.`,
+  }
+}
+
+/**
+ * Revalida la disponibilidad de un horario justo antes de crear o guardar
+ * una cita (el asistente puede llevar un rato abierto y los datos cambian
+ * con el refresco periódico).
+ *
+ * Devuelve `null` si el horario sigue disponible, o un mensaje legible si no.
+ * Valida fecha, hora, duración, horario de atención y solapamientos con las
+ * mismas funciones que usa la UI (cleanDate/cleanTime/getSlots).
+ *
+ * Es una validación en el cliente: NO protege frente a reservas
+ * simultáneas de distintos usuarios.
+ */
+export const checkSlot = (date, time, appts, duration, excludeId = null) => {
+  const d = cleanDate(date)
+  if (!d) return 'La fecha no es válida.'
+  if (d < todayStr()) return 'La fecha ya pasó: elige un día desde hoy.'
+  const t = cleanTime(time)
+  if (!t) return 'Elige una hora.'
+  const dur = Math.round(toN(duration))
+  if (dur <= 0) return 'La duración del servicio no es válida.'
+  const slot = getSlots(d, [], appts, excludeId, dur)
+    .find(s => cleanTime(s.time) === t)
+  if (!slot) return `Las ${fmtTime(t)} no hacen parte del horario de atención.`
+  if (slot.disabled) return `Las ${fmtTime(t)} ya no están disponibles (${slot.reason}). Elige otra hora.`
+  return null
+}
+
+/**
+ * Decisión de `NewWizard.confirm()` cuando la validación previa falla.
+ * `problem`     : mensaje legible del fallo (null si todo está bien).
+ * `slotProblem` : mensaje si la hora dejó de estar disponible (null si no).
+ *
+ * Si la hora ya no está disponible hay que limpiarla antes de volver al
+ * paso de fecha/hora: si no, la interfaz seguiría ofreciendo esa hora
+ * (banner de "hora elegida" y avance al resumen con una hora inválida).
+ */
+export const confirmOutcome = (problem, slotProblem) => ({
+  ok: !problem,
+  message: problem || null,
+  clearTime: !!slotProblem,
+})
+
+/**
+ * Ingresos «proyectados» de un conjunto de citas: suma del total de todas
+ * las citas EXCEPTO las marcadas como 'noshow' (un no-show no se cobra).
+ * Criterio único: lo usan Panel, Finanzas, Detalle de ingresos y Reporte;
+ * coincide con el correo del backend (Code.gs, _buildReport).
+ */
+export const projectedIncome = list =>
+  (Array.isArray(list) ? list : [])
+    .filter(a => a && a.completed !== 'noshow')
+    .reduce((s, a) => s + toN(a.totalPrice || a.servicePrice || 0), 0)
+
 /**
  * Libro de movimientos de un PERÍODO (from..to, 'YYYY-MM-DD', inclusivo).
  * FUENTE ÚNICA del neto: Finanzas, Reporte y el Excel usan esta función.
@@ -234,6 +422,20 @@ export const periodLedger = (appts, expenses, from, to) => {
 // Atajo para un mes completo ('YYYY-MM')
 export const monthLedger = (appts, expenses, month) =>
   periodLedger(appts, expenses, month + '-01', month + '-31')
+
+/**
+ * Rangos de fila de la hoja "Movimientos" del Excel exportado.
+ * `rowCount` = filas de datos (citas + gastos). Los datos ocupan las filas
+ * 2..(rowCount+1) y los totales van dos filas más abajo.
+ *
+ * Devuelve `null` si no hay filas exportables: en ese caso NO deben
+ * generarse fórmulas (evita rangos invertidos como `SUM(F2:F1)`).
+ */
+export const movsRanges = rowCount => {
+  const n = Math.round(toN(rowCount))
+  if (n <= 0) return null
+  return { first: 2, last: n + 1, tRow: n + 3 }
+}
 
 // ¿iPhone/iPad? (incluye iPadOS, que se reporta como Mac con pantalla táctil)
 export const isIOS = () => {

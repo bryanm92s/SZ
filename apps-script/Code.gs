@@ -59,6 +59,17 @@ function doPost(e) {
     if (b.action==='updateCalendarEvent') return ok({calResult:updateCalEvent(b.eventId,b.calendarEvent)});
     if (b.clients      !== undefined) writeSheet(ss,'clients',b.clients);
     if (b.services !== undefined) {
+      // ── Regla de negocio: no eliminar servicios con citas futuras
+      // activas o en curso. Se valida ANTES de escribir nada (y antes
+      // de trackPriceChanges, que sí escribe en HistorialPrecios).
+      // Si el payload trae `appointments` se usan esas (son las que van
+      // a quedar tras el POST); si no, se leen de la hoja.
+      var apptsForCheck = (b.appointments !== undefined && b.appointments !== null)
+        ? b.appointments
+        : readSheet(ss, 'appointments');
+      var svcErr = _serviceDeletionError(b.services, readSheet(ss, 'services'), apptsForCheck, new Date());
+      if (svcErr) { lock.releaseLock(); return err(svcErr); }
+
       if (b.resetPriceHistory) {
         // Full reset: wipe history and seed with the new service prices
         const sh = ss.getSheetByName(SHEETS.priceHistory);
@@ -84,6 +95,129 @@ function doPost(e) {
     lock.releaseLock();
     return ok({saved:true,calResult});
   } catch(ex) { lock.releaseLock(); return err('POST: '+ex.message); }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ELIMINACIÓN DE SERVICIOS — validación de negocio
+   Réplica de `serviceDeletionCheck` (src/helpers.js) para que la
+   regla no dependa de un botón deshabilitado en React: el backend
+   rechaza la escritura si el servicio eliminado tiene citas
+   futuras activas o citas en curso.
+
+   Relación cita ⇄ servicio: la cita guarda el id real en
+   `serviceIds` (CSV) y, como respaldo, las claves de
+   `servicePrices` (JSON {id: precio}). `serviceNames` es solo un
+   snapshot del nombre, así que SOLO se usa como último recurso y
+   únicamente cuando la cita no trae ningún id y ese nombre es
+   único en el catálogo (evita bloquear un servicio homónimo).
+══════════════════════════════════════════════════════════════ */
+
+function _normName(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+// IDs de servicio que referencia una cita (ver apptServiceIds en helpers.js).
+function _apptServiceIds(a) {
+  if (!a) return [];
+  var out = String(a.serviceIds || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+  if (out.length > 0) return out;
+  var sp = a.servicePrices;
+  var parsed = null;
+  if (sp && typeof sp === 'object' && !Array.isArray(sp)) parsed = sp;
+  else if (typeof sp === 'string' && sp.trim()) {
+    try { parsed = JSON.parse(sp); } catch(_) { parsed = null; }
+    if (parsed && (typeof parsed !== 'object' || Array.isArray(parsed))) parsed = null;
+  }
+  return parsed ? Object.keys(parsed).filter(Boolean) : [];
+}
+
+function _apptServiceNames(a) {
+  return String((a && a.serviceNames) || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+}
+
+// Duración efectiva de una cita en minutos (misma regla que safeDuration:
+// inválida → 60; válida → recortada a [15, 480]).
+function _apptMinutes(a) {
+  var n = Math.round(Number(a && a.duration));
+  if (!(n > 0)) return 60;
+  return Math.min(Math.max(n, 15), 480);
+}
+
+// Momento de la cita respecto a `now`:
+//   'done'   → finalizada (completada o 'noshow'); es histórico.
+//   'past'   → su franja [inicio, fin) ya terminó; sigue pendiente.
+//   'live'   → EN CURSO: inicio <= now < fin.
+//   'future' → aún no empieza.
+//   'unknown'→ sin fecha/hora válida: no se puede evaluar.
+// Usa fecha + hora + duración + estado, nunca solo la fecha.
+function _apptLife(a, now) {
+  if (!a) return 'unknown';
+  if (a.completed === true || a.completed === 'true' || a.completed === 'noshow') return 'done';
+  var d = _cleanDate(a.date);
+  var m = String(a.time || '').trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!d || !m) return 'unknown';
+  var start = new Date(Number(d.slice(0,4)), Number(d.slice(5,7)) - 1, Number(d.slice(8,10)),
+                       Number(m[1]), Number(m[2]), 0);
+  if (isNaN(start.getTime())) return 'unknown';
+  var end = new Date(start.getTime() + _apptMinutes(a) * 60000);
+  var t = now.getTime();
+  if (t >= end.getTime()) return 'past';
+  if (t >= start.getTime()) return 'live';
+  return 'future';
+}
+
+function _apptUsesService(a, ids, nameKey, nameAmbiguous) {
+  var aid = _apptServiceIds(a);
+  if (aid.length > 0) {
+    for (var i = 0; i < aid.length; i++) if (ids[aid[i]]) return true;
+    return false;
+  }
+  if (!nameKey || nameAmbiguous) return false;
+  var names = _apptServiceNames(a);
+  for (var j = 0; j < names.length; j++) if (_normName(names[j]) === nameKey) return true;
+  return false;
+}
+
+// `newServices` : catálogo que el cliente pide persistir.
+// `curServices` : catálogo actual en la hoja (para detectar qué se eliminó).
+// `appts`       : citas vigentes (las del payload o las de la hoja).
+// Devuelve null si la eliminación está permitida, o un mensaje de error.
+function _serviceDeletionError(newServices, curServices, appts, now) {
+  var list    = Array.isArray(newServices) ? newServices : [];
+  var catalog = Array.isArray(curServices) ? curServices : [];
+  var apptList = Array.isArray(appts) ? appts : [];
+
+  var keep = {};
+  list.forEach(function(s){ if (s && s.id !== undefined && s.id !== null) keep[String(s.id)] = true; });
+  var removed = catalog.filter(function(s){
+    return s && s.id !== undefined && s.id !== null && !keep[String(s.id)];
+  });
+  if (removed.length === 0) return null;
+
+  var now2 = now || new Date();
+  var nameCount = {};
+  catalog.forEach(function(s){ var k = _normName(s && s.name); nameCount[k] = (nameCount[k] || 0) + 1; });
+
+  for (var r = 0; r < removed.length; r++) {
+    var svc = removed[r];
+    var ids = {}; ids[String(svc.id)] = true;
+    var nameKey = _normName(svc.name);
+    var ambiguous = !!nameKey && nameCount[nameKey] > 1;
+    var blockers = apptList.filter(function(a){
+      var life = _apptLife(a, now2);
+      if (life !== 'future' && life !== 'live') return false;
+      return _apptUsesService(a, ids, nameKey, ambiguous);
+    });
+    if (blockers.length > 0) {
+      var n = blockers.length;
+      return 'No se puede eliminar el servicio "' + (svc.name || svc.id) + '": ' + n +
+             ' cita' + (n === 1 ? '' : 's') + ' programada' + (n === 1 ? '' : 's') +
+             ' o en curso aún lo utiliza' + (n === 1 ? '' : 'n') +
+             '. Completa o elimina esas citas primero.';
+    }
+  }
+  return null;
 }
 
 function createCalEvent(evt) {

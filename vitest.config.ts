@@ -4,7 +4,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['src/**/*.{test,spec}.{js,jsx,ts,tsx}'],
-    setupFiles: ['src/test/setup.ts'],
+    // Nota: no hay setupFiles — el archivo que apuntaba aquí (src/test/setup.ts)
+    // nunca existió y rompía `npm test` con "Failed to load url".
     globals: true,
   },
 })
