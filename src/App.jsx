@@ -1345,11 +1345,8 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab}) 
     {(() => {
       const det = safeA.find(a => a && a.id === detailId)
       if (!det) return null
-      // Restricción existente del detalle de Citas: «No asistió» y
-      // «Pasadas» no permiten editar ni eliminar.
-      const g = apptGroup(det)
-      const groupAllowsEdit = (g === 'noshow' || g === 'past') ? false : true
-      return <ApptDetail appt={det} services={services} canEdit={groupAllowsEdit}
+      // Única regla de edición/eliminación: canModifyAppt (solo pendientes).
+      return <ApptDetail appt={det} services={services}
         onClose={()=>setDetailId(null)}
         onEdit={()=>{ setDetailId(null); setTab('appointments',{focusAppt:det.id,editAppt:true}) }}
         onDelete={()=>{
@@ -1737,7 +1734,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
     onClose={()=>{ setNew(false); if (tabExtra && tabExtra.origin && setTab) setTab(tabExtra.origin) }}/>
   if (editAppt) return <EditAppt   appt={editAppt} services={services} appts={appts} SA={SA} priceHistory={priceHistory} onClose={()=>setEdit(null)}/>
 
-  const AccGroup = ({label,color,gKey,items,canEdit=true}) => {
+  const AccGroup = ({label,color,gKey,items}) => {
     if (items.length===0) return null
     const sum     = items.reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
     const doneSum = items.filter(a=>bool(a.completed)&&a.completed!=='noshow').reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
@@ -1758,7 +1755,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
         {isOpen && (
           <div className="slide-in" style={{padding:'4px 12px 12px'}}>
             {sortG(items).map(a=>(
-              <ApptCard key={a.id} appt={a} canEdit={canEdit}
+              <ApptCard key={a.id} appt={a}
                 focused={focusId===a.id}
                 onOpen={()=>setDetailId(a.id)}
                 onToggle={(s)=>toggleCompleted(a,s)}
@@ -1782,10 +1779,9 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
     {(() => {
       const det = (Array.isArray(appts)?appts:[]).find(a => a && a.id === detailId)
       if (!det) return null
-      // Mismo criterio que los acordeones: «Pasadas» y «No asistió» no permiten editar.
-      const g = apptGroup(det)
-      const groupAllowsEdit = (g === 'noshow' || g === 'past') ? false : true
-      return <ApptDetail appt={det} services={services} canEdit={groupAllowsEdit}
+      // Única regla de edición/eliminación: canModifyAppt (solo pendientes).
+      // Una cita pasada PENDIENTE sí se puede editar o eliminar desde aquí.
+      return <ApptDetail appt={det} services={services}
         onClose={()=>setDetailId(null)}
         onEdit={()=>{ setEdit(det); setDetailId(null) }}
         onDelete={()=>{
@@ -1793,11 +1789,11 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
           confirm(`¿Eliminar la cita de ${det.clientName}? También se borrará el evento de Google Calendar.`,()=>deleteAppt(det))
         }}/>
     })()}
-    <AccGroup label="Hoy"         color="#B5524A" gKey="today"    items={groups.today}    canEdit={true}/>
-    <AccGroup label="Mañana"      color="#B8742A" gKey="tomorrow" items={groups.tomorrow} canEdit={true}/>
-    <AccGroup label="Próximas"    color="#2E6EA6" gKey="upcoming" items={groups.upcoming} canEdit={true}/>
-    <AccGroup label="No asistió"  color="#B03030" gKey="noshow"   items={groups.noshow}   canEdit={false}/>
-    <AccGroup label="Pasadas"     color="#888888" gKey="past"     items={groups.past}     canEdit={false}/>
+    <AccGroup label="Hoy"         color="#B5524A" gKey="today"    items={groups.today}/>
+    <AccGroup label="Mañana"      color="#B8742A" gKey="tomorrow" items={groups.tomorrow}/>
+    <AccGroup label="Próximas"    color="#2E6EA6" gKey="upcoming" items={groups.upcoming}/>
+    <AccGroup label="No asistió"  color="#B03030" gKey="noshow"   items={groups.noshow}/>
+    <AccGroup label="Pasadas"     color="#888888" gKey="past"     items={groups.past}/>
     {appts.length===0 && (
       <div className="card" style={{textAlign:'center',padding:30,color:'var(--t2)'}}>
         No hay citas 🌸<br/><br/>
@@ -1807,13 +1803,17 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
   </>
 }
 
-/* ── Detalle de una cita (desde el Panel o desde la pestaña Citas) ──
-   Solo LEE la cita: no valida ni guarda nada. Las acciones «Editar» y
-   «Eliminar» reutilizan los flujos existentes de ApptsTab, que aplican
-   las mismas restricciones (solo citas pendientes, y nunca en los
-   grupos «Pasadas» ni «No asistió»). */
-function ApptDetail({appt,services,canEdit=true,onClose,onEdit,onDelete}) {
+/* ── Detalle de una cita (desde el Panel, la pestaña Citas o el
+   Calendario). Solo LEE la cita: no valida ni guarda nada. Las acciones
+   «Editar» y «Eliminar» aplican la ÚNICA regla canModifyAppt (solo citas
+   pendientes), la misma que usa el listado de Citas y el Calendario. */
+function ApptDetail({appt,services,onClose,onEdit,onDelete}) {
   const status = apptStatus(appt)
+  // ÚNICA regla de editar/eliminar, compartida con Calendario, Citas y
+  // Panel: canModifyAppt (solo citas PENDIENTES). El hecho de que el
+  // horario haya pasado NO cambia el estado ni bloquea la edición, así
+  // que una cita pasada pendiente se puede corregir o reprogramar.
+  const editable = canModifyAppt(appt)
   const dom    = bool(appt.domicilio)
   const dur    = apptDuration(appt)
 
@@ -1898,14 +1898,14 @@ function ApptDetail({appt,services,canEdit=true,onClose,onEdit,onDelete}) {
           </div>
         </div>
 
-        {/* Editar/Eliminar reutilizan el flujo existente y su restricción:
-            solo citas pendientes y solo si el grupo lo permite. */}
+        {/* Editar/Eliminar: única decisión canModifyAppt (solo pendientes),
+            compartida con Calendario, Citas y Panel. */}
         <div style={{display:'flex',gap:8}}>
           <button className="btn-o" style={{flex:1}} onClick={onClose}>Cerrar</button>
-          {status==='pending' && canEdit && <button className="btn-edit" style={{flex:1}} onClick={onEdit}>✏️ Editar</button>}
-          {status==='pending' && canEdit && <button className="btn-del" style={{flex:1}} onClick={onDelete}>🗑️ Eliminar</button>}
+          {editable && <button className="btn-edit" style={{flex:1}} onClick={onEdit}>✏️ Editar</button>}
+          {editable && <button className="btn-del" style={{flex:1}} onClick={onDelete}>🗑️ Eliminar</button>}
         </div>
-        {!(status==='pending' && canEdit) && (
+        {!editable && (
           <div style={{fontSize:11,color:'var(--t2)',marginTop:10,textAlign:'center',lineHeight:1.5}}>
             Esta cita ya no se puede editar ni eliminar.
           </div>
@@ -1915,7 +1915,7 @@ function ApptDetail({appt,services,canEdit=true,onClose,onEdit,onDelete}) {
   )
 }
 
-function ApptCard({appt,canEdit=true,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePay}) {
+function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePay}) {
   const calOk  = bool(appt.calendarCreated)
   const dom    = bool(appt.domicilio)
   const status = apptStatus(appt)
@@ -1985,10 +1985,11 @@ function ApptCard({appt,canEdit=true,focused=false,onOpen,onToggle,onEdit,onDele
           ✗ No asistió
         </button>
         {status==='pending' && <button className="btn-wa" onClick={()=>openWA(appt.clientPhone,appt.clientName,appt.time,appt.date,appt.serviceNames,appt.totalPrice||appt.servicePrice,dom)}>💬 Recordatorio</button>}
-        {/* Editar/Eliminar: solo pendientes Y solo si el grupo lo permite
-            (canEdit={false} en «Pasadas» y «No asistió»). */}
-        {status==='pending' && canEdit && <button className="btn-edit" onClick={onEdit}>✏️ Editar</button>}
-        {status==='pending' && canEdit && <button className="btn-del" onClick={onDelete}>🗑️ Eliminar</button>}
+        {/* Editar/Eliminar: única decisión canModifyAppt (solo pendientes),
+            la misma que aplican el Calendario y el detalle. Una cita pasada
+            PENDIENTE también se puede editar o eliminar desde aquí. */}
+        {canModifyAppt(appt) && <button className="btn-edit" onClick={onEdit}>✏️ Editar</button>}
+        {canModifyAppt(appt) && <button className="btn-del" onClick={onDelete}>🗑️ Eliminar</button>}
       </div>
     </div>
   )
@@ -4434,9 +4435,8 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
       {(() => {
         const det = safeA.find(a => a && a.id === detailId)
         if (!det) return null
-        // Misma regla que los botones del listado: solo citas pendientes.
-        const allowsEdit = canModifyAppt(det)
-        return <ApptDetail appt={det} services={services} canEdit={allowsEdit}
+        // Única regla de edición/eliminación: canModifyAppt (solo pendientes).
+        return <ApptDetail appt={det} services={services}
           onClose={() => setDetailId(null)}
           onEdit={() => { setEditAppt(det.id); setDetailId(null) }}
           onDelete={() => {

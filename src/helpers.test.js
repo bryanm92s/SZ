@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptGroup, reportMetrics, periodLedger } from './helpers.js'
 
 // phoneMatch/getSlots depend on todayStr() (local today). Freeze the clock
@@ -679,5 +681,133 @@ describe('reportMetrics', () => {
     expect(m.ledger).toEqual(periodLedger(appts, expenses, FROM, TO))
     expect(m.revenue).toBe(m.ledger.totalIncome)
     expect(m.neto).toBe(m.ledger.neto)
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════
+   REGLA ÚNICA DE EDITAR/ELIMINAR CITAS
+   Objetivo: una sola regla de negocio coherente en Panel, Citas,
+   Calendario y Detalle.
+
+     · canModifyAppt decide SOLO por estado (pendiente vs completada
+       vs no asistió). El paso del tiempo NO cambia el estado y NO
+       bloquea la edición.
+     · Pendiente futura  → editable
+     · Pendiente pasada  → editable (misma regla)
+     · Completada        → NO editable ni eliminable
+     · No asistió        → NO editable ni eliminable
+
+   Reloj congelado: 2026-01-15 13:00 → «pasada» = fecha < hoy, o
+   hoy con hora de inicio < 13:00.
+   ══════════════════════════════════════════════════════════════ */
+describe('REGLA ÚNICA · editar/eliminar citas en todas las vistas', () => {
+  // Fábrica de citas: mismo esqueleto, cambia solo lo relevante.
+  const appt = (over = {}) => ({
+    id: 'a1', clientName: 'BRYAN', date: '2026-01-15', time: '18:00',
+    serviceNames: 'Diseño y depilación', servicePrice: 60000, totalPrice: 60000,
+    domicilio: false, duration: 30, completed: false, ...over,
+  })
+
+  // Citas de referencia para los 8 escenarios del encargo.
+  const pastPending   = appt({ date: '2026-01-10', time: '10:00' })            // pasada + pendiente
+  const futurePending = appt({ date: '2026-01-20', time: '10:00' })            // futura + pendiente
+  const completedAppt = appt({ date: '2026-01-10', time: '10:00', completed: true })
+  const noshowAppt    = appt({ date: '2026-01-10', time: '10:00', completed: 'noshow' })
+
+  /* 1 · Una cita pasada y pendiente SÍ se puede editar (Citas) ---------- */
+  it('1 · una cita pasada y pendiente ES editable y eliminable', () => {
+    expect(canModifyAppt(pastPending)).toBe(true)
+  })
+
+  /* 2 · Misma cita editable desde Calendario y Detalle ------------------
+     Las tres vistas delegan en la MISMA canModifyAppt, así que la
+     decisión es idéntica sin importar el punto de entrada. */
+  it('2 · la decisión es idéntica para Citas, Calendario y Detalle', () => {
+    // Una sola fuente: si cambia la regla, cambia para todas las vistas.
+    expect(canModifyAppt(pastPending)).toBe(true)  // Citas
+    expect(canModifyAppt(pastPending)).toBe(true)  // Calendario
+    expect(canModifyAppt(pastPending)).toBe(true)  // Detalle
+  })
+
+  /* 3 · Una cita futura y pendiente sigue siendo editable -------------- */
+  it('3 · una cita futura y pendiente sigue siendo editable', () => {
+    expect(canModifyAppt(futurePending)).toBe(true)
+  })
+
+  /* 4 · Completada: no editable ni eliminable -------------------------- */
+  it('4 · una cita completada NO se puede editar ni eliminar', () => {
+    expect(canModifyAppt(completedAppt)).toBe(false)
+  })
+
+  /* 5 · No asistió: no editable ni eliminable -------------------------- */
+  it('5 · una cita «No asistió» NO se puede editar ni eliminar', () => {
+    expect(canModifyAppt(noshowAppt)).toBe(false)
+  })
+
+  /* 6 · La edición no cambia automáticamente el estado -----------------
+     canModifyAppt es una decisión pura: no muta la cita, y el estado
+     de una pasada pendiente sigue siendo «pending» (no «done»). */
+  it('6 · decidir permisos NO muta la cita ni auto-completa una pasada', () => {
+    const before = JSON.stringify(pastPending)
+    expect(canModifyAppt(pastPending)).toBe(true)
+    expect(JSON.stringify(pastPending)).toBe(before)
+    // El paso del tiempo no cambia el estado: sigue pendiente.
+    expect(apptStatus(pastPending)).toBe('pending')
+  })
+
+  /* 8 · Coherencia de permisos entre vistas -----------------------------
+     Regresión: vuelve a romperse si alguien reintroduce una regla
+     PARALELA por grupo en ApptCard/ApptDetail. */
+  it('8 · el fuente usa la MISMA canModifyAppt en listado, detalle y calendario', () => {
+    // jsdom no da import.meta.url como file://, así que se resuelve
+    // contra la raíz del proyecto (cwd de vitest).
+    const src = readFileSync(resolve(process.cwd(), 'src', 'App.jsx'), 'utf8')
+
+    // (a) No debe existir ninguna regla paralela por grupo de «Pasadas».
+    expect(src).not.toMatch(/groupAllowsEdit/)
+    expect(src).not.toMatch(/canEdit\s*=\s*\{?\s*(true|false)/)
+
+    // (b) ApptCard (listado de Citas) delega en canModifyAppt.
+    const card = src.match(/function ApptCard\(\{[^}]*\}[\s\S]*?\n\}/)
+    expect(card).toBeTruthy()
+    expect(card[0]).toMatch(/canModifyAppt\(appt\)/)
+
+    // (c) ApptDetail delega en canModifyAppt.
+    const detail = src.match(/function ApptDetail\(\{[^}]*\}[\s\S]*?\n\}/)
+    expect(detail).toBeTruthy()
+    expect(detail[0]).toMatch(/canModifyAppt\(appt\)/)
+
+    // (d) El Calendario también decide con canModifyAppt (sus botones).
+    expect(src).toMatch(/canModifyAppt\(a\)/)
+  })
+
+  /* 7 · Edición segura: solapamiento bloquea el guardado ----------------
+     EditAppt usa getSlots(..., appt.id) → excluye la propia cita. Un
+     horario solapado queda con conflict=true, y eso deshabilita el
+     botón «Guardar cambios» (ver EditAppt: timeBlocked). */
+  it('7 · al reprogramar, un solapamiento queda marcado como conflicto', () => {
+    const day = '2026-01-20'
+    const other = { id: 'x', date: day, time: '10:00', duration: 60 }
+    // La propia cita (id 'self') NO se bloquea a sí misma…
+    const slots = getSlots(day, [], [other, pastPending], 'self', 60)
+    const free  = slots.find(s => cleanTime(s.time) === '14:00')
+    expect(free.disabled).toBe(false)
+    expect(free.conflict).toBe(false)
+
+    // …pero una hora que choca con otra cita SÍ queda bloqueada.
+    const clash = slots.find(s => cleanTime(s.time) === '10:30')
+    expect(clash.conflict).toBe(true)
+  })
+
+  it('7b · checkSlot rechaza la hora en conflicto con un mensaje legible', () => {
+    const day = '2026-01-20'
+    const appts = [
+      { id: 'self', date: day, time: '09:00', duration: 60 },
+      { id: 'x',    date: day, time: '11:00', duration: 60 },
+    ]
+    // La propia cita (excludeId) no se bloquea…
+    expect(checkSlot(day, '09:00', appts, 60, 'self')).toBe(null)
+    // …pero una hora ocupada por otra sí se rechaza.
+    expect(checkSlot(day, '11:00', appts, 60, 'self')).toMatch(/no están disponibles/)
   })
 })
