@@ -4135,12 +4135,17 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
 /* ══════════════════════════════════════════════════════════════
    CALENDAR VIEW
 ══════════════════════════════════════════════════════════════ */
-function CalendarView({ clients, appts, setTab, confirm, deleteAppt }) {
+function CalendarView({ clients, services, appts, SA, priceHistory, setTab, confirm, deleteAppt }) {
   const today = new Date()
   const [curYear,  setCurYear]  = useState(today.getFullYear())
   const [curMonth, setCurMonth] = useState(today.getMonth()) // 0-indexed
   const [selDay,   setSelDay]   = useState(null)             // 'YYYY-MM-DD' or null
   const [view,     setView]     = useState('month')          // 'month' | 'week'
+  // Edición y detalle directos desde el listado del día. Se guarda el ID
+  // (no el objeto) para que el detalle se resuelva contra `appts` en cada
+  // render y nunca muestre datos obsoletos.
+  const [editAppt, setEditAppt] = useState(null)
+  const [detailId, setDetailId] = useState(null)
 
   const safeA = Array.isArray(appts) ? appts : []
 
@@ -4312,9 +4317,20 @@ function CalendarView({ clients, appts, setTab, confirm, deleteAppt }) {
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8, marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+          {/* Detalle: disponible para cualquier cita y no escribe nada.
+              El contenedor de la tarjeta no tiene onClick, así que el clic
+              no se propaga a ninguna acción padre. */}
+          <button className="btn-sm" style={{ flex: 1 }}
+            onClick={() => setDetailId(a.id)}
+            aria-label={`Ver detalle de la cita de ${a.clientName}`}>
+            👁 Detalle
+          </button>
+          {/* Editar: abre el mismo formulario de edición de SZ con la cita
+              precargada por su ID. Ya no navega a la pestaña Citas. */}
           {canModifyAppt(a) && (
             <button className="btn-sm" style={{ flex: 1 }}
-              onClick={() => setTab('appointments')}>
+              onClick={() => setEditAppt(a.id)}
+              aria-label={`Editar la cita de ${a.clientName}`}>
               ✏️ Editar
             </button>
           )}
@@ -4350,8 +4366,36 @@ function CalendarView({ clients, appts, setTab, confirm, deleteAppt }) {
   /* ═══════════════════════════════════════════════════
      RENDER
   ═══════════════════════════════════════════════════ */
+  /* ── Edición directa desde el listado del día ──
+     Reutiliza el MISMO formulario de SZ (EditAppt) con la cita resuelta
+     por su ID real. No se navega a la pestaña Citas.
+     Al devolverlo con retorno anticipado, CalendarView sigue montado:
+     su estado (incluido `selDay`) se conserva, y al cerrar la edición
+     se vuelve al mismo día seleccionado. */
+  const editing = editAppt ? safeA.find(a => a && a.id === editAppt) : null
+  if (editing) return <EditAppt appt={editing} services={services} appts={appts} SA={SA}
+    priceHistory={priceHistory} onClose={() => setEditAppt(null)} />
+
   return (
     <>
+      {/* ── Detalle de una cita (modal, solo lectura) ──
+          Se resuelve contra `appts` en cada render para no mostrar datos
+          obsoletos. Al ser un overlay, el calendario no se desmonta y el
+          día seleccionado se conserva al cerrarlo. */}
+      {(() => {
+        const det = safeA.find(a => a && a.id === detailId)
+        if (!det) return null
+        // Misma regla que los botones del listado: solo citas pendientes.
+        const allowsEdit = canModifyAppt(det)
+        return <ApptDetail appt={det} services={services} canEdit={allowsEdit}
+          onClose={() => setDetailId(null)}
+          onEdit={() => { setEditAppt(det.id); setDetailId(null) }}
+          onDelete={() => {
+            setDetailId(null)
+            confirm(`¿Eliminar la cita de ${det.clientName}? También se borrará el evento de Google Calendar.`, () => deleteAppt(det))
+          }} />
+      })()}
+
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div style={{ fontFamily: 'Georgia,serif', fontSize: 21, fontWeight: 600, color: 'var(--t)' }}>
