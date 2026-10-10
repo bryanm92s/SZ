@@ -1031,7 +1031,9 @@ function GS() { return <style>{`
   .row:last-child{border-bottom:none}
 
   /* Fila de cita navegable (Panel → Citas). Se comporta como .row pero
-     es un <button>: mismo fondo/borde del tema, foco visible y hover. */
+     es un <button>: mismo fondo/borde del tema, foco visible y hover.
+     .static: la fila en sí ya NO responde al clic (las acciones están
+     en sus botones), así que se quita el cursor y el hover de navegable. */
   .row-pick{
     display:flex;
     align-items:center;
@@ -1056,6 +1058,8 @@ function GS() { return <style>{`
     outline-offset:2px;
     background:var(--primary-l);
   }
+  .row-pick.static{cursor:default}
+  .row-pick.static:hover{background:none}
 
   /* Resaltado temporal de la cita llegada desde el Panel */
   .appt-flash{animation:apptFlash 2.6s ease-out}
@@ -1276,9 +1280,13 @@ function GS() { return <style>{`
 /* ══════════════════════════════════════════════════════════════
    DASHBOARD
 ══════════════════════════════════════════════════════════════ */
-function Dashboard({clients,appts,expenses,setTab}) {
+function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab}) {
   const [selMonth, setSelMonth] = useState(monthStr)
   const [finTab,   setFinTab]   = useState('general')
+  // «👁 Detalle» de «Citas de Hoy»: guarda el ID (no el objeto) y se resuelve
+  // contra `appts` en cada render para no mostrar datos obsoletos. Es un
+  // overlay, así que el Panel no se desmonta ni cambia de pestaña.
+  const [detailId, setDetailId] = useState(null)
   const td = todayStr()
   const ta = [...appts].filter(a=>cleanDate(a.date)===td).sort((a,b)=>cleanTime(a.time).localeCompare(cleanTime(b.time)))
   const safeA = Array.isArray(appts)?appts:[]
@@ -1330,6 +1338,26 @@ function Dashboard({clients,appts,expenses,setTab}) {
   const netoPos  = aNeto>=0
 
   return <>
+    {/* ── Detalle de una cita del Panel (solo lectura) ──
+        Se reutiliza el MISMO ApptDetail de la pestaña Citas. Al ser un
+        overlay, cerrarlo devuelve al Panel en el mismo estado (misma
+        pestaña, mismo mes, sin abrir edición). */}
+    {(() => {
+      const det = safeA.find(a => a && a.id === detailId)
+      if (!det) return null
+      // Restricción existente del detalle de Citas: «No asistió» y
+      // «Pasadas» no permiten editar ni eliminar.
+      const g = apptGroup(det)
+      const groupAllowsEdit = (g === 'noshow' || g === 'past') ? false : true
+      return <ApptDetail appt={det} services={services} canEdit={groupAllowsEdit}
+        onClose={()=>setDetailId(null)}
+        onEdit={()=>{ setDetailId(null); setTab('appointments',{focusAppt:det.id}) }}
+        onDelete={()=>{
+          setDetailId(null)
+          confirm(`¿Eliminar la cita de ${det.clientName}? También se borrará el evento de Google Calendar.`,()=>deleteAppt(det))
+        }}/>
+    })()}
+
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
       <div style={{fontFamily:'Georgia,serif',fontSize:21,fontWeight:600,color:'var(--t)'}}>Bienvenida {'\u2728'}</div>
       <div style={{fontSize:11,color:'var(--t2)'}}>{new Date().toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'})}</div>
@@ -1443,18 +1471,33 @@ function Dashboard({clients,appts,expenses,setTab}) {
       </div>
       {ta.length===0
         ?<div style={{textAlign:'center',padding:'16px 0',color:'var(--t2)',fontSize:14}}>No hay citas para hoy</div>
-        :ta.map(a=><button key={a.id} type="button" className="row-pick"
-            onClick={()=>setTab('appointments',{focusAppt:a.id})}
-            aria-label={`Ver detalle de la cita de ${a.clientName} a las ${fmtTime(a.time)}`}>
-            <div style={{background:'var(--primary-l)',borderRadius:10,padding:'7px 10px',fontWeight:700,color:'var(--primary)',fontSize:12,minWidth:58,textAlign:'center',flexShrink:0}}>{fmtTime(a.time)}</div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:600,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.clientName}</div>
-              <div style={{fontSize:12,color:'var(--t2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.serviceNames}</div>
+        /* La fila YA no es un <button>: un clic sobre ella no abre el
+           detalle ni navega a Citas. Cada acción vive en su propio botón:
+           «👁 Detalle» solo consulta, «📅 Ir a cita» solo navega. */
+        :ta.map(a=><div key={a.id} className="row-pick static" style={{flexWrap:'wrap'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,flex:'1 1 auto',minWidth:0}}>
+              <div style={{background:'var(--primary-l)',borderRadius:10,padding:'7px 10px',fontWeight:700,color:'var(--primary)',fontSize:12,minWidth:58,textAlign:'center',flexShrink:0}}>{fmtTime(a.time)}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:600,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.clientName}</div>
+                <div style={{fontSize:12,color:'var(--t2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.serviceNames}</div>
+              </div>
+              {bool(a.completed)&&<span className="tag-g" style={{flexShrink:0,fontSize:11}}>{'\u2713'}</span>}
+              <div style={{fontWeight:700,color:'var(--primary)',fontSize:14,flexShrink:0}}>{fmtM(a.totalPrice||a.servicePrice)}</div>
             </div>
-            {bool(a.completed)&&<span className="tag-g" style={{flexShrink:0,fontSize:11}}>{'\u2713'}</span>}
-            <div style={{fontWeight:700,color:'var(--primary)',fontSize:14,flexShrink:0}}>{fmtM(a.totalPrice||a.servicePrice)}</div>
-            <span aria-hidden="true" style={{color:'var(--t2)',flexShrink:0,fontSize:16,lineHeight:1}}>{'\u203A'}</span>
-          </button>)
+            {/* Acciones explícitas e independientes entre sí. */}
+            <div style={{display:'flex',gap:8,flex:'1 1 100%',marginTop:8,paddingTop:8,borderTop:'1px solid var(--border)'}}>
+              <button type="button" className="btn-sm" style={{flex:1}}
+                onClick={()=>setDetailId(a.id)}
+                aria-label={`Ver detalle de la cita de ${a.clientName} a las ${fmtTime(a.time)}`}>
+                👁 Detalle
+              </button>
+              <button type="button" className="btn-sm" style={{flex:1}}
+                onClick={()=>setTab('appointments',{focusAppt:a.id})}
+                aria-label={`Ir a la cita de ${a.clientName} a las ${fmtTime(a.time)}`}>
+                📅 Ir a cita
+              </button>
+            </div>
+          </div>)
       }
     </div>
   </>
@@ -1603,9 +1646,10 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
   const [showNew,  setNew]  = useState(()=>!!(tabExtra && tabExtra.newAppt))
   const [editAppt, setEdit] = useState(null)
   const [payFor,  setPayFor] = useState(null) // {appt, change} → modal de método de pago
-  // Cita seleccionada para ver su detalle, y resaltado temporal al llegar
-  // desde el Panel. Se guarda el ID (no el objeto) para no mostrar datos
-  // obsoletos: el detalle se resuelve contra `appts` en cada render.
+  // Cita seleccionada para ver su detalle (solo desde «👁 Detalle» de la
+  // tarjeta) y resaltado temporal al llegar desde el Panel. Se guarda el ID
+  // (no el objeto) para no mostrar datos obsoletos: el detalle se resuelve
+  // contra `appts` en cada render.
   const [detailId, setDetailId] = useState(null)
   const [focusId,  setFocusId]  = useState(null)
   // Only "today" open by default — each group toggles independently
@@ -1614,9 +1658,11 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
 
   const toggle = k => setOpen(p => ({...p, [k]: !p[k]}))
 
-  // Llegada desde el Panel: abrir el grupo donde vive la cita, resaltarla
-  // unos segundos y mostrar su detalle. Si ya no existe se avisa y NO se
-  // abre ninguna otra cita por error.
+  // Llegada desde el Panel («📅 Ir a cita»): abrir el grupo donde vive la
+  // cita, resaltarla unos segundos y desplazarse hasta ella. Se localiza
+  // por su ID real. NO se abre el detalle: la navegación y la consulta son
+  // acciones separadas. Si ya no existe se avisa y NO se abre ninguna otra
+  // cita por error.
   useEffect(() => {
     if (!tabExtra || !tabExtra.focusAppt) return
     const target = tabExtra.focusAppt
@@ -1627,7 +1673,6 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
     }
     setOpen(p => ({...p, [apptGroup(found)]: true}))
     setFocusId(target)
-    setDetailId(target)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
