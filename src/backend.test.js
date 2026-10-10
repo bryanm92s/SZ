@@ -107,8 +107,71 @@ function makeSpreadsheet(seed = {}) {
       propiedades del script (Script Properties), buzón de correos
       simulado y registro de logs. Persiste entre varios POST para
       poder encadenar solicitar → verificar → ejecutar. ── */
+/* ── Calendario simulado en memoria ──
+   Reproduce exactamente la superficie que usan `createCalEvent`,
+   `updateCalEvent` y `deleteCalEvent`. Registra cada acceso para poder
+   demostrar que una petición rechazada no llega a Google Calendar y que
+   se borró el evento correcto (y solo ese).
+   NO toca ningún calendario real. */
+function makeCalendar(store) {
+  const events = new Map()
+  let seq = 0
+
+  const api = {
+    // Interruptores para simular fallos de Google Calendar en los tests.
+    ignoreSetTime: false,   // setTime no aplica el cambio (sin lanzar)
+    failDelete: false,      // deleteEvent lanza una excepción
+    _events: events,
+    seed: (id, { title = '', start, end, description = '' } = {}) => {
+      events.set(id, { id, title, start, end, description })
+      return id
+    },
+    get: (id) => (events.has(id) ? wrap(events.get(id)) : null),
+    create: (title, start, end, description) => {
+      const id = 'cal' + (++seq) + '@google.com'
+      events.set(id, { id, title, start, end, description })
+      store.calCreated.push(id)
+      return id
+    },
+    size: () => events.size,
+  }
+
+  function wrap(ev) {
+    return {
+      getId: () => ev.id,
+      setColor: () => {},
+      getTitle: () => ev.title,
+      setTitle: (t) => { ev.title = t },
+      getDescription: () => ev.description,
+      setDescription: (d) => { ev.description = d },
+      getStartTime: () => new Date(ev.start.getTime()),
+      getEndTime: () => new Date(ev.end.getTime()),
+      setTime: (s, e) => {
+        // Ojo: el sandbox de `vm` crea sus propios tipos, así que NO se
+        // puede usar `instanceof Date` (fallaría siempre entre reinos).
+        const isDate = d => !!d && typeof d.getTime === 'function' && !isNaN(d.getTime())
+        if (!isDate(s) || !isDate(e)) throw new Error('Fecha u hora inválida')   // como Google Calendar
+        if (api.ignoreSetTime) return                 // no aplica el cambio
+        ev.start = s; ev.end = e
+      },
+      deleteEvent: () => {
+        if (api.failDelete) throw new Error('No se pudo eliminar el evento')
+        store.calDeleted.push(ev.id)
+        events.delete(ev.id)
+      },
+    }
+  }
+
+  return api
+}
+
 function makeStore() {
-  return { props: new Map(), mail: [], logs: [], calLookups: [], calDeleted: [] }
+  const store = {
+    props: new Map(), mail: [], logs: [],
+    calLookups: [], calDeleted: [], calCreated: [],
+  }
+  store.cal = makeCalendar(store)
+  return store
 }
 
 /* ── Sandbox con los servicios de Apps Script simulados ── */
@@ -150,18 +213,20 @@ function runCodeGs(ss, store = makeStore()) {
     GmailApp: {
       sendEmail: (to, subject, body) => { store.mail.push({ to, subject, body }); return {} },
     },
-    // Registro de toques al calendario: sirve para probar que una
-    // petición rechazada NO llega a modificar Calendar.
+    // Calendar simulado en memoria (ver makeCalendar): crear, buscar,
+    // actualizar y borrar quedan registrados sin tocar Calendar real.
     CalendarApp: {
+      getDefaultCalendar: () => ({
+        createEvent: (title, s, e, opts) => {
+          const id = store.cal.create(title, s, e, opts && opts.description)
+          return { getId: () => id, setColor: () => {} }
+        },
+      }),
       getEventById: (id) => {
-        store.calLookups.push(id)
-        if (!id) return null
-        return {
-          deleteEvent: () => { store.calDeleted.push(id) },
-          getStartTime: () => new Date(),
-          getEndTime: () => new Date(),
-        }
+        store.calLookups.push(String(id === undefined || id === null ? '' : id))
+        return store.cal.get(id)
       },
+      EventColor: { MAUVE: 'MAUVE' },
     },
   }
   const ctx = createContext(sandbox)
@@ -597,6 +662,13 @@ describe('Code.gs — restablecimiento protegido', () => {
 
   it('8) una autorización temporal válida permite completar únicamente la operación autorizada', () => {
     seedFutureAppt({ calendarEventId: 'evt-123', calendarCreated: 'true' })
+    // El evento existe realmente en el calendario simulado: el reset
+    // autorizado es quien debe borrarlo (después de validar el grant).
+    env.store.cal.seed('evt-123', {
+      title: '✨ Diseño de cejas — Ana',
+      start: new Date(2099, 5, 20, 10, 0, 0),
+      end: new Date(2099, 5, 20, 10, 30, 0),
+    })
     const grant = recoveryGrant(env.g)
     const before = snapshot()
 
@@ -738,5 +810,295 @@ describe('Code.gs — restablecimiento protegido', () => {
     const bad = rawPost({ token: 'MALO', action: 'requestResetCode' })
     expect(JSON.stringify(bad)).not.toContain(TOKEN)
     expect(JSON.stringify(bad)).not.toContain(code)
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════
+   BUG-01 / BUG-02 — sincronización con Google Calendar
+
+   Se ejecuta el Code.gs real con un calendario simulado en memoria:
+   NO se envía ninguna operación a Google Calendar real.
+   ══════════════════════════════════════════════════════════════ */
+describe('Code.gs — sincronización con Google Calendar', () => {
+  const D0 = '2099-03-10'   // fecha futura, estable para las pruebas
+  const T0 = '19:30'
+  const EVT = 'evt-a1@calendario'
+
+  const baseAppt = (over = {}) => ({
+    id: 'a1', clientId: 'c1', clientName: 'Ana', clientPhone: '300111222',
+    serviceIds: 's1', serviceNames: S1.name, servicePrice: '50000', servicePrices: '{"s1":50000}',
+    domicilio: 'false', domicilioPrice: '0', totalPrice: '50000', address: '',
+    date: D0, time: T0, createdAt: '2026-01-01T09:00:00',
+    calendarCreated: 'true', calendarEventId: EVT,
+    completed: 'false', duration: '30', paymentMethod: '',
+    ...over,
+  })
+
+  const seed = (over = {}, { withEvent = true } = {}) => {
+    const env = makeEnv()
+    if (withEvent) {
+      env.store.cal.seed(EVT, {
+        title: `✨ ${S1.name} — Ana`,
+        start: new Date(2099, 2, 10, 19, 30, 0),
+        end: new Date(2099, 2, 10, 20, 0, 0),
+        description: 'viejo',
+      })
+      env.store.cal.seed('evt-ajeno@calendario', {
+        title: 'No es de la app',
+        start: new Date(2099, 2, 11, 8, 0, 0),
+        end: new Date(2099, 2, 11, 9, 0, 0),
+      })
+    }
+    const appt = baseAppt({
+      calendarEventId: withEvent ? EVT : '',
+      calendarCreated: withEvent ? 'true' : 'false',
+      ...over,
+    })
+    env.ss._sheets.appointments._seed([HEADERS.appointments, toRow('appointments', appt)])
+    return { env, appt }
+  }
+
+  const readAppt = (env) => env.g.call('readSheet', env.ss, 'appointments')[0]
+  const cal = (env, id) => env.store.cal._events.get(id)
+
+  it('1) actualizar un evento existente cambia su hora de inicio', () => {
+    const { env } = seed()
+    const r = post(env.g, {
+      action: 'updateCalendarEvent', eventId: EVT,
+      calendarEvent: { date: D0, time: '20:00', duration: 30 },
+    })
+    expect(r.ok).toBe(true)
+    expect(r.data.calResult.ok).toBe(true)
+    const ev = cal(env, EVT)
+    expect(ev.start.getHours()).toBe(20)
+    expect(ev.start.getMinutes()).toBe(0)
+    expect(ev.start.getDate()).toBe(10)     // misma fecha
+    expect(r.data.calResult.start).toBe(new Date(2099, 2, 10, 20, 0, 0).toISOString())
+  })
+
+  it('2) actualizar cambia la hora de finalización si cambia la duración', () => {
+    const { env } = seed()
+    // Mismo inicio (19:30) pero de 30 a 90 minutos → termina 21:00.
+    const r = post(env.g, {
+      action: 'updateCalendarEvent', eventId: EVT,
+      calendarEvent: { date: D0, time: T0, duration: 90 },
+    })
+    expect(r.data.calResult.ok).toBe(true)
+    expect(r.data.calResult.durationMin).toBe(90)
+    const ev = cal(env, EVT)
+    expect(ev.start.getHours()).toBe(19)
+    expect(ev.end.getHours()).toBe(21)
+    expect(ev.end.getMinutes()).toBe(0)
+    expect(ev.end.getTime() - ev.start.getTime()).toBe(90 * 60000)
+  })
+
+  it('3) la edición conserva el identificador del evento', () => {
+    const { env } = seed()
+    expect(readAppt(env).calendarEventId).toBe(EVT)
+
+    // El frontend guarda la cita editada y reutiliza ESE id para Calendar.
+    expect(post(env.g, { appointments: [{ ...readAppt(env), time: '20:00' }] }).ok).toBe(true)
+
+    const after = readAppt(env)
+    expect(after.calendarEventId).toBe(EVT)   // ni se pierde ni cambia
+    expect(after.time).toBe('20:00')
+
+    const sizeBefore = env.store.cal.size()   // EVT + el evento ajeno
+    const r = post(env.g, {
+      action: 'updateCalendarEvent', eventId: after.calendarEventId,
+      calendarEvent: { date: after.date, time: after.time, duration: 30 },
+    })
+    expect(r.data.calResult.ok).toBe(true)
+    expect(cal(env, EVT).start.getHours()).toBe(20)
+    expect(env.store.cal.size()).toBe(sizeBefore)   // ni más ni menos
+    expect(env.store.calCreated).toEqual([])        // no se creó otro
+  })
+
+  it('4) editar no crea un segundo evento innecesariamente', () => {
+    const { env } = seed()
+    const sizeBefore = env.store.cal.size()
+
+    for (const t of ['20:00', '18:15', '09:45']) {
+      const r = post(env.g, {
+        action: 'updateCalendarEvent', eventId: EVT,
+        calendarEvent: { date: D0, time: t, duration: 45 },
+      })
+      expect(r.data.calResult.ok).toBe(true)
+    }
+
+    expect(env.store.calCreated).toEqual([])       // jamás se llamó createEvent
+    expect(env.store.cal.size()).toBe(sizeBefore)   // sigue habiendo un solo evento
+    expect(cal(env, EVT).start.getHours()).toBe(9)
+    expect(cal(env, EVT).start.getMinutes()).toBe(45)
+  })
+
+  it('5) eliminar una cita invoca la eliminación del evento correcto', () => {
+    const { env } = seed()
+    const appt = readAppt(env)
+    expect(appt.calendarEventId).toBe(EVT)
+
+    const r = post(env.g, { action: 'deleteCalendarEvent', eventId: appt.calendarEventId })
+    expect(r.ok).toBe(true)
+    expect(r.data.calResult.ok).toBe(true)
+    expect(r.data.calResult.deleted).toBe(true)
+    expect(env.store.calDeleted).toEqual([EVT])   // solo ese id
+    expect(env.store.cal.size()).toBe(1)          // queda el ajeno
+  })
+
+  it('6) no se eliminan eventos de otras citas', () => {
+    const { env } = seed()
+    // Otra cita de la app con su propio evento.
+    env.store.cal.seed('evt-otra@calendario', {
+      title: '✨ Lifting — Belén',
+      start: new Date(2099, 2, 12, 11, 0, 0),
+      end: new Date(2099, 2, 12, 12, 0, 0),
+    })
+
+    const r = post(env.g, { action: 'deleteCalendarEvent', eventId: readAppt(env).calendarEventId })
+    expect(r.data.calResult.ok).toBe(true)
+
+    expect(env.store.calDeleted).toEqual([EVT])
+    expect(env.store.cal._events.has('evt-otra@calendario')).toBe(true)  // no se tocó
+    expect(env.store.cal._events.has('evt-ajeno@calendario')).toBe(true) // no se tocó
+    // No hay ninguna llamada que "barra" el calendario completo.
+    expect(env.store.cal.size()).toBe(2)
+  })
+
+  it('7) un error al actualizar Calendar se detecta y no se comunica como éxito', () => {
+    const { env } = seed()
+
+    // (a) El evento ya no existe → ok:false con motivo, no ok:true.
+    const nf = post(env.g, {
+      action: 'updateCalendarEvent', eventId: 'desaparecido@calendario',
+      calendarEvent: { date: D0, time: '20:00', duration: 30 },
+    })
+    expect(nf.ok).toBe(true)                       // la llamada se procesó
+    expect(nf.data.calResult.ok).toBe(false)       // …pero NO fue un éxito
+    expect(nf.data.calResult.code).toBe('not_found')
+    expect(nf.data.calResult.error).toBeTruthy()
+
+    // (b) Calendar no aplica el cambio (setTime silencioso).
+    env.store.cal.ignoreSetTime = true
+    const na = post(env.g, {
+      action: 'updateCalendarEvent', eventId: EVT,
+      calendarEvent: { date: D0, time: '21:00', duration: 30 },
+    })
+    expect(na.data.calResult.ok).toBe(false)
+    expect(na.data.calResult.code).toBe('not_applied')
+    expect(na.data.calResult.expected).toBeTruthy()
+    expect(na.data.calResult.got).toBeTruthy()
+    expect(cal(env, EVT).start.getHours()).toBe(19)   // la hora NO cambió
+
+    // (c) Payload incompleto tampoco se vende como correcto.
+    const bp = post(env.g, { action: 'updateCalendarEvent', eventId: EVT, calendarEvent: { duration: 30 } })
+    expect(bp.data.calResult.ok).toBe(false)
+    expect(bp.data.calResult.code).toBe('bad_payload')
+  })
+
+  it('8) un error al eliminar Calendar se detecta', () => {
+    const { env } = seed()
+    env.store.cal.failDelete = true
+
+    const r = post(env.g, { action: 'deleteCalendarEvent', eventId: EVT })
+    expect(r.ok).toBe(true)
+    expect(r.data.calResult.ok).toBe(false)     // no se oculta el fallo
+    expect(r.data.calResult.code).toBe('exception')
+    expect(r.data.calResult.error).toMatch(/No se pudo eliminar/)
+    // El evento sigue ahí: no se reportó una eliminación que no ocurrió.
+    expect(env.store.cal._events.has(EVT)).toBe(true)
+    expect(env.store.calDeleted).toEqual([])
+  })
+
+  it('9) un evento que ya no existe se gestiona sin generar una falsa eliminación', () => {
+    const { env } = seed()
+    // Alguien lo borró a mano antes de que llegara la petición.
+    env.store.cal._events.delete(EVT)
+
+    const r = post(env.g, { action: 'deleteCalendarEvent', eventId: EVT })
+    expect(r.ok).toBe(true)
+    expect(r.data.calResult.ok).toBe(true)            // idempotente: no es un error
+    expect(r.data.calResult.alreadyGone).toBe(true)
+    expect(env.store.calDeleted).toEqual([])           // NO se "borró" nada
+    // Tampoco se borró ningún otro evento como sustituto.
+    expect(env.store.cal._events.has(EVT)).toBe(false)
+    expect(env.store.cal._events.has('evt-ajeno@calendario')).toBe(true)
+  })
+
+  it('10) una cita histórica sin identificador de evento sigue siendo compatible', () => {
+    const { env, appt } = seed({}, { withEvent: false })
+    expect(readAppt(env).calendarEventId).toBe('')
+
+    // El frontend no llama sin id, pero si lo hiciera el backend lo dice
+    // explícitamente y no toca ningún evento.
+    const u = post(env.g, {
+      action: 'updateCalendarEvent', eventId: appt.calendarEventId,
+      calendarEvent: { date: D0, time: '20:00', duration: 30 },
+    })
+    expect(u.data.calResult.ok).toBe(false)
+    expect(u.data.calResult.code).toBe('no_id')
+
+    const d = post(env.g, { action: 'deleteCalendarEvent', eventId: appt.calendarEventId })
+    expect(d.data.calResult.ok).toBe(false)
+    expect(d.data.calResult.code).toBe('no_id')
+
+    // La edición de la propia cita sigue funcionando sin Calendar.
+    expect(post(env.g, { appointments: [{ ...readAppt(env), time: '20:00' }] }).ok).toBe(true)
+    expect(readAppt(env).time).toBe('20:00')
+    expect(env.store.calLookups).toEqual([])
+    expect(env.store.calDeleted).toEqual([])
+  })
+
+  it('11) las operaciones normales de creación continúan funcionando', () => {
+    const { env } = seed()
+    const nueva = baseAppt({
+      id: 'a2', date: '2099-03-11', time: '10:00',
+      calendarCreated: 'false', calendarEventId: '',
+    })
+
+    // Como hace la app: se envía la colección COMPLETA de citas.
+    const r = post(env.g, {
+      appointments: [readAppt(env), nueva],
+      calendarEvent: {
+        clientName: 'Ana', clientPhone: '300111222', serviceNames: S1.name,
+        totalPrice: '50000', domicilio: false, domicilioPrice: 0, address: '',
+        date: '2099-03-11', time: '10:00', duration: 30,
+      },
+    })
+    expect(r.ok).toBe(true)
+    expect(r.data.calResult.ok).toBe(true)
+    expect(r.data.calResult.eventId).toBeTruthy()
+    expect(env.store.calCreated).toHaveLength(1)   // exactamente uno
+
+    const ev = env.store.cal._events.get(r.data.calResult.eventId)
+    expect(ev.title).toBe(`✨ ${S1.name} — Ana`)
+    expect(ev.start.getHours()).toBe(10)
+    expect(ev.end.getHours()).toBe(10)
+    expect(ev.end.getMinutes()).toBe(30)
+    expect(ev.description).toContain('Ana')
+
+    // El resto de la operación normal no se ve afectado.
+    expect(env.g.call('readSheet', env.ss, 'appointments')).toHaveLength(2)
+  })
+
+  it('12) las protecciones del restablecimiento y de servicios siguen activas', () => {
+    const { env } = seed()   // cita futura que usa s1
+
+    // Restablecimiento sin autorización → rechazado y sin tocar Calendar.
+    const rr = post(env.g, {
+      action: 'resetData', clients: [], appointments: [], expenses: [],
+      services: [{ id: 'n1', name: 'Nuevo', price: '1000', duration: '30' }],
+      resetPriceHistory: true,
+    })
+    expect(rr.ok).toBe(false)
+    expect(rr.error).toMatch(/no autorizado/i)
+
+    // Eliminación de un servicio con cita futura → sigue bloqueada.
+    const sv = post(env.g, { services: [S2] })
+    expect(sv.ok).toBe(false)
+    expect(sv.error).toMatch(/No se puede eliminar el servicio "Diseño de cejas"/)
+
+    expect(env.store.calDeleted).toEqual([])
+    expect(env.store.cal.size()).toBe(2)
+    expect(env.store.mail).toEqual([])
   })
 })

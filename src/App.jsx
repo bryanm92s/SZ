@@ -406,12 +406,60 @@ export default function App() {
     }
   }, [])
 
-  const deleteAppt = useCallback(async appt => {
+  /* ── BUG-02 ────────────────────────────────────────────────────────────────
+     Causa raíz: `SA(next)` y el `deleteCalendarEvent` se lanzaban en PARALELO
+     (dos POST que compiten por el lock del script de Apps Script) y el
+     resultado se descartaba con `.catch(()=>{})`. Si el borrado perdía la
+     carrera o devolvía error, la cita desaparecía de la aplicación y el
+     evento seguía en Google Calendar sin ningún aviso ni reintento.
+
+     Corrección: borrar la cita ESPERANDO la confirmación del servidor,
+     después borrar el evento con SU id, comprobar la respuesta y, si falla,
+     avisar y ofrecer un reintento con el modal propio del diseño. */
+  const calDelete = async eventId => {
+    try {
+      const r = await saveData({ action:'deleteCalendarEvent', eventId })
+      const cr = r && r.calResult
+      if (cr && cr.ok) return { ok:true, alreadyGone: !!cr.alreadyGone }
+      return { ok:false, error:(cr && cr.error) || 'El servidor no devolvió respuesta de Google Calendar.' }
+    } catch(e) { return { ok:false, error:e.message } }
+  }
+
+  // Sin `useCallback`: usa `confirm`/`infoModal`, que se recrean en cada
+  // render, y envolverlo aquí añadiría dependencias inestables.
+  const deleteAppt = async appt => {
     const next = appts.filter(x=>x.id!==appt.id)
-    SA(next)
-    if (appt.calendarEventId)
-      saveData({action:'deleteCalendarEvent',eventId:appt.calendarEventId}).catch(()=>{})
-  }, [appts, SA])
+
+    // (1) Quitar la cita y ESPERAR al servidor. Si falla, `sync` ya notifica
+    //     el error y NO se toca Calendar (evita desincronizar más).
+    const saved = await SA(next)
+    if (saved === null) return
+
+    // (2) Sin id no hay evento asociado (citas históricas o creadas sin
+    //     Calendar): nada que borrar, sin tocar el calendario.
+    if (!appt.calendarEventId) return
+
+    // (3) Borrar SOLO el evento de ESTA cita y comprobar el resultado.
+    const r = await calDelete(appt.calendarEventId)
+    if (r.ok) return
+
+    // (4) Fallo visible + vía de reintento. Si el reintento también falla,
+    //     se deja el id a mano para borrarlo a mano: no se inventa una
+    //     transacción atómica entre Google Sheets y Google Calendar.
+    confirm(
+      `La cita de ${appt.clientName} se eliminó de Studio-Beauty, pero NO se pudo borrar su evento de Google Calendar.\n\nMotivo: ${r.error}\n\n¿Reintentar el borrado del evento?`,
+      async () => {
+        const again = await calDelete(appt.calendarEventId)
+        if (again.ok) return
+        infoModal(
+          `El evento de Google Calendar sigue existiendo.\n\n` +
+          `Motivo: ${again.error}\n\n` +
+          `ID del evento: ${appt.calendarEventId}\n\n` +
+          `Puedes borrarlo manualmente en Google Calendar.`,
+        )
+      },
+    )
+  }
 
   const p = {clients,services,appts,expenses,SC,SS,SA,SE,sync,deleteAppt,setTab,confirm,infoModal,tabExtra,resetAll,requestResetCode,themePalette,setThemePalette,priceHistory}
 
@@ -1520,7 +1568,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
   if (showNew)  return <NewWizard  clients={clients} services={services} appts={appts} SA={SA} SC={SC} sync={sync} infoModal={infoModal}
     initialDate={tabExtra && tabExtra.date && tabExtra.date >= todayStr() ? tabExtra.date : undefined}
     onClose={()=>{ setNew(false); if (tabExtra && tabExtra.origin && setTab) setTab(tabExtra.origin) }}/>
-  if (editAppt) return <EditAppt   appt={editAppt} services={services} appts={appts} SA={SA} sync={sync} priceHistory={priceHistory} onClose={()=>setEdit(null)}/>
+  if (editAppt) return <EditAppt   appt={editAppt} services={services} appts={appts} SA={SA} priceHistory={priceHistory} onClose={()=>setEdit(null)}/>
 
   const AccGroup = ({label,color,gKey,items,canEdit=true}) => {
     if (items.length===0) return null
@@ -1654,7 +1702,7 @@ function ApptCard({appt,canEdit=true,onToggle,onEdit,onDelete,onChangePay}) {
 }
 
 /* ── Edit Appointment — date, time AND services ── */
-function EditAppt({appt,services,appts,SA,sync,priceHistory,onClose}) {
+function EditAppt({appt,services,appts,SA,priceHistory,onClose}) {
   const safeSvcs = Array.isArray(services)?services:[]
 
   // Build originalIds + original price map from appt data
@@ -1680,6 +1728,9 @@ function EditAppt({appt,services,appts,SA,sync,priceHistory,onClose}) {
   const [addr,    setAddr]  = useState(appt.address||'')
   const [loading, setL]     = useState(false)
   const [result,  setR]     = useState(null)
+  // Carga EXACTA de Calendar pendiente de reintentar: si la sincronización
+  // falla se repite sin volver a guardar la cita ni crear eventos nuevos.
+  const [retry,   setRetry] = useState(null)
 
   // ── Lógica de precios (después de hooks) ────────────────────────────────
   const originalIds   = _initialIds
@@ -1740,8 +1791,44 @@ function EditAppt({appt,services,appts,SA,sync,priceHistory,onClose}) {
   const safeDomP = Math.max(0, toN(domP)) // nunca negativo
   const grand    = svcTotal+(dom?safeDomP:0)
 
+  /* ── BUG-01 ────────────────────────────────────────────────────────────────
+     Causa raíz: el guardia era `calendarEventId && bool(calendarCreated)` y,
+     aunque entrara, los POSTs se disparaban en PARALELO: `SA(next)` no se
+     esperaba y el `updateCalendarEvent` corría a la vez. Ambos compiten por
+     el lock del script de Apps Script; el que perdía devolvía "Servidor
+     ocupado" y la edición nunca llegaba a Calendar. Además el fallo se
+     pintaba con un ✅, así que parecía que todo había salido bien.
+
+     Corrección: UN solo POST de citas, ESPERADO, y solo después el de
+     Calendar; la puerta es el id del evento (no un booleano extra), el caso
+     "sin evento" se comunica y un fallo queda guardado para reintentar. */
+  const calPayload = (u) => ({
+    action: 'updateCalendarEvent',
+    eventId: u.calendarEventId,
+    calendarEvent: {
+      date: u.date, time: u.time, duration: totalDur,
+      clientName: u.clientName, clientPhone: u.clientPhone,
+      serviceNames: u.serviceNames, totalPrice: u.totalPrice,
+      domicilio: u.domicilio, domicilioPrice: u.domicilioPrice, address: u.address,
+    },
+  })
+
+  const pushCalendar = async (payload) => {
+    const r = await saveData(payload)
+      .catch(e => ({ calResult: { ok:false, code:'network', error:e.message } }))
+    const cr = r && r.calResult
+    if (cr && cr.ok) { setR({ ok:true }); setRetry(null); return }
+    setR({
+      ok:false,
+      code:(cr && cr.code) || 'unknown',
+      error:(cr && cr.error) || 'El servidor no devolvió respuesta de Google Calendar.',
+    })
+    setRetry(payload)
+  }
+
   const save = async () => {
     setL(true)
+    setR(null); setRetry(null)
     const svcNames = selSvcs.map(s=>s.name).join(', ')
     const updatedServicePrices = JSON.stringify(
       Object.fromEntries(selSvcs.map(s => [s.id, getPriceFor(s.id)]))
@@ -1754,12 +1841,32 @@ function EditAppt({appt,services,appts,SA,sync,priceHistory,onClose}) {
       totalPrice:grand, address:dom?addr:'', duration:totalDur
     }
     const next = appts.map(a=>a.id===appt.id?updated:a)
-    await sync({appointments:next},null,null)
-    SA(next)
-    if (appt.calendarEventId && bool(appt.calendarCreated)) {
-      const r = await saveData({action:'updateCalendarEvent',eventId:appt.calendarEventId,calendarEvent:{date,time,duration:totalDur}}).catch(e=>({calResult:{ok:false,error:e.message}}))
-      setR(r?.calResult||null)
-    } else setR({ok:null})
+
+    // Un ÚNICO POST de citas y esperado antes de tocar Calendar.
+    const saved = await SA(next)
+    if (saved === null) {
+      setR({ ok:false, code:'save_failed',
+             error:'No se pudo guardar la cita en el servidor; no se envió nada a Google Calendar.' })
+      setL(false); return
+    }
+
+    // Sin id no hay nada que actualizar. Se avisa explícitamente y NO se
+    // crea un evento de reemplazo: aquí se duplicarían los eventos que ya
+    // existen con la cita (compatibilidad con citas históricas).
+    if (!updated.calendarEventId) {
+      setR({ ok:null, code:'no_event' })
+      setL(false); return
+    }
+
+    await pushCalendar(calPayload(updated))
+    setL(false)
+  }
+
+  // Reintento del último fallo de Calendar: repite la misma carga.
+  const retryCalendar = async () => {
+    if (!retry) return
+    setL(true)
+    await pushCalendar(retry)
     setL(false)
   }
 
@@ -1846,12 +1953,33 @@ function EditAppt({appt,services,appts,SA,sync,priceHistory,onClose}) {
       {time && !timeBlocked && <div style={{background:'var(--primary-l)',borderRadius:10,padding:10,fontSize:13,marginBottom:14}}>✅ <strong>{fmtTime(time)}</strong> – <strong>{fmtTime(endTime(time,totalDur))}</strong> · {fmtDuration(totalDur)} — {fmtDate(date)}</div>}
       {time && timeBlocked && <div style={{background:'var(--warn-bg)',color:'var(--warn-t)',borderRadius:10,padding:10,fontSize:13,marginBottom:14}}>⚠️ Con una duración de <strong>{fmtDuration(totalDur)}</strong>, las {fmtTime(time)} chocan con otra cita o pasan de las {fmtTime(CLOSING_TIME)}. Elige otra hora.</div>}
 
-      {result!==null && <div style={{background:result.ok||result.ok===null?'#EDF7F0':'var(--warn-bg)',borderRadius:10,padding:10,fontSize:13,marginBottom:14,color:result.ok||result.ok===null?'var(--green)':'var(--warn-t)'}}>
-        {result.ok===null?'✅ Cita actualizada':result.ok?'✅ Cita y Calendar actualizados':`✅ Cita guardada. Calendar: ${result.error}`}
-      </div>}
+      {result!==null && (
+        <div style={{
+          background: result.ok===true ? '#EDF7F0' : 'var(--warn-bg)',
+          border: `1px solid ${result.ok===true ? 'var(--green)' : '#E8C88A'}`,
+          borderRadius:10, padding:10, fontSize:13, marginBottom:14,
+          lineHeight:1.6,
+          color: result.ok===true ? 'var(--green)' : 'var(--warn-t)',
+        }}>
+          {result.ok===true && '✅ Cita y Google Calendar actualizados.'}
+          {result.ok===null && '✅ Cita guardada. Esta cita no tiene un evento de Calendar enlazado, así que no se modificó ninguno (no se creó uno nuevo para evitar duplicados).'}
+          {result.ok===false && (
+            result.code==='save_failed'
+              ? `⚠️ ${result.error}`
+              : `⚠️ La cita se guardó, pero Google Calendar NO se actualizó: ${result.error}`
+          )}
+        </div>
+      )}
 
       {result!==null
-        ? <button className="btn" style={{width:'100%'}} onClick={onClose}>Listo</button>
+        ? <div style={{display:'flex',gap:8}}>
+            {retry && (
+              <button className="btn-o" onClick={retryCalendar} disabled={loading} style={{flex:1}}>
+                {loading ? '⏳ Reintentando…' : '🔄 Reintentar Calendar'}
+              </button>
+            )}
+            <button className="btn" style={{flex:1}} onClick={onClose}>Listo</button>
+          </div>
         : <div style={{display:'flex',gap:8}}>
             <button className="btn-o" onClick={onClose}>Cancelar</button>
             <button className="btn" style={{flex:1}} onClick={save} disabled={!time||timeBlocked||svcIds.length===0||loading||(dom&&!addr.trim())}>{loading?'⏳ Guardando…':'Guardar cambios'}</button>

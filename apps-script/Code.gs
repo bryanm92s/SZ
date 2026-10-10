@@ -71,8 +71,8 @@ function doPost(e) {
     try { sanitizePayload(b); } catch(_) {}
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     initSheets(ss);
-    if (b.action==='deleteCalendarEvent') return ok({calResult:deleteCalEvent(b.eventId)});
-    if (b.action==='updateCalendarEvent') return ok({calResult:updateCalEvent(b.eventId,b.calendarEvent)});
+    if (b.action==='deleteCalendarEvent') { const r=deleteCalEvent(b.eventId);      lock.releaseLock(); return ok({calResult:r}); }
+    if (b.action==='updateCalendarEvent') { const r=updateCalEvent(b.eventId,b.calendarEvent); lock.releaseLock(); return ok({calResult:r}); }
     if (b.action==='resetData')           return ok(_resetData(ss, b, auth));
     if (b.clients      !== undefined) writeSheet(ss,'clients',b.clients);
     if (b.services !== undefined) {
@@ -500,39 +500,95 @@ function createCalEvent(evt) {
     const cal=CalendarApp.getDefaultCalendar();
     const dur=safeDuration(evt.duration);
     const s=mkDate(evt.date,evt.time,0), e=mkDate(evt.date,evt.time,dur);
-    const dom=evt.domicilio==='true'||evt.domicilio===true;
-    const desc='👤 '+evt.clientName+'\n📱 '+evt.clientPhone+
-                '\n✨ '+evt.serviceNames+
-                '\n💳 Total: $'+clip0(Number(evt.totalPrice||0)).toLocaleString('es-CO')+
-                (dom?'\n🛵 Domicilio: $'+clip0(Number(evt.domicilioPrice||0)).toLocaleString('es-CO')+
-                     (evt.address?'\n📍 '+evt.address:''):'');
-    const event=cal.createEvent('✨ '+evt.serviceNames+' — '+evt.clientName,s,e,{description:desc,sendInvites:false});
+    const event=cal.createEvent(calTitle_(evt),s,e,{description:calDescription_(evt),sendInvites:false});
     event.setColor(CalendarApp.EventColor.MAUVE);
     return {ok:true,eventId:event.getId()};
   } catch(ex){return {ok:false,error:ex.message};}
 }
 
-function updateCalEvent(eventId,evt) {
-  try {
-    if(!eventId) return {ok:false,error:'Sin ID'};
-    const event=CalendarApp.getEventById(eventId);
-    if(!event) return {ok:false,error:'Evento no encontrado'};
-    // Duración: la que envía la app; si no viene, se conserva la que ya tenía el evento.
-    const sent=Number(evt.duration);
-    const dur=sent>0 ? safeDuration(sent) : (Math.round((event.getEndTime().getTime()-event.getStartTime().getTime())/60000) || 60);
-    event.setTime(mkDate(evt.date,evt.time,0),mkDate(evt.date,evt.time,dur));
-    return {ok:true};
-  } catch(ex){return {ok:false,error:ex.message};}
+/* ── Título y descripción del evento ──
+   Compartidos por crear y actualizar: si se editaran por separado, una
+   edición dejaría en Google Calendar el texto de la cita anterior. */
+function calTitle_(evt) {
+  return '✨ ' + (evt.serviceNames || '') + ' — ' + (evt.clientName || '');
 }
 
+function calDescription_(evt) {
+  const dom = evt.domicilio === 'true' || evt.domicilio === true;
+  return '👤 ' + evt.clientName + '\n📱 ' + evt.clientPhone +
+         '\n✨ ' + evt.serviceNames +
+         '\n💳 Total: $' + clip0(Number(evt.totalPrice || 0)).toLocaleString('es-CO') +
+         (dom ? '\n🛵 Domicilio: $' + clip0(Number(evt.domicilioPrice || 0)).toLocaleString('es-CO') +
+                (evt.address ? '\n📍 ' + evt.address : '') : '');
+}
+
+/* ── BUG-01: actualizar el evento EXISTENTE al editar una cita ──
+   Devuelve {ok, error?, code?} para que el frontend nunca comunique
+   como exitosa una sincronización que no llegó a producirse.
+   No crea eventos: el id que trae la cita es el que se actualiza. */
+function updateCalEvent(eventId, evt) {
+  try {
+    if (!eventId) return {ok:false, code:'no_id',
+      error:'La cita no tiene un evento de Calendar enlazado; no se actualizó ninguno.'};
+    if (!evt || !evt.date || !evt.time) return {ok:false, code:'bad_payload',
+      error:'Faltan la fecha o la hora de la cita.'};
+
+    const start = mkDate(evt.date, evt.time, 0);
+    if (isNaN(start.getTime())) return {ok:false, code:'bad_date',
+      error:'Fecha u hora inválidas (' + evt.date + ' ' + evt.time + ').'};
+
+    const event = CalendarApp.getEventById(eventId);
+    if (!event) return {ok:false, code:'not_found',
+      error:'No se encontró el evento en Google Calendar (id ' + eventId + ').'};
+
+    // Duración: la que envía la app; si no viene, la que ya tenía el evento.
+    const sent = Number(evt.duration);
+    const dur = sent > 0 ? safeDuration(sent)
+      : (Math.round((event.getEndTime().getTime() - event.getStartTime().getTime()) / 60000) || 60);
+    const end = mkDate(evt.date, evt.time, dur);
+    if (isNaN(end.getTime())) return {ok:false, code:'bad_duration',
+      error:'Duración inválida (' + evt.duration + ').'};
+
+    // Solo se reescribe el texto si la cita lo trae: un payload mínimo
+    // (fecha/hora/duración) no debe borrar el contenido existente.
+    const hasContent = evt.clientName !== undefined || evt.serviceNames !== undefined ||
+                       evt.clientPhone !== undefined || evt.totalPrice !== undefined;
+    const title = hasContent ? calTitle_(evt) : null;
+
+    event.setTime(start, end);
+    if (title !== null) { event.setTitle(title); event.setDescription(calDescription_(evt)); }
+
+    // Comprobación post-escritura: si Calendar no aplicó el cambio,
+    // NO se devuelve ok:true (evita un éxito falso).
+    const gotS = event.getStartTime(), gotE = event.getEndTime();
+    const tol = 1000; // ms: tolera el redondeo de almacenamiento
+    if (!gotS || !gotE ||
+        Math.abs(gotS.getTime() - start.getTime()) > tol ||
+        Math.abs(gotE.getTime() - end.getTime()) > tol) {
+      return {ok:false, code:'not_applied',
+        error:'Google Calendar no aplicó el cambio de hora.',
+        expected:{start:String(start), end:String(end)},
+        got:{start:String(gotS), end:String(gotE)}};
+    }
+
+    return {ok:true, eventId:eventId, durationMin:dur,
+            start:gotS.toISOString(), end:gotE.toISOString(), title:title};
+  } catch(ex) { return {ok:false, code:'exception', error:ex.message}; }
+}
+
+/* ── BUG-02: eliminar el evento ASOCIADO al eliminar la cita ──
+   Usa solo el id que trae la cita: no barre el calendario ni toca
+   eventos ajenos. Si el evento ya no existe se trata como éxito
+   (idempotente), y si falla se devuelve ok:false con motivo. */
 function deleteCalEvent(eventId) {
   try {
-    if(!eventId) return {ok:false,error:'Sin ID'};
-    const event=CalendarApp.getEventById(eventId);
-    if(!event) return {ok:true};
+    if (!eventId) return {ok:false, code:'no_id',
+      error:'La cita no tiene un evento de Calendar enlazado; no se eliminó ninguno.'};
+    const event = CalendarApp.getEventById(eventId);
+    if (!event) return {ok:true, alreadyGone:true, eventId:eventId}; // ya no está: nada que hacer
     event.deleteEvent();
-    return {ok:true};
-  } catch(ex){return {ok:false,error:ex.message};}
+    return {ok:true, deleted:true, eventId:eventId};
+  } catch(ex) { return {ok:false, code:'exception', error:ex.message}; }
 }
 
 // Duración válida en minutos: entero entre 15 y 480; si no es válida → 60.
