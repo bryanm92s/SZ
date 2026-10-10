@@ -1,6 +1,6 @@
 <div align="center">
 
-# 💫 SZ — Studio Beauty
+# 💫 SZ
 ### Sistema de gestión para estudios de cejas y pestañas (micropigmentación)
 
 **Panel · Citas · Clientes · Servicios · Finanzas · Calendario · Reportes**
@@ -21,7 +21,7 @@ React 18 + Vite · Google Apps Script + Sheets + Calendar · Deploy en Vercel
 
 ## 📖 Acerca del proyecto
 
-**SZ (Studio Beauty)** es una aplicación web **mobile-first** diseñada para que una
+**SZ** es una aplicación web **mobile-first** diseñada para que una
 esteticista / micropigmentadora gestione su estudio de cejas y pestañas desde el
 celular, sin instalar nada: agenda citas, lleva clientes y servicios, controla
 ingresos y gastos, recuerda por WhatsApp y sincroniza todo con **Google Calendar**.

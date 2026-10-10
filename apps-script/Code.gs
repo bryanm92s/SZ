@@ -287,7 +287,7 @@ function _requestResetCode() {
   try {
     GmailApp.sendEmail(
       _authorizedEmail(),
-      'STUDIO-BEAUTY · Código de restablecimiento',
+      'SZ · Código de restablecimiento',
       'Se solicitó un restablecimiento de datos.\n\n' +
       'Tu código es: ' + code + '\n\n' +
       'Vence en ' + (CODE_TTL_MS / 60000) + ' minutos y solo puede usarse una vez.\n' +

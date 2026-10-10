@@ -8,10 +8,10 @@ import {
 // Helpers puros extraídos para poder testearlos sin React:
 import {
   toN, localDateStr, todayStr, tomorrowStr, monthStr, localNowISO,
-  bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots, periodLedger, monthLedger,
+  bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots, monthLedger,
   svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, openWhatsApp, PAYMENT_METHODS, payMethodOf,
   apptStatus, canModifyAppt, checkSlot, confirmOutcome, projectedIncome, movsRanges,
-  serviceDeletionCheck,
+  serviceDeletionCheck, apptGroup, reportMetrics,
 } from './helpers.js'
 
 /* ══════════════════════════════════════════════════════════════
@@ -189,7 +189,7 @@ const applyTheme = (pid) => {
   r.setProperty('--glass-blur-sm',  'blur(12px)')
 }
 /* ── Business config — set these in Vercel environment variables ── */
-const BIZ_NAME     = import.meta.env.VITE_BIZ_NAME     || 'Mi Negocio'
+const BIZ_NAME     = import.meta.env.VITE_BIZ_NAME     || 'SZ'
 const BIZ_SUBTITLE = import.meta.env.VITE_BIZ_SUBTITLE || ''
 const BIZ_EMOJI    = import.meta.env.VITE_BIZ_EMOJI    || '🌸'
 const BIZ_LOGO     = import.meta.env.VITE_BIZ_LOGO     || ''
@@ -447,7 +447,7 @@ export default function App() {
     //     se deja el id a mano para borrarlo a mano: no se inventa una
     //     transacción atómica entre Google Sheets y Google Calendar.
     confirm(
-      `La cita de ${appt.clientName} se eliminó de Studio-Beauty, pero NO se pudo borrar su evento de Google Calendar.\n\nMotivo: ${r.error}\n\n¿Reintentar el borrado del evento?`,
+      `La cita de ${appt.clientName} se eliminó de SZ, pero NO se pudo borrar su evento de Google Calendar.\n\nMotivo: ${r.error}\n\n¿Reintentar el borrado del evento?`,
       async () => {
         const again = await calDelete(appt.calendarEventId)
         if (again.ok) return
@@ -1029,7 +1029,82 @@ function GS() { return <style>{`
     border-bottom:1px solid var(--border);
   }
   .row:last-child{border-bottom:none}
-  
+
+  /* Fila de cita navegable (Panel → Citas). Se comporta como .row pero
+     es un <button>: mismo fondo/borde del tema, foco visible y hover. */
+  .row-pick{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    width:100%;
+    padding:12px 6px;
+    margin:0 -6px;
+    background:none;
+    border:none;
+    border-bottom:1px solid var(--border);
+    border-radius:10px;
+    font:inherit;
+    color:inherit;
+    text-align:left;
+    cursor:pointer;
+    transition:background .15s, box-shadow .15s;
+  }
+  .row-pick:last-child{border-bottom:none}
+  .row-pick:hover{background:var(--primary-l)}
+  .row-pick:focus-visible{
+    outline:2px solid var(--primary);
+    outline-offset:2px;
+    background:var(--primary-l);
+  }
+
+  /* Resaltado temporal de la cita llegada desde el Panel */
+  .appt-flash{animation:apptFlash 2.6s ease-out}
+  @keyframes apptFlash{
+    0%,25%  {box-shadow:0 0 0 3px var(--primary); background:var(--primary-l)}
+    100%    {box-shadow:0 0 0 0 transparent;      background:transparent}
+  }
+
+  /* ── Tarjetas de indicadores (reporte / KPIs) ── */
+  .kpi{
+    background:var(--bg);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:12px 12px;
+    min-width:0;
+  }
+  .kpi-label{
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:var(--t2);
+    font-weight:600;
+    margin-bottom:4px;
+  }
+  .kpi-value{
+    font-size:20px;
+    font-weight:700;
+    color:var(--t);
+    line-height:1.15;
+    overflow-wrap:anywhere;
+  }
+  .kpi-sub{font-size:10px;color:var(--t2);margin-top:3px}
+  /* El neto hereda el mismo gradiente que usa el Panel para el balance */
+  .kpi-net{background:var(--gradient);border:none;color:white}
+  .kpi-net .kpi-label,.kpi-net .kpi-sub{color:rgba(255,255,255,.85)}
+  .kpi-net .kpi-value{color:white}
+
+  /* Encabezado de sección del reporte */
+  .rep-sec{
+    font-family:'Georgia,serif';
+    font-size:16px;
+    font-weight:600;
+    color:var(--t);
+    margin:22px 0 10px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+
   /* ── Stats ── */
   .stat{
     background:var(--card);
@@ -1368,15 +1443,18 @@ function Dashboard({clients,appts,expenses,setTab}) {
       </div>
       {ta.length===0
         ?<div style={{textAlign:'center',padding:'16px 0',color:'var(--t2)',fontSize:14}}>No hay citas para hoy</div>
-        :ta.map(a=><div key={a.id} className="row">
+        :ta.map(a=><button key={a.id} type="button" className="row-pick"
+            onClick={()=>setTab('appointments',{focusAppt:a.id})}
+            aria-label={`Ver detalle de la cita de ${a.clientName} a las ${fmtTime(a.time)}`}>
             <div style={{background:'var(--primary-l)',borderRadius:10,padding:'7px 10px',fontWeight:700,color:'var(--primary)',fontSize:12,minWidth:58,textAlign:'center',flexShrink:0}}>{fmtTime(a.time)}</div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontWeight:600,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.clientName}</div>
               <div style={{fontSize:12,color:'var(--t2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.serviceNames}</div>
             </div>
             {bool(a.completed)&&<span className="tag-g" style={{flexShrink:0,fontSize:11}}>{'\u2713'}</span>}
-            <div style={{fontWeight:700,color:'var(--primary)',fontSize:14,flexShrink:0,marginLeft:4}}>{fmtM(a.totalPrice||a.servicePrice)}</div>
-          </div>)
+            <div style={{fontWeight:700,color:'var(--primary)',fontSize:14,flexShrink:0}}>{fmtM(a.totalPrice||a.servicePrice)}</div>
+            <span aria-hidden="true" style={{color:'var(--t2)',flexShrink:0,fontSize:16,lineHeight:1}}>{'\u203A'}</span>
+          </button>)
       }
     </div>
   </>
@@ -1521,15 +1599,54 @@ function MonthlyBalance({appts,expenses,selMonth,setSelMonth,setTab}) {
 ══════════════════════════════════════════════════════════════ */
 function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModal,priceHistory,tabExtra,setTab}) {
   // Si se llega desde otra pestaña con "+ Nueva cita" (Calendario, Panel),
-  // el formulario se abre directo. tabExtra: {newAppt, date?, origin?}
+  // el formulario se abre directo. tabExtra: {newAppt, date?, origin?, clientId?}
   const [showNew,  setNew]  = useState(()=>!!(tabExtra && tabExtra.newAppt))
   const [editAppt, setEdit] = useState(null)
   const [payFor,  setPayFor] = useState(null) // {appt, change} → modal de método de pago
+  // Cita seleccionada para ver su detalle, y resaltado temporal al llegar
+  // desde el Panel. Se guarda el ID (no el objeto) para no mostrar datos
+  // obsoletos: el detalle se resuelve contra `appts` en cada render.
+  const [detailId, setDetailId] = useState(null)
+  const [focusId,  setFocusId]  = useState(null)
   // Only "today" open by default — each group toggles independently
   const [open, setOpen] = useState({today:true, tomorrow:false, upcoming:false, noshow:false, past:false})
   const td = todayStr(), tm = tomorrowStr()
 
   const toggle = k => setOpen(p => ({...p, [k]: !p[k]}))
+
+  // Llegada desde el Panel: abrir el grupo donde vive la cita, resaltarla
+  // unos segundos y mostrar su detalle. Si ya no existe se avisa y NO se
+  // abre ninguna otra cita por error.
+  useEffect(() => {
+    if (!tabExtra || !tabExtra.focusAppt) return
+    const target = tabExtra.focusAppt
+    const found  = (Array.isArray(appts)?appts:[]).find(a => a && a.id === target)
+    if (!found) {
+      infoModal('No se encontró la cita seleccionada. Puede que ya no exista.')
+      return
+    }
+    setOpen(p => ({...p, [apptGroup(found)]: true}))
+    setFocusId(target)
+    setDetailId(target)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Libera el resaltado temporal después de la animación.
+  useEffect(() => {
+    if (!focusId) return
+    const t = setTimeout(() => setFocusId(null), 2600)
+    return () => clearTimeout(t)
+  }, [focusId])
+
+  // Desplaza la vista hasta la cita resaltada (el grupo ya está abierto).
+  useEffect(() => {
+    if (!focusId) return
+    const t = setTimeout(() => {
+      const el = document.getElementById(`appt-${focusId}`)
+      if (el && el.scrollIntoView) el.scrollIntoView({behavior:'smooth', block:'center'})
+    }, 60)
+    return () => clearTimeout(t)
+  }, [focusId])
 
   // Groups — past includes today-past
   const groups = {
@@ -1567,6 +1684,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
 
   if (showNew)  return <NewWizard  clients={clients} services={services} appts={appts} SA={SA} SC={SC} sync={sync} infoModal={infoModal}
     initialDate={tabExtra && tabExtra.date && tabExtra.date >= todayStr() ? tabExtra.date : undefined}
+    initialClientId={tabExtra && tabExtra.clientId ? tabExtra.clientId : undefined}
     onClose={()=>{ setNew(false); if (tabExtra && tabExtra.origin && setTab) setTab(tabExtra.origin) }}/>
   if (editAppt) return <EditAppt   appt={editAppt} services={services} appts={appts} SA={SA} priceHistory={priceHistory} onClose={()=>setEdit(null)}/>
 
@@ -1592,6 +1710,8 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
           <div className="slide-in" style={{padding:'4px 12px 12px'}}>
             {sortG(items).map(a=>(
               <ApptCard key={a.id} appt={a} canEdit={canEdit}
+                focused={focusId===a.id}
+                onOpen={()=>setDetailId(a.id)}
                 onToggle={(s)=>toggleCompleted(a,s)}
                 onChangePay={()=>setPayFor({appt:a, change:true})}
                 onEdit={()=>setEdit(a)}
@@ -1610,6 +1730,20 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
       <button className="btn" onClick={()=>setNew(true)}>+ Nueva cita</button>
     </div>
     {payFor && <PayModal appt={payFor.appt} onPick={pickPayment} onCancel={()=>setPayFor(null)}/>}
+    {(() => {
+      const det = (Array.isArray(appts)?appts:[]).find(a => a && a.id === detailId)
+      if (!det) return null
+      // Mismo criterio que los acordeones: «Pasadas» y «No asistió» no permiten editar.
+      const g = apptGroup(det)
+      const groupAllowsEdit = (g === 'noshow' || g === 'past') ? false : true
+      return <ApptDetail appt={det} services={services} canEdit={groupAllowsEdit}
+        onClose={()=>setDetailId(null)}
+        onEdit={()=>{ setEdit(det); setDetailId(null) }}
+        onDelete={()=>{
+          setDetailId(null)
+          confirm(`¿Eliminar la cita de ${det.clientName}? También se borrará el evento de Google Calendar.`,()=>deleteAppt(det))
+        }}/>
+    })()}
     <AccGroup label="Hoy"         color="#B5524A" gKey="today"    items={groups.today}    canEdit={true}/>
     <AccGroup label="Mañana"      color="#B8742A" gKey="tomorrow" items={groups.tomorrow} canEdit={true}/>
     <AccGroup label="Próximas"    color="#2E6EA6" gKey="upcoming" items={groups.upcoming} canEdit={true}/>
@@ -1624,7 +1758,115 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
   </>
 }
 
-function ApptCard({appt,canEdit=true,onToggle,onEdit,onDelete,onChangePay}) {
+/* ── Detalle de una cita (desde el Panel o desde la pestaña Citas) ──
+   Solo LEE la cita: no valida ni guarda nada. Las acciones «Editar» y
+   «Eliminar» reutilizan los flujos existentes de ApptsTab, que aplican
+   las mismas restricciones (solo citas pendientes, y nunca en los
+   grupos «Pasadas» ni «No asistió»). */
+function ApptDetail({appt,services,canEdit=true,onClose,onEdit,onDelete}) {
+  const status = apptStatus(appt)
+  const dom    = bool(appt.domicilio)
+  const dur    = apptDuration(appt)
+
+  // Varios servicios, legibles uno por uno. Se resuelven por ID contra el
+  // catálogo actual; si el servicio ya no existe se muestra el nombre
+  // guardado en la cita (snapshot), sin inventar datos.
+  const svcList = (() => {
+    const ids   = String(appt.serviceIds||'').split(',').map(s=>s.trim()).filter(Boolean)
+    const names = String(appt.serviceNames||'').split(',').map(s=>s.trim()).filter(Boolean)
+    const safeS = Array.isArray(services)?services:[]
+    const byId  = ids.map(id => safeS.find(s => String(s.id)===String(id))).filter(Boolean)
+    if (byId.length) return byId.map(s => ({name:s.name, price:toN(s.price), dur:svcDuration(s), missing:false}))
+    return names.map(n => ({name:n, price:null, dur:null, missing:true}))
+  })()
+
+  const statusTag = {
+    done:   {label:'✓ Completada',   bg:'var(--green-bg)', color:'var(--green)'},
+    noshow: {label:'✗ No asistió',   bg:'var(--red-bg)',   color:'var(--red)'},
+    pending:{label:'● Pendiente',    bg:'var(--gold-bg)',  color:'var(--warn-t)'},
+  }[status]
+
+  const Row = ({label, children}) => (
+    <div style={{display:'flex',justifyContent:'space-between',gap:12,padding:'8px 0',borderBottom:'1px solid var(--border)',fontSize:14}}>
+      <span style={{color:'var(--t2)',flexShrink:0}}>{label}</span>
+      <span style={{fontWeight:600,textAlign:'right',minWidth:0,overflowWrap:'anywhere'}}>{children}</span>
+    </div>
+  )
+
+  // Cierre con la tecla Esc, como el resto de modales de SZ.
+  useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Detalle de la cita"
+      onClick={onClose}
+      style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20,backdropFilter:'var(--glass-blur-sm)',WebkitBackdropFilter:'var(--glass-blur-sm)'}}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{background:'var(--surface)',borderRadius:24,padding:24,maxWidth:380,width:'100%',maxHeight:'calc(100dvh - 40px)',overflowY:'auto',boxShadow:'var(--shadow-xl)',border:'1px solid var(--border)'}}>
+
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10,marginBottom:14}}>
+          <div style={{minWidth:0}}>
+            <div style={{fontFamily:'Georgia,serif',fontSize:18,fontWeight:600,color:'var(--t)',overflowWrap:'anywhere'}}>{appt.clientName}</div>
+            <div style={{fontSize:12,color:'var(--t2)',marginTop:2}}>📱 {appt.clientPhone}</div>
+          </div>
+          <span style={{background:statusTag.bg,color:statusTag.color,borderRadius:20,padding:'4px 10px',fontSize:12,fontWeight:700,flexShrink:0}}>{statusTag.label}</span>
+        </div>
+
+        {/* Servicios — uno por línea, con precio y duración cuando existen */}
+        <div style={{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:12,padding:'10px 12px',marginBottom:14}}>
+          <div className="kpi-label" style={{marginBottom:6}}>✨ Servicios</div>
+          {svcList.length === 0
+            ? <div style={{fontSize:13,color:'var(--t2)'}}>—</div>
+            : svcList.map((s,i)=>(
+              <div key={i} style={{display:'flex',justifyContent:'space-between',gap:10,fontSize:14,padding:'3px 0'}}>
+                <span style={{minWidth:0,overflowWrap:'anywhere'}}>{s.name}</span>
+                <span style={{color:'var(--t2)',flexShrink:0,fontWeight:600}}>
+                  {s.price !== null ? fmtM(s.price) : ''}{s.dur ? ` · ${fmtDuration(s.dur)}` : ''}
+                </span>
+              </div>
+            ))}
+          <div style={{display:'flex',justifyContent:'space-between',borderTop:'1px solid var(--border)',marginTop:6,paddingTop:6,fontSize:14}}>
+            <span style={{fontWeight:700}}>💎 Total</span>
+            <span style={{fontWeight:700,color:'var(--primary)'}}>{fmtM(appt.totalPrice||appt.servicePrice)}</span>
+          </div>
+        </div>
+
+        <div style={{marginBottom:14}}>
+          <Row label="📅 Fecha">{fmtDate(appt.date)}</Row>
+          <Row label="🕐 Hora">{fmtTime(appt.time)} – {fmtTime(endTime(appt.time,dur))}</Row>
+          <Row label="⏱ Duración">{fmtDuration(dur)}</Row>
+          {bool(appt.paymentMethod) && <Row label="💳 Pago">{payMethodOf(appt)}</Row>}
+          {dom && <Row label="🛵 Domicilio">{fmtM(appt.domicilioPrice)}</Row>}
+          {dom && appt.address && <Row label="📍 Dirección">{appt.address}</Row>}
+          <div style={{display:'flex',justifyContent:'space-between',gap:12,padding:'8px 0',fontSize:14}}>
+            <span style={{color:'var(--t2)'}}>📅 Calendar</span>
+            <span style={{fontWeight:600,color:bool(appt.calendarCreated)?'var(--green)':'var(--t2)'}}>
+              {bool(appt.calendarCreated)?'Sincronizada':'Sin sincronizar'}
+            </span>
+          </div>
+        </div>
+
+        {/* Editar/Eliminar reutilizan el flujo existente y su restricción:
+            solo citas pendientes y solo si el grupo lo permite. */}
+        <div style={{display:'flex',gap:8}}>
+          <button className="btn-o" style={{flex:1}} onClick={onClose}>Cerrar</button>
+          {status==='pending' && canEdit && <button className="btn-edit" style={{flex:1}} onClick={onEdit}>✏️ Editar</button>}
+          {status==='pending' && canEdit && <button className="btn-del" style={{flex:1}} onClick={onDelete}>🗑️ Eliminar</button>}
+        </div>
+        {!(status==='pending' && canEdit) && (
+          <div style={{fontSize:11,color:'var(--t2)',marginTop:10,textAlign:'center',lineHeight:1.5}}>
+            Esta cita ya no se puede editar ni eliminar.
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ApptCard({appt,canEdit=true,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePay}) {
   const calOk  = bool(appt.calendarCreated)
   const dom    = bool(appt.domicilio)
   const status = apptStatus(appt)
@@ -1650,7 +1892,7 @@ function ApptCard({appt,canEdit=true,onToggle,onEdit,onDelete,onChangePay}) {
   const bgMap  = {done:'var(--green-bg)', noshow:'var(--red-bg)', pending: past?'var(--border)':'var(--surface)'}
   const brdMap = {done:'#B0DDC0', noshow:'#F5C0B0', pending: past?'#E0D8D5':'var(--border)'}
   return (
-    <div style={{background:bgMap[status],borderRadius:12,border:`1.5px solid ${remindNow?'var(--primary)':brdMap[status]}`,padding:14,marginTop:8,boxShadow:remindNow?'0 0 0 3px var(--primary-l)':'none'}}>
+    <div id={`appt-${appt.id}`} className={focused?'appt-flash':''} style={{background:bgMap[status],borderRadius:12,border:`1.5px solid ${remindNow?'var(--primary)':brdMap[status]}`,padding:14,marginTop:8,boxShadow:remindNow?'0 0 0 3px var(--primary-l)':'none'}}>
       {remindNow && <div style={{background:'var(--primary)',color:'white',borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:700,marginBottom:8,display:'inline-block',animation:'remindPing 1.4s ease-in-out infinite'}}>
         ⏰ Recordar ahora · {fmtTime(appt.time)}
       </div>}
@@ -1680,6 +1922,8 @@ function ApptCard({appt,canEdit=true,onToggle,onEdit,onDelete,onChangePay}) {
         {status==='pending'&& past && <span className="tag-past" style={{fontSize:11}}>● Pasada</span>}
       </div>
       <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+        <button className="btn-o" style={{fontSize:12,padding:'6px 10px'}} onClick={onOpen}
+          aria-label={`Ver detalle de la cita de ${appt.clientName}`}>👁 Detalle</button>
         {status==='pending' && isFuture && <span style={{fontSize:11,color:'var(--t2)',background:'var(--gold-bg)',borderRadius:8,padding:'6px 10px',fontWeight:600}}>📅 Cita futura — no se puede completar aún</span>}
         <button className={`btn-check${status==='done'?' done':''}`} onClick={()=>onToggle('done')}
           style={status==='done'?{}:{opacity: status==='noshow'?.5:1}}
@@ -1992,7 +2236,7 @@ function EditAppt({appt,services,appts,SA,priceHistory,onClose}) {
 /* ══════════════════════════════════════════════════════════════
    NEW APPOINTMENT WIZARD
 ══════════════════════════════════════════════════════════════ */
-function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialDate}) {
+function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialDate,initialClientId}) {
   const [step,    setStep]  = useState(1)
   const [query,   setQ]     = useState('')
   const [suggs,   setSuggs] = useState([])
@@ -2012,6 +2256,23 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
   // Bloqueo síncrono para evitar dobles envíos mientras confirma
   // (el estado `loading` de React se actualiza tarde ante un doble clic).
   const confirming = useRef(false)
+
+  // Llegada desde «Crear cita» en Clientes: precarga el cliente por su ID
+  // real (no por nombre) y salta directo a la selección de servicios.
+  // Si el cliente ya no existe se avisa y se cierra, sin dejar una cita
+  // huérfana: no se llega nunca al paso de guardado.
+  useEffect(() => {
+    if (!initialClientId) return
+    const found = (Array.isArray(clients)?clients:[]).find(c => c && c.id === initialClientId)
+    if (!found) {
+      infoModal('Esta clienta ya no existe. No se puede crear la cita.')
+      onClose()
+      return
+    }
+    setFc(found)
+    setStep(3)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const isPhoneQ = q => /^\d+$/.test(q.replace(/[^0-9]/g,''))
 
@@ -2372,7 +2633,8 @@ function ClientsTab({clients,appts,SC,confirm,infoModal,setTab}) {
                   <button className="btn-del" onClick={()=>setEI(null)}>Cancelar</button>
                 </div>
               </div>
-              :<div style={{display:'flex',alignItems:'center',gap:10}}>
+              :<>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
                 <div style={{width:38,height:38,borderRadius:'50%',background:'var(--primary-l)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:16,color:'var(--primary)',flexShrink:0}}>{String(c.name||'?').charAt(0).toUpperCase()}</div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontWeight:600,fontSize:14}}>{c.name}</div>
@@ -2386,6 +2648,13 @@ function ClientsTab({clients,appts,SC,confirm,infoModal,setTab}) {
                   confirm(`¿Eliminar a ${c.name}?`,()=>SC(safe.filter(x=>x.id!==c.id)))
                 }}>🗑️</button>
               </div>
+              {/* Acción separada de editar/eliminar: abre el formulario
+                  habitual de citas con el cliente ya elegido por su ID. */}
+              <button className="btn-o" style={{width:'100%',marginTop:10,fontSize:12,padding:'7px 10px'}}
+                onClick={()=>setTab('appointments',{newAppt:true,clientId:c.id,origin:'clients'})}>
+                🗓️ Crear cita con {String(c.name||'').split(' ')[0]}
+              </button>
+              </>
             }
           </div>
         })
@@ -3132,36 +3401,21 @@ function ReportTab({appts,expenses,services,setTab}) {
     const c = cleanDate(String(a.createdAt||'').slice(0,10)) || cleanDate(a.date)
     return inPeriod(c)
   })
-  const created = createdInPeriod.length
 
-  // Métricas clave
-  const scheduled = apptsInPeriod.length
-  const completed  = apptsInPeriod.filter(a => bool(a.completed) && a.completed!=='noshow').length
-  const pending    = apptsInPeriod.filter(a => !bool(a.completed) && a.completed!=='noshow').length
-  const noshow     = apptsInPeriod.filter(a => a.completed==='noshow').length
-  const cancelledRate  = scheduled>0 ? Math.round(noshow/scheduled*100) : 0
-  const completionRate = scheduled>0 ? Math.round(completed/scheduled*100) : 0
+  // Todas las cifras del reporte salen de `reportMetrics` (helpers.js),
+  // que replica exactamente las fórmulas de siempre. Así la presentación
+  // puede cambiar sin alterar un solo número.
+  const M = reportMetrics({appts:safeA, expenses:safeE, inPeriod, from:fromVal(), to:toVal()})
+  const { created, scheduled, completed, pending, noshow,
+          cancelledRate, completionRate, revenue, projected,
+          totalExpenses, neto, avgTicket, domicilios, domRevenue } = M
 
   // LIBRO ÚNICO del período: ingresos (citas completadas) y gastos.
   // Pantalla, WhatsApp y Excel salen de aquí, así el neto siempre cuadra.
-  const ledger = periodLedger(safeA, safeE, fromVal(), toVal())
-  const revenue = ledger.totalIncome
+  const ledger = M.ledger
 
-  // Ingresos potenciales (incluye pendientes, excluye 'noshow').
-  // Mismo criterio que Panel, Finanzas y Detalle de ingresos.
-  const projected = projectedIncome(apptsInPeriod)
-
-  // Gastos del período + neto (del libro único)
+  // Gastos del período (filas de salida del libro único)
   const expensesInPeriod = ledger.outs
-  const totalExpenses = ledger.totalExpenses
-  const neto = ledger.neto
-
-  const avgTicket = completed>0 ? Math.round(revenue/completed) : 0
-
-  // Domicilios (cantidad de citas + ingresos por domicilio, estos últimos
-  // ya van incluidos en `revenue` como parte de totalPrice)
-  const domicilios = apptsInPeriod.filter(a => bool(a.domicilio)).length
-  const domRevenue = ledger.totalDelivery
 
   // Top servicios del período (por demanda en completadas)
   const svcStats = {}
@@ -3311,14 +3565,6 @@ function ReportTab({appts,expenses,services,setTab}) {
     openWhatsApp(p, msg)
   }
 
-  const Metric = ({label, value, color, big, sub}) => (
-    <div style={{background:'var(--bg2)',borderRadius:12,padding:'12px 10px',textAlign:'center'}}>
-      <div style={{fontSize:10,textTransform:'uppercase',letterSpacing:'.05em',color:'var(--t2)',fontWeight:600,marginBottom:4}}>{label}</div>
-      <div style={{fontSize:big?22:18,fontWeight:700,color:color||'var(--t)'}}>{value}</div>
-      {sub && <div style={{fontSize:9,color:'var(--t2)',marginTop:2}}>{sub}</div>}
-    </div>
-  )
-
   // Estilos reutilizables para los chips de modo
   const chipStyle = active => ({
     flex:1,
@@ -3360,31 +3606,67 @@ function ReportTab({appts,expenses,services,setTab}) {
         🗓️ {periodLabel()}
       </div>
 
-      {/* Métricas de citas */}
-      <div style={{fontWeight:700,fontSize:14,marginBottom:6}}>📈 Citas</div>
-      <div style={{fontSize:11,color:'var(--t2)',marginBottom:10}}>
+      {/* ══ Actividad de citas ══ */}
+      <div className="rep-sec">📈 Actividad de citas</div>
+      <div style={{fontSize:11,color:'var(--t2)',marginBottom:10,lineHeight:1.5}}>
         <strong style={{color:'var(--t)'}}>Creadas</strong> = registradas en el período (aunque la cita sea para otro día) · <strong style={{color:'var(--t)'}}>Agendadas</strong> = citas para el período (aunque se hayan creado antes)
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,marginBottom:18}}>
-        <Metric label="Creadas"     value={created}   big />
-        <Metric label="Agendadas"   value={scheduled} />
-        <Metric label="Completadas" value={completed} color="var(--green)" big />
-        <Metric label="Pendientes"  value={pending}   color="var(--gold)" />
-        <Metric label="% completado" value={`${completionRate}%`} />
+      <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:8}}>
+        <div className="kpi">
+          <div className="kpi-label">Creadas</div>
+          <div className="kpi-value">{created}</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">Agendadas</div>
+          <div className="kpi-value">{scheduled}</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">Completadas</div>
+          <div className="kpi-value" style={{color:'var(--green)'}}>{completed}</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">Pendientes</div>
+          <div className="kpi-value" style={{color:'var(--gold)'}}>{pending}</div>
+        </div>
+      </div>
+      <div className="kpi" style={{marginTop:8,display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+        <div style={{minWidth:0}}>
+          <div className="kpi-label" style={{marginBottom:2}}>Porcentaje completado</div>
+          <div className="kpi-sub" style={{marginTop:0}}>{completed} de {scheduled} agendadas</div>
+        </div>
+        <div className="kpi-value" style={{flexShrink:0}}>{completionRate}%</div>
       </div>
 
-      {/* Métricas de dinero */}
-      <div style={{fontWeight:700,fontSize:14,marginBottom:10}}>💰 Dinero</div>
-      <div style={{background:'linear-gradient(135deg,var(--primary),var(--primary-d))',borderRadius:14,padding:'14px 18px',marginBottom:8,color:'white'}}>
-        <div style={{fontSize:11,opacity:.8,textTransform:'uppercase',letterSpacing:'.05em',fontWeight:600,marginBottom:4}}>Total ingresos (servicios + domicilios)</div>
+      {/* ══ Resumen financiero ══ */}
+      <div className="rep-sec">💰 Resumen financiero</div>
+      {/* Total ingresos: contexto del neto (servicios + domicilios ya separados) */}
+      <div style={{background:'var(--gradient)',borderRadius:14,padding:'14px 18px',marginBottom:8,color:'white'}}>
+        <div style={{fontSize:11,opacity:.85,textTransform:'uppercase',letterSpacing:'.05em',fontWeight:600,marginBottom:4}}>Total ingresos (servicios + domicilios)</div>
         <div style={{fontFamily:'Georgia,serif',fontSize:28,fontWeight:700}}>{fmtM(revenue)}</div>
         <div style={{fontSize:12,opacity:.9,marginTop:6}}>Servicios {fmtM(ledger.totalService)} + 🛵 Domicilios {fmtM(ledger.totalDelivery)}</div>
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,marginBottom:18}}>
-        <Metric label="Proyectado" value={fmtM(projected)} color="var(--gold)" />
-        <Metric label="Domicilios" value={`${domicilios} · ${fmtM(domRevenue)}`} sub="separados de servicios" />
-        <Metric label="Gastos"      value={fmtM(totalExpenses)} color="var(--red)" />
-        <Metric label="Neto"        value={fmtM(neto)} color={neto>=0?'var(--green)':'var(--red)'} />
+      <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:8}}>
+        <div className="kpi">
+          <div className="kpi-label">Proyectado</div>
+          <div className="kpi-value">{fmtM(projected)}</div>
+          <div className="kpi-sub">incluye pendientes</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">Gastos</div>
+          <div className="kpi-value" style={{color:'var(--red)'}}>{fmtM(totalExpenses)}</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">Domicilios</div>
+          <div className="kpi-value">{domicilios}</div>
+          <div className="kpi-sub">{fmtM(domRevenue)} en domicilios</div>
+        </div>
+      </div>
+      {/* El neto es el único indicador con color propio: es el resultado
+          real del período (ingresos de completadas − gastos). */}
+      <div className="kpi kpi-net" style={{marginTop:8}}>
+        <div className="kpi-label">Neto</div>
+        <div className="kpi-value">{fmtM(neto)}</div>
+        <div className="kpi-sub">Total ingresos − gastos{neto<0?' · resultado negativo':''}</div>
       </div>
 
       {/* Top servicios del período */}

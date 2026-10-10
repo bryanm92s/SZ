@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds } from './helpers.js'
+import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptGroup, reportMetrics, periodLedger } from './helpers.js'
 
 // phoneMatch/getSlots depend on todayStr() (local today). Freeze the clock
 // so the tests are deterministic.
@@ -512,5 +512,172 @@ describe('apptLife', () => {
     expect(apptLife({ date: '2026-01-15', time: '12:30', completed: false }, NOW)).toBe('live')
     // 12:00 sin duration → termina 13:00 → ya terminó
     expect(apptLife({ date: '2026-01-15', time: '12:00', completed: false }, NOW)).toBe('past')
+  })
+})
+
+/* -- apptGroup · dónde cae la cita en la pestaña Citas ----------------
+   Sostiene la navegación Panel → Citas: el grupo devuelto es el acordeón
+   que hay que abrir para que la cita seleccionada sea visible. */
+describe('apptGroup', () => {
+  const NOW = new Date(2026, 0, 15, 13, 0, 0) // 2026-01-15 13:00 local
+  it('clasifica hoy / mañana / próximas / pasadas / no asistió', () => {
+    expect(apptGroup({ date: '2026-01-15', time: '15:00', completed: false }, NOW)).toBe('today')
+    expect(apptGroup({ date: '2026-01-16', time: '10:00', completed: false }, NOW)).toBe('tomorrow')
+    expect(apptGroup({ date: '2026-01-20', time: '10:00', completed: false }, NOW)).toBe('upcoming')
+    expect(apptGroup({ date: '2026-01-10', time: '10:00', completed: false }, NOW)).toBe('past')
+    expect(apptGroup({ date: '2026-01-20', time: '10:00', completed: 'noshow' }, NOW)).toBe('noshow')
+  })
+
+  it('una cita de hoy cuya hora ya empezó cae en «Pasadas»', () => {
+    // 12:00 ya inició (NOW = 13:00) → past, no today
+    expect(apptGroup({ date: '2026-01-15', time: '12:00', completed: false }, NOW)).toBe('past')
+    // 13:00 exacto: `start < now` es false → sigue en today
+    expect(apptGroup({ date: '2026-01-15', time: '13:00', completed: false }, NOW)).toBe('today')
+    // sin hora no se puede decidir → se muestra como hoy
+    expect(apptGroup({ date: '2026-01-15', time: '', completed: false }, NOW)).toBe('today')
+  })
+
+  it('«No asistió» tiene prioridad sobre cualquier otra clasificación', () => {
+    expect(apptGroup({ date: '2026-01-10', time: '10:00', completed: 'noshow' }, NOW)).toBe('noshow')
+    expect(apptGroup({ date: '2026-01-15', time: '12:00', completed: 'noshow' }, NOW)).toBe('noshow')
+    expect(apptGroup({ date: '2026-01-20', time: '10:00', completed: 'noshow' }, NOW)).toBe('noshow')
+  })
+
+  it('una cita sin fecha nunca se pierde: cae en «Pasadas»', () => {
+    expect(apptGroup({ date: '', time: '10:00', completed: false }, NOW)).toBe('past')
+    expect(apptGroup({}, NOW)).toBe('past')
+  })
+
+  it('no modifica la cita recibida (solo lectura)', () => {
+    const a = { id: 'x', date: '2026-01-15', time: '15:00', completed: false }
+    const snapshot = JSON.stringify(a)
+    apptGroup(a, NOW)
+    expect(JSON.stringify(a)).toBe(snapshot)
+  })
+})
+
+/* -- canModifyAppt · restricción reutilizada por el detalle ----------- */
+describe('canModifyAppt (restricción del detalle)', () => {
+  it('solo permite editar/eliminar citas pendientes', () => {
+    expect(canModifyAppt({ completed: false })).toBe(true)
+    expect(canModifyAppt({ completed: true })).toBe(false)
+    expect(canModifyAppt({ completed: 'noshow' })).toBe(false)
+    expect(canModifyAppt({})).toBe(true)
+  })
+})
+
+/* -- reportMetrics · el reporte conserva sus cifras ------------------- */
+describe('reportMetrics', () => {
+  // Período: enero 2026 completo
+  const FROM = '2026-01-01', TO = '2026-01-31'
+  const inPeriod = d => { const x = cleanDate(d); return !!x && x >= FROM && x <= TO }
+
+  const appts = [
+    // completada, con servicio
+    { id: 'a1', date: '2026-01-10', time: '10:00', completed: true,  totalPrice: 100000, domicilio: false, createdAt: '2026-01-05' },
+    // pendiente
+    { id: 'a2', date: '2026-01-12', time: '11:00', completed: false, totalPrice:  50000, domicilio: false, createdAt: '2026-01-06' },
+    // no asistió
+    { id: 'a3', date: '2026-01-14', time: '12:00', completed: 'noshow', totalPrice: 30000, domicilio: false, createdAt: '2026-01-07' },
+    // creada en enero pero agendada para FEBRERO: cuenta como creada, no como agendada
+    { id: 'a4', date: '2026-02-20', time: '13:00', completed: false, totalPrice:  80000, domicilio: false, createdAt: '2026-01-08' },
+    // completada Y a domicilio
+    { id: 'a5', date: '2026-01-15', time: '14:00', completed: true,  totalPrice:  60000, domicilio: true, domicilioPrice: 10000, createdAt: '2026-01-09' },
+  ]
+  const expenses = [{ id: 'e1', date: '2026-01-20', amount: 40000, category: 'Insumos' }]
+  const M = () => reportMetrics({ appts, expenses, inPeriod, from: FROM, to: TO })
+
+  it('distingue «creadas» de «agendadas» sin doble conteo', () => {
+    const m = M()
+    // agendadas = 4 (a1,a2,a3,a5): la a4 es para febrero
+    expect(m.scheduled).toBe(4)
+    // creadas = 5: a4 se creó en enero aunque su cita sea para febrero
+    expect(m.created).toBe(5)
+    // las creadas NO se suman a las agendadas
+    expect(m.created + m.scheduled).not.toBe(m.created * 2)
+  })
+
+  it('mantiene completadas, pendientes y porcentaje', () => {
+    const m = M()
+    expect(m.completed).toBe(2)   // a1, a5
+    expect(m.pending).toBe(1)     // a2
+    expect(m.noshow).toBe(1)      // a3
+    expect(m.completionRate).toBe(50)   // 2 de 4
+    expect(m.cancelledRate).toBe(25)    // 1 de 4
+  })
+
+  it('el neto NO es «Proyectado − Gastos»', () => {
+    const m = M()
+    // proyectado incluye la pendiente a2 → 100000+50000+60000 = 210000
+    expect(m.projected).toBe(210000)
+    // ingresos = solo completadas → 160000
+    expect(m.revenue).toBe(160000)
+    expect(m.totalExpenses).toBe(40000)
+    // neto real = ingresos − gastos = 120000, NO 210000 − 40000 = 170000
+    expect(m.neto).toBe(120000)
+    expect(m.neto).not.toBe(m.projected - m.totalExpenses)
+  })
+
+  it('cuenta los domicilios una vez y su valor va dentro del ingreso', () => {
+    const m = M()
+    expect(m.domicilios).toBe(1)          // solo a5
+    expect(m.domRevenue).toBe(10000)
+    // el valor del domicilio ya está sumado en `revenue`: no se suma dos veces
+    expect(m.revenue).toBe(m.ledger.totalService + m.domRevenue)
+    expect(m.ledger.totalService).toBe(150000)
+  })
+
+  it('al cambiar el período las cifras se recalculan', () => {
+    // Mismo conjunto, pero solo el 12 de enero
+    const day = d => cleanDate(d) === '2026-01-12'
+    const m = reportMetrics({ appts, expenses, inPeriod: day, from: '2026-01-12', to: '2026-01-12' })
+    expect(m.scheduled).toBe(1)
+    expect(m.completed).toBe(0)
+    expect(m.pending).toBe(1)
+    expect(m.completionRate).toBe(0)
+    expect(m.revenue).toBe(0)
+    expect(m.neto).toBe(0)              // sin ingresos ni gastos ese día
+    // la a4 se creó el 8, no el 12 → no cuenta como creada
+    expect(m.created).toBe(0)
+  })
+
+  it('un período vacío devuelve ceros, no NaN ni undefined', () => {
+    const none = () => { return false }
+    const m = reportMetrics({ appts, expenses, inPeriod: none, from: '2027-05-01', to: '2027-05-31' })
+    expect(m.scheduled).toBe(0)
+    expect(m.created).toBe(0)
+    expect(m.completed).toBe(0)
+    expect(m.pending).toBe(0)
+    expect(m.noshow).toBe(0)
+    expect(m.domicilios).toBe(0)
+    expect(m.revenue).toBe(0)
+    expect(m.projected).toBe(0)
+    expect(m.totalExpenses).toBe(0)
+    expect(m.neto).toBe(0)
+    expect(m.avgTicket).toBe(0)
+    // las tasas no pueden dividir entre cero
+    expect(m.completionRate).toBe(0)
+    expect(m.cancelledRate).toBe(0)
+    expect(Number.isNaN(m.completionRate)).toBe(false)
+  })
+
+  it('el ticket promedio sale de los ingresos de completadas', () => {
+    // 160000 / 2 completadas = 80000
+    expect(M().avgTicket).toBe(80000)
+  })
+
+  it('acepta entradas no-array sin romperse', () => {
+    const m = reportMetrics({ appts: null, expenses: undefined, inPeriod, from: FROM, to: TO })
+    expect(m.scheduled).toBe(0)
+    expect(m.neto).toBe(0)
+    expect(m.ledger.rows).toEqual([])
+  })
+
+  it('el libro del reporte sigue siendo el de periodLedger', () => {
+    // El reporte no introduce un cálculo paralelo: reutiliza el libro único.
+    const m = M()
+    expect(m.ledger).toEqual(periodLedger(appts, expenses, FROM, TO))
+    expect(m.revenue).toBe(m.ledger.totalIncome)
+    expect(m.neto).toBe(m.ledger.neto)
   })
 })

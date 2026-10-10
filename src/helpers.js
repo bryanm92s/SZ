@@ -197,6 +197,28 @@ export const apptStatus = a => {
 // La pestaña Citas y el Calendario usan esta misma regla.
 export const canModifyAppt = a => apptStatus(a) === 'pending'
 
+/**
+ * Grupo de la pestaña Citas en el que cae una cita.
+ * Réplica de los filtros de `groups` en ApptsTab: sirve para abrir y
+ * localizar el grupo correcto cuando se llega desde el Panel.
+ */
+export const apptGroup = (a, now = new Date()) => {
+  if (!a) return 'past'
+  if (a.completed === 'noshow') return 'noshow'
+  const d  = cleanDate(a.date)
+  const td = localDateStr(now)
+  if (!d || d < td) return 'past'
+  if (d > td) {
+    const tm = localDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1))
+    return d === tm ? 'tomorrow' : 'upcoming'
+  }
+  // Mismo día: «pasada» si su hora de inicio ya empezó.
+  const [h, m] = cleanTime(a.time).split(':').map(Number)
+  if (isNaN(h)) return 'today'
+  const start = new Date(now); start.setHours(h, m, 0, 0)
+  return start < now ? 'past' : 'today'
+}
+
 /* ══════════════════════════════════════════════════════════════
    ELIMINACIÓN DE SERVICIOS — relación cita ⇄ servicio
    La cita guarda el identificador real en `serviceIds` (CSV) y,
@@ -422,6 +444,61 @@ export const periodLedger = (appts, expenses, from, to) => {
 // Atajo para un mes completo ('YYYY-MM')
 export const monthLedger = (appts, expenses, month) =>
   periodLedger(appts, expenses, month + '-01', month + '-31')
+
+/**
+ * Métricas del reporte (Fase de presentación).
+ * FUENTE ÚNICA de las cifras que muestra la pestaña Reporte, para que el
+ * diseño pueda cambiar sin tocar los números.
+ *
+ * Deficiones (conservadas tal cual):
+ *  - CREADAS:    citas registradas durante el período (por createdAt),
+ *                aunque estén programadas para otra fecha.
+ *  - AGENDADAS:  citas cuya fecha cae en el período, aunque se crearon antes.
+ *  - COMPLETADAS / PENDIENTES / %: mismas fórmulas que ya usaba la vista.
+ *
+ * `inPeriod` define qué fechas pertenecen al período (cierre de día, mes
+ * completo o rango) y `from`/`to` son el rango normalizado que recibe
+ * `periodLedger`.
+ *
+ * IMPORTANTE: el neto NO es «Proyectado − Gastos». Sale del libro único
+ * (`periodLedger.neto` = ingresos de citas completadas − gastos), de modo
+ * que las citas pendientes no inflan el resultado.
+ */
+export const reportMetrics = ({ appts, expenses, inPeriod, from, to }) => {
+  const A = Array.isArray(appts) ? appts : []
+  const E = Array.isArray(expenses) ? expenses : []
+  const inP = d => { const x = cleanDate(d); return !!x && !!inPeriod(x) }
+
+  const apptsInPeriod = A.filter(a => inP(a.date))
+  const createdInPeriod = A.filter(a => {
+    const c = cleanDate(String(a.createdAt || '').slice(0, 10)) || cleanDate(a.date)
+    return inP(c)
+  })
+
+  const created = createdInPeriod.length
+
+  const scheduled = apptsInPeriod.length
+  const completed = apptsInPeriod.filter(a => bool(a.completed) && a.completed !== 'noshow').length
+  const pending   = apptsInPeriod.filter(a => !bool(a.completed) && a.completed !== 'noshow').length
+  const noshow    = apptsInPeriod.filter(a => a.completed === 'noshow').length
+
+  const ledger      = periodLedger(A, E, from, to)
+  const domicilios  = apptsInPeriod.filter(a => bool(a.domicilio)).length
+
+  return {
+    created, scheduled, completed, pending, noshow, domicilios,
+    completionRate: scheduled > 0 ? Math.round(completed / scheduled * 100) : 0,
+    cancelledRate:  scheduled > 0 ? Math.round(noshow / scheduled * 100) : 0,
+    revenue:      ledger.totalIncome,   // «Total ingresos» (solo completadas)
+    projected:    projectedIncome(apptsInPeriod),
+    domRevenue:   ledger.totalDelivery,
+    totalExpenses: ledger.totalExpenses,
+    neto:         ledger.neto,
+    avgTicket:    completed > 0 ? Math.round(ledger.totalIncome / completed) : 0,
+    ledger,
+    apptsInPeriod,
+  }
+}
 
 /**
  * Rangos de fila de la hoja "Movimientos" del Excel exportado.

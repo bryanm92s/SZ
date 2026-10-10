@@ -169,6 +169,12 @@ function makeStore() {
   const store = {
     props: new Map(), mail: [], logs: [],
     calLookups: [], calDeleted: [], calCreated: [],
+    /* ── Control del LockService ──
+       `acquires`/`releases` cuentan las llamadas reales a waitLock y
+       releaseLock; `blocked` simula otro proceso reteniendo el lock.
+       Los tests existentes no lo usan: sus defaults no cambian el
+       comportamiento observable. */
+    lock: { acquires: 0, releases: 0, blocked: false },
   }
   store.cal = makeCalendar(store)
   return store
@@ -182,7 +188,15 @@ function runCodeGs(ss, store = makeStore()) {
       warn:  (...a) => store.logs.push(a.join(' ')),
       error: (...a) => store.logs.push(a.join(' ')),
     },
-    LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+    LockService: {
+      getScriptLock: () => ({
+        waitLock() {
+          if (store.lock.blocked) throw new Error('timeout')  // otro proceso lo retiene
+          store.lock.acquires++
+        },
+        releaseLock() { store.lock.releases++ },
+      }),
+    },
     SpreadsheetApp: { getActiveSpreadsheet: () => ss },
     ContentService: {
       MimeType: { JSON: 'application/json' },
@@ -289,6 +303,31 @@ function recoveryGrant(g) {
   expect(r.ok).toBe(true)
   return { grantId: r.data.grantId, grantSecret: r.data.grantSecret }
 }
+
+/* ── Helpers TEST-01 ────────────────────────────────────────────
+   Ninguno sustituye a los de arriba; solo añaden lo que los tests
+   nuevos necesitan (doGet, cuerpo crudo, instantánea de hojas). */
+
+// Igual que `post`, pero sin token: permite probar la validación.
+const rawPost = (g, payload) =>
+  JSON.parse(g.doPost({ postData: { contents: JSON.stringify(payload) } }).json)
+
+// doGet con el token que se indique (o sin él).
+// Nota: el sandbox expone `doPost` y `call`, no `doGet`, por eso se
+// pasa por `call`.
+const rawGet = (g, token) =>
+  JSON.parse(g.call('doGet', { parameter: token === undefined ? {} : { token } }).json)
+
+// Instantánea de TODAS las hojas: detecta cualquier escritura.
+const sheetSnapshot = (ss) => JSON.stringify(
+  Object.keys(ss._sheets).sort().map(k => [k, ss._sheets[k]._rows()])
+)
+
+// Filas de una hoja sin la cabecera.
+const dataRows = (ss, key) => ss._sheets[key]._rows().slice(1)
+
+// Índice de columna por nombre JS (JS_KEYS), para leer una fila hoja.
+const col = (key, name) => JS_KEYS[key].indexOf(name)
 
 /* ══════════════════════════════════════════════════════════════ */
 describe('Code.gs — eliminación de servicios (validación en el servidor)', () => {
@@ -1100,5 +1139,571 @@ describe('Code.gs — sincronización con Google Calendar', () => {
     expect(env.store.calDeleted).toEqual([])
     expect(env.store.cal.size()).toBe(2)
     expect(env.store.mail).toEqual([])
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════
+   TEST-01 — Reglas de negocio 7B.0, M1, M2, C1, M5
+
+   AVISO / SUPUESTO: estos identificadores NO están definidos en el
+   repositorio (ni en README/SETUP/SESIÓN, ni en el manual .docx, ni
+   en comentarios de Code.gs, ni en el historial de git). Se han
+   MAPEADO a reglas concretas que sí están implementadas en el
+   backend y que la suite anterior NO cubría. El mapeo debe
+   validarse en TEST-01A (fase READ-ONLY).
+
+     7B.0 → el backend rechaza eliminar servicios con citas futuras
+            o en curso ANTES de escribir nada (sin efectos colaterales)
+     M1   → sanitización monetaria: ningún importe negativo persiste
+     M2   → `servicePrices` (JSON anidado) se sanea clave a clave
+     C1   → duración acota a [15,480]; inválida o ≤0 → 60; coherente
+            entre servicios, citas, evento y `_apptLife`
+     M5   → historial de precios: registra iniciales y cambios, y NO
+            registra nada cuando el precio no cambia
+
+   Justificación de no duplicación: antes de escribir estas pruebas
+   se comprobó que `trackPriceChanges`, `safeDuration`, `initSheets`,
+   `cellStr`, `sanitizePayload` y `doGet` tenían CERO cobertura.
+══════════════════════════════════════════════════════════════ */
+describe('TEST-01 — Reglas de negocio (7B.0, M1, M2, C1, M5)', () => {
+
+  it('[7B.0] el rechazo por cita futura ocurre ANTES de escribir nada (sin efectos colaterales)', () => {
+    // s1 tiene una cita futura pendiente → no se puede eliminar del catálogo.
+    // (Se siembra la hoja directamente, igual que el test 7a existente:
+    // `makeEnv({appts})` espera objetos, no filas ya convertidas.)
+    const env = makeEnv()
+    env.ss._sheets.appointments._seed([
+      HEADERS.appointments,
+      apptRow('a1', '2099-09-01', '10:00', 'false', 's1', S1.name),
+    ])
+    const before = sheetSnapshot(env.ss)
+    const historyBefore = env.ss._sheets.priceHistory._rows().length
+
+    // El payload pide un catálogo SIN s1 (es una eliminación) y, de paso,
+    // cambiaría el precio de s2 → trackPriceChanges querría registrar eso.
+    const r = post(env.g, {
+      services: [{ id: 's2', name: S2.name, price: '99999', duration: S2.duration }],
+    })
+
+    expect(r.ok).toBe(false)
+    expect(r.error).toMatch(/No se puede eliminar el servicio/)
+
+    // Nada se escribió: ni Servicios, ni Citas, ni — lo nuevo — HistorialPrecios.
+    expect(sheetSnapshot(env.ss)).toBe(before)
+    expect(env.ss._sheets.priceHistory._rows().length).toBe(historyBefore)
+    expect(svcRows(env.ss).sort()).toEqual(['s1', 's2'])   // s1 sigue ahí
+    // Y el lock se libera igualmente en el camino de rechazo.
+    expect(env.store.lock.releases).toBe(env.store.lock.acquires)
+  })
+
+  it('[M1] ningún importe negativo persiste: servicios, gastos y citas quedan en 0', () => {
+    const env = makeEnv()   // sin citas → la eliminación del catálogo no está bloqueada
+
+    // Servicios: price negativo.
+    expect(post(env.g, {
+      services: [{ id: 's9', name: 'Prueba', price: '-5000', duration: '30' }],
+    }).ok).toBe(true)
+    const svc = dataRows(env.ss, 'services').find(r => r[0] === 's9')
+    expect(svc[col('services', 'price')]).toBe('0')
+
+    // Gastos: amount negativo.
+    expect(post(env.g, {
+      expenses: [{ id: 'e1', description: 'Compra', amount: '-999', category: 'Insumos', date: '2026-01-10' }],
+    }).ok).toBe(true)
+    const exp = dataRows(env.ss, 'expenses').find(r => r[0] === 'e1')
+    expect(exp[col('expenses', 'amount')]).toBe('0')
+
+    // Citas: los tres importes monetarios de la fila.
+    expect(post(env.g, {
+      appointments: [{
+        id: 'a1', clientId: 'c1', clientName: 'Ana', clientPhone: '300111222',
+        serviceIds: 's1', serviceNames: S1.name, servicePrice: '-1', servicePrices: '{}',
+        domicilio: 'true', domicilioPrice: '-7000', totalPrice: '-123', address: 'Calle 1',
+        date: '2099-09-01', time: '10:00', createdAt: '2026-01-01T09:00:00',
+        calendarCreated: 'false', calendarEventId: '', completed: 'false',
+        duration: '30', paymentMethod: '',
+      }],
+    }).ok).toBe(true)
+    const a = dataRows(env.ss, 'appointments')[0]
+    expect(a[col('appointments', 'servicePrice')]).toBe('0')
+    expect(a[col('appointments', 'domicilioPrice')]).toBe('0')
+    expect(a[col('appointments', 'totalPrice')]).toBe('0')
+  })
+
+  it('[M2] `servicePrices` (JSON anidado) se sanea clave a clave, no solo el total', () => {
+    const env = makeEnv()
+    expect(post(env.g, {
+      appointments: [{
+        id: 'a1', clientId: 'c1', clientName: 'Ana', clientPhone: '300111222',
+        serviceIds: 's1,s2', serviceNames: `${S1.name}, ${S2.name}`,
+        servicePrice: '180000', servicePrices: '{"s1":-500,"s2":130000,"s3":-1}',
+        domicilio: 'false', domicilioPrice: '0', totalPrice: '180000', address: '',
+        date: '2099-09-01', time: '10:00', createdAt: '2026-01-01T09:00:00',
+        calendarCreated: 'false', calendarEventId: '', completed: 'false',
+        duration: '30', paymentMethod: '',
+      }],
+    }).ok).toBe(true)
+
+    const raw = dataRows(env.ss, 'appointments')[0][col('appointments', 'servicePrices')]
+    expect(JSON.parse(raw)).toEqual({ s1: 0, s2: 130000, s3: 0 })
+    // Y sigue siendo JSON válido para el frontend.
+    expect(() => JSON.parse(raw)).not.toThrow()
+  })
+
+  it('[C1] la duración se acota a [15,480] y una inválida cae a 60, en servicios y citas', () => {
+    const env = makeEnv()
+
+    expect(post(env.g, {
+      services: [
+        { id: 'd1', name: 'Muy corta',  price: '1000', duration: '5'    },  // → 15
+        { id: 'd2', name: 'Muy larga',  price: '1000', duration: '9999' },  // → 480
+        { id: 'd3', name: 'Inválida',   price: '1000', duration: 'abc'  },  // → 60
+      ],
+    }).ok).toBe(true)
+
+    const dur = (id) => dataRows(env.ss, 'services')
+      .find(r => r[0] === id)[col('services', 'duration')]
+    expect(dur('d1')).toBe('15')
+    expect(dur('d2')).toBe('480')
+    expect(dur('d3')).toBe('60')
+
+    // La misma regla se aplica a las citas.
+    const mkAppt = (id, duration) => ({
+      id, clientId: 'c1', clientName: 'Ana', clientPhone: '300111222',
+      serviceIds: 's1', serviceNames: S1.name, servicePrice: '50000', servicePrices: '{}',
+      domicilio: 'false', domicilioPrice: '0', totalPrice: '50000', address: '',
+      date: '2099-09-01', time: '10:00', createdAt: '2026-01-01T09:00:00',
+      calendarCreated: 'false', calendarEventId: '', completed: 'false',
+      duration, paymentMethod: '',
+    })
+    expect(post(env.g, {
+      appointments: [mkAppt('p1', '5'), mkAppt('p2', '9999'), mkAppt('p3', 'xyz')],
+    }).ok).toBe(true)
+
+    const adur = (id) => dataRows(env.ss, 'appointments')
+      .find(r => r[0] === id)[col('appointments', 'duration')]
+    expect(adur('p1')).toBe('15')
+    expect(adur('p2')).toBe('480')
+    expect(adur('p3')).toBe('60')
+  })
+
+  it('[C1] la duración saneada es la que define la vida de la cita en el servidor', () => {
+    // `_apptLife` decide "en curso" con fecha + hora + duración, y esa
+    // duración pasa por el mismo acotado [15,480]. Con 9999 sin acotar,
+    // la cita de las 05:00 habría terminado a las 21:39; acotada a 480
+    // termina a las 13:00 y a las 12:00 sigue EN CURSO.
+    const env = makeEnv()
+    const now = new Date(2026, 5, 10, 12, 0, 0)   // 10 jun 2026, 12:00
+    const base = {
+      clientId: 'c1', clientName: 'Ana', clientPhone: '300111222',
+      serviceIds: 's1', serviceNames: S1.name, servicePrice: '50000', servicePrices: '{}',
+      domicilio: 'false', domicilioPrice: '0', totalPrice: '50000', address: '',
+      date: '2026-06-10', createdAt: '2026-01-01T09:00:00',
+      calendarCreated: 'false', calendarEventId: '', paymentMethod: '',
+    }
+    const life = (id, time, duration, completed) =>
+      env.g.call('_apptLife', { ...base, id, time, duration, completed }, now)
+
+    expect(life('x', '05:00', '9999', 'false')).toBe('live')   // acotada: 05:00→13:00
+    expect(life('x', '05:00', '9999', 'true' )).toBe('done')   // completada manda
+    expect(life('x', '11:30', '30',  'false')).toBe('past')    // terminó exacto a las 12:00
+    expect(life('x', '11:45', '30',  'false')).toBe('live')
+    expect(life('x', '13:00', '30',  'false')).toBe('future')
+    expect(life('x', '',     '30',  'false')).toBe('unknown')  // sin hora no se evalúa
+  })
+
+  it('[M5] el historial registra precio inicial y cambios, pero no registra si nada cambió', () => {
+    // `Utilities.formatDate` del sandbox devuelve siempre esta marca.
+    const CHANGED_AT = '2026-01-15T13:00:00'
+    const env = makeEnv()   // hoja de servicios sembrada con S1 (50000) y S2 (130000)
+    const hist = () => dataRows(env.ss, 'priceHistory')
+
+    // (a) Mismos precios que la hoja → NO se registra nada.
+    expect(post(env.g, { services: [S1, S2] }).ok).toBe(true)
+    expect(hist()).toHaveLength(0)
+
+    // (b) Cambio de precio de s1 → se registra el NUEVO precio con su fecha.
+    expect(post(env.g, { services: [{ ...S1, price: '60000' }, S2] }).ok).toBe(true)
+    expect(hist()).toHaveLength(1)
+    expect(hist()[0]).toEqual(['s1', S1.name, '60000', CHANGED_AT])
+
+    // (c) Servicio nuevo → se registra su precio INICIAL.
+    const S3 = { id: 's3', name: 'Masaje facial', price: '75000', duration: '45' }
+    expect(post(env.g, { services: [{ ...S1, price: '60000' }, S2, S3] }).ok).toBe(true)
+    expect(hist()).toHaveLength(2)
+    expect(hist()[1]).toEqual(['s3', S3.name, '75000', CHANGED_AT])
+
+    // (d) Reenviar el mismo catálogo → no duplica filas (idempotente).
+    expect(post(env.g, { services: [{ ...S1, price: '60000' }, S2, S3] }).ok).toBe(true)
+    expect(hist()).toHaveLength(2)
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════
+   TEST-01 — Validaciones y operaciones de doPost (criterio 2)
+   + inicialización de hojas (initSheets) y saneado de entrada.
+══════════════════════════════════════════════════════════════ */
+describe('TEST-01 — doPost: validaciones y operaciones', () => {
+  let env
+  beforeEach(() => { env = makeEnv() })
+
+  it('sin token → "No autorizado" y ninguna hoja se toca', () => {
+    const before = sheetSnapshot(env.ss)
+    expect(rawPost(env.g, { appointments: [] })).toEqual({ ok: false, error: 'No autorizado' })
+    expect(rawPost(env.g, {})).toEqual({ ok: false, error: 'No autorizado' })
+    expect(sheetSnapshot(env.ss)).toBe(before)
+    expect(env.store.lock.releases).toBe(env.store.lock.acquires)   // igualmente se libera
+  })
+
+  it('token incorrecto → "No autorizado", sin escribir ni llegar a Calendar', () => {
+    const before = sheetSnapshot(env.ss)
+    const r = rawPost(env.g, {
+      token: 'TOKEN_INVENTADO',
+      appointments: [{ id: 'zzz', clientName: 'Intruso' }],
+    })
+    expect(r).toEqual({ ok: false, error: 'No autorizado' })
+    expect(sheetSnapshot(env.ss)).toBe(before)
+    expect(env.store.calCreated).toEqual([])
+  })
+
+  it('cuerpo que no es JSON → error controlado "POST: …", sin excepción cruda', () => {
+    const res = env.g.doPost({ postData: { contents: 'esto no es { json' } })
+    const out = JSON.parse(res.json)
+    expect(out.ok).toBe(false)
+    expect(out.error).toMatch(/^POST: /)
+    expect(env.store.lock.releases).toBe(env.store.lock.acquires)
+  })
+
+  it('postData ausente → error controlado "POST: …", sin excepción cruda', () => {
+    const out = JSON.parse(env.g.doPost({}).json)
+    expect(out.ok).toBe(false)
+    expect(out.error).toMatch(/^POST: /)
+    expect(env.store.lock.releases).toBe(env.store.lock.acquires)
+  })
+
+  it('lock ocupado → "Servidor ocupado, reintenta" y NO escribe nada', () => {
+    const before = sheetSnapshot(env.ss)
+    env.store.lock.blocked = true                      // otro proceso lo retiene
+    const r = post(env.g, { appointments: [{ id: 'zzz' }] })
+    expect(r).toEqual({ ok: false, error: 'Servidor ocupado, reintenta' })
+    expect(sheetSnapshot(env.ss)).toBe(before)          // ni una fila escrita
+    expect(env.store.calCreated).toEqual([])
+  })
+
+  it('acción desconocida sin colecciones → {saved:true} sin escribir (caracterización)', () => {
+    // El contrato es por colecciones, no por acción: una acción que nadie
+    // conoce no rompe nada ni inventa escrituras.
+    const before = sheetSnapshot(env.ss)
+    expect(post(env.g, { action: 'accionInventada' }))
+      .toEqual({ ok: true, data: { saved: true, calResult: null } })
+    expect(sheetSnapshot(env.ss)).toBe(before)
+  })
+
+  it('una colección vacía SÍ se escribe: vacía la hoja (borrado explícito)', () => {
+    env.ss._sheets.expenses._seed([
+      HEADERS.expenses,
+      toRow('expenses', { id: 'e1', description: 'x', amount: '1000', category: 'c', date: '2026-01-01' }),
+    ])
+    expect(post(env.g, { expenses: [] }).ok).toBe(true)
+    expect(dataRows(env.ss, 'expenses')).toHaveLength(0)
+  })
+
+  it('doGet con token correcto devuelve las 5 colecciones', () => {
+    const out = rawGet(env.g, TOKEN)
+    expect(out.ok).toBe(true)
+    expect(Object.keys(out.data).sort())
+      .toEqual(['appointments', 'clients', 'expenses', 'priceHistory', 'services'])
+    expect(out.data.services.map(s => s.id).sort()).toEqual(['s1', 's2'])
+  })
+
+  it('doGet con token incorrecto o ausente → "No autorizado"', () => {
+    expect(rawGet(env.g, 'OTRO')).toEqual({ ok: false, error: 'No autorizado' })
+    expect(rawGet(env.g, undefined)).toEqual({ ok: false, error: 'No autorizado' })
+  })
+
+  it('sanitizePayload sanea el evento de Calendar (importes y duración)', () => {
+    expect(post(env.g, {
+      appointments: [],
+      calendarEvent: {
+        clientName: 'Ana', clientPhone: '300', serviceNames: S1.name,
+        totalPrice: '-5', domicilio: true, domicilioPrice: '-9', address: '',
+        date: '2099-09-01', time: '10:00', duration: '99999',
+      },
+    }).ok).toBe(true)
+
+    const ev = env.store.cal._events.get(env.store.calCreated[0])
+    expect(env.store.calCreated).toHaveLength(1)
+    // La descripción lleva los importes recortados a 0 y la duración a 480.
+    expect(ev.description).toContain('Total: $0')
+    expect(ev.description).toContain('Domicilio: $0')
+    expect(ev.end.getTime() - ev.start.getTime()).toBe(480 * 60000)
+  })
+
+  it('initSheets solo crea las hojas que faltan', () => {
+    const creadas = []
+    const nombres = ['Clientes', 'Servicios', 'Citas', 'Gastos', 'HistorialPrecios']
+    const fake = {
+      getSheets: () => nombres.slice(0, 3).map(n => ({ getName: () => n })),
+      insertSheet: (n) => { creadas.push(n) },
+    }
+    env.g.call('initSheets', fake)
+    expect(creadas).toEqual(['Gastos', 'HistorialPrecios'])
+  })
+
+  it('initSheets no hace nada cuando ya existen todas', () => {
+    const creadas = []
+    const nombres = ['Clientes', 'Servicios', 'Citas', 'Gastos', 'HistorialPrecios']
+    const fake = {
+      getSheets: () => nombres.map(n => ({ getName: () => n })),
+      insertSheet: (n) => { creadas.push(n) },
+    }
+    env.g.call('initSheets', fake)
+    expect(creadas).toEqual([])
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════
+   TEST-01 — Citas: creación, edición y eliminación (criterio 3)
+   Nivel de HOJA (el lado Calendar ya está cubierto por el bloque
+   "sincronización con Google Calendar"); aquí se verifica el
+   contrato de persistencia del que depende todo lo demás.
+══════════════════════════════════════════════════════════════ */
+describe('TEST-01 — Citas: creación, edición y eliminación (hoja)', () => {
+  let env
+  beforeEach(() => { env = makeEnv() })
+
+  const A1 = {
+    id: 'a1', clientId: 'c1', clientName: 'Ana', clientPhone: '300111222',
+    serviceIds: 's1', serviceNames: S1.name, servicePrice: '50000', servicePrices: '{"s1":50000}',
+    domicilio: 'false', domicilioPrice: '0', totalPrice: '50000', address: '',
+    date: '2099-09-01', time: '10:00', createdAt: '2026-01-01T09:00:00',
+    calendarCreated: 'true', calendarEventId: 'evt-1', completed: 'false',
+    duration: '30', paymentMethod: '',
+  }
+
+  it('crear: la cita queda completa y legible vía readSheet (round-trip)', () => {
+    expect(post(env.g, { appointments: [A1] }).ok).toBe(true)
+    const back = env.g.call('readSheet', env.ss, 'appointments')
+    expect(back).toHaveLength(1)
+    expect(back[0]).toEqual(A1)
+  })
+
+  it('editar: cambia hora e importes conservando id y calendarEventId', () => {
+    post(env.g, { appointments: [A1] })
+    const editada = { ...A1, time: '19:00', totalPrice: '180000', duration: '90' }
+    expect(post(env.g, { appointments: [editada] }).ok).toBe(true)
+
+    const back = env.g.call('readSheet', env.ss, 'appointments')
+    expect(back).toHaveLength(1)                       // no se duplica
+    expect(back[0].id).toBe('a1')                      // mismo id
+    expect(back[0].calendarEventId).toBe('evt-1')      // id de Calendar intacto
+    expect(back[0].time).toBe('19:00')
+    expect(back[0].totalPrice).toBe('180000')
+    expect(back[0].duration).toBe('90')
+  })
+
+  it('eliminar: quita solo esa fila y conserva el resto', () => {
+    const A2 = { ...A1, id: 'a2', time: '12:00', calendarEventId: 'evt-2' }
+    post(env.g, { appointments: [A1, A2] })
+    expect(env.g.call('readSheet', env.ss, 'appointments')).toHaveLength(2)
+
+    expect(post(env.g, { appointments: [A2] }).ok).toBe(true)   // el cliente envía sin a1
+    const back = env.g.call('readSheet', env.ss, 'appointments')
+    expect(back).toHaveLength(1)
+    expect(back[0].id).toBe('a2')
+  })
+
+  it('el id de Calendar viaja completo en el round-trip de la colección', () => {
+    const ids = ['evt-a@group.calendar.google.com', 'cal7@google.com', '']
+    post(env.g, { appointments: ids.map((id, i) => ({
+      ...A1, id: 'x' + i, calendarEventId: id, calendarCreated: id ? 'true' : 'false',
+    })) })
+    const back = env.g.call('readSheet', env.ss, 'appointments')
+    expect(back.map(a => a.calendarEventId)).toEqual(ids)
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════
+   TEST-01 — Control de versiones y concurrencia (criterio 5)
+══════════════════════════════════════════════════════════════ */
+describe('TEST-01 — Concurrencia y control de versiones', () => {
+  let env
+  beforeEach(() => { env = makeEnv() })
+
+  it('el lock se adquiere ANTES de escribir y se libera en los caminos ordinarios', () => {
+    // sync normal, rechazo de token, rechazo por regla de negocio y
+    // acciones de Calendar: los cuatro balancean acquire/release.
+    post(env.g, { clients: [{ id: 'c1', name: 'Ana', phone: '300', createdAt: '2026-01-01' }] })
+    rawPost(env.g, { token: 'MALO', clients: [] })
+    env.ss._sheets.appointments._seed([
+      HEADERS.appointments,
+      apptRow('a1', '2099-09-01', '10:00', 'false', 's1', S1.name),
+    ])
+    post(env.g, { services: [{ id: 's2', name: S2.name, price: S2.price, duration: S2.duration }] })
+    post(env.g, { action: 'deleteCalendarEvent', eventId: 'no-existe' })
+
+    expect(env.store.lock.acquires).toBeGreaterThanOrEqual(4)
+    expect(env.store.lock.releases).toBe(env.store.lock.acquires)
+  })
+
+  it('HALLAZGO: resetData devuelve sin liberar el lock explícitamente', () => {
+    // Characterization, NO una validación: en Code.gs la rama `resetData`
+    // hace `return ok(_resetData(...))` sin pasar por releaseLock(), a
+    // diferencia del resto de ramas. En Apps Script el lock se libera al
+    // terminar la ejecución, así que no tiene efecto observable, pero es
+    // una asimetría respecto a los otros caminos. Se deja documentada;
+    // NO se corrige producción en TEST-01.
+    const grant = recoveryGrant(env.g)                    // 2 POSTs, ambos liberan
+    const acquiresPre = env.store.lock.acquires
+    const releasesPre = env.store.lock.releases
+    expect(acquiresPre).toBe(releasesPre)                 // equilibrado hasta aquí
+
+    post(env.g, {
+      action: 'resetData', clients: [], appointments: [], expenses: [],
+      services: [{ id: 'n1', name: 'Nuevo', price: '1000', duration: '30' }],
+      resetPriceHistory: true, ...grant,
+    })
+    expect(env.store.lock.acquires).toBe(acquiresPre + 1)  // adquirió
+    expect(env.store.lock.releases).toBe(releasesPre)      // pero no liberó
+  })
+
+  it('control de versiones: cada escritura REEMPLAZA la colección (última gana, sin merge)', () => {
+    const base = (id, time) => ({
+      id, clientId: 'c1', clientName: 'Ana', clientPhone: '300',
+      serviceIds: 's1', serviceNames: S1.name, servicePrice: '50000', servicePrices: '{}',
+      domicilio: 'false', domicilioPrice: '0', totalPrice: '50000', address: '',
+      date: '2099-09-01', time, createdAt: '2026-01-01T09:00:00',
+      calendarCreated: 'false', calendarEventId: '', completed: 'false',
+      duration: '30', paymentMethod: '',
+    })
+    post(env.g, { appointments: [base('a1', '10:00'), base('a2', '12:00')] })
+    expect(env.g.call('readSheet', env.ss, 'appointments')).toHaveLength(2)
+
+    // Una escritura posterior con UNA sola fila no "fusiona": la gana entera.
+    post(env.g, { appointments: [base('a3', '15:00')] })
+    const back = env.g.call('readSheet', env.ss, 'appointments')
+    expect(back.map(a => a.id)).toEqual(['a3'])
+  })
+
+  it('dos escrituras concurrentes se serializan: la segunda ve el resultado de la primera', () => {
+    // El mock no paraleliza, pero sí permite comprobar el contrato que
+    // sostiene Apps Script: bajo un solo lock, cada POST parte del estado
+    // que dejó el anterior (no hay escrituras ciegas superpuestas).
+    post(env.g, { clients: [{ id: 'c1', name: 'Ana', phone: '300', createdAt: '2026-01-01' }] })
+    const trasPrimera = env.g.call('readSheet', env.ss, 'clients')
+    expect(trasPrimera).toHaveLength(1)
+
+    post(env.g, { clients: [trasPrimera[0], { id: 'c2', name: 'Belén', phone: '301', createdAt: '2026-01-02' }] })
+    expect(env.g.call('readSheet', env.ss, 'clients').map(c => c.id)).toEqual(['c1', 'c2'])
+    expect(env.store.lock.acquires).toBe(2)
+    expect(env.store.lock.releases).toBe(2)
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════
+   TEST-01 — Reconciliación y consistencia de datos (criterio 6)
+   readSheet / writeSheet / cellStr: la capa de la que dependen
+   todas las reglas anteriores para ver los datos correctos.
+══════════════════════════════════════════════════════════════ */
+describe('TEST-01 — Reconciliación y consistencia de datos', () => {
+  let env
+  beforeEach(() => { env = makeEnv() })
+
+  it('writeSheet limpia el contenido anterior: no quedan filas huérfanas', () => {
+    post(env.g, {
+      appointments: [{
+        id: 'a1', clientId: 'c1', clientName: 'Ana', clientPhone: '300',
+        serviceIds: 's1', serviceNames: S1.name, servicePrice: '50000', servicePrices: '{}',
+        domicilio: 'false', domicilioPrice: '0', totalPrice: '50000', address: '',
+        date: '2099-09-01', time: '10:00', createdAt: '2026-01-01T09:00:00',
+        calendarCreated: 'false', calendarEventId: '', completed: 'false',
+        duration: '30', paymentMethod: '',
+      }],
+    })
+    expect(env.ss._sheets.appointments._rows()).toHaveLength(2)   // cabecera + 1
+
+    post(env.g, { appointments: [] })
+    const rows = env.ss._sheets.appointments._rows()
+    expect(rows).toHaveLength(1)                                  // solo cabecera
+    expect(rows[0]).toEqual(HEADERS.appointments)
+  })
+
+  it('readSheet descarta las filas sin id (basura de edición manual)', () => {
+    env.ss._sheets.appointments._seed([
+      HEADERS.appointments,
+      apptRow('a1', '2099-09-01', '10:00', 'false', 's1', S1.name),
+      toRow('appointments', {}),                    // fila vacía
+      apptRow('a2', '2099-09-02', '11:00', 'false', 's1', S1.name),
+    ])
+    expect(env.g.call('readSheet', env.ss, 'appointments').map(a => a.id))
+      .toEqual(['a1', 'a2'])
+  })
+
+  it('readSheet con MÁS columnas de las esperadas: ignora las extra y avisa', () => {
+    env.ss._sheets.appointments._seed([
+      [...HEADERS.appointments, 'COLUMNA_RARA'],
+      [...apptRow('a1', '2099-09-01', '10:00', 'false', 's1', S1.name), 'basura'],
+    ])
+    const back = env.g.call('readSheet', env.ss, 'appointments')
+    expect(Object.keys(back[0])).toHaveLength(JS_KEYS.appointments.length)   // ni una más
+    expect(back[0].id).toBe('a1')
+    expect(env.store.logs.some(l => l.includes('columnas') && l.includes('ignoran'))).toBe(true)
+  })
+
+  it('readSheet con MENOS columnas: rellena los campos faltantes con ""', () => {
+    // Corte en 5 columnas: llegan id…serviceIds (índices 0-4).
+    // `serviceNames` es la 6ª (índice 5) y NO llega.
+    env.ss._sheets.appointments._seed([
+      HEADERS.appointments.slice(0, 5),
+      apptRow('a1', '2099-09-01', '10:00', 'false', 's1', S1.name).slice(0, 5),
+    ])
+    const back = env.g.call('readSheet', env.ss, 'appointments')
+    expect(back).toHaveLength(1)
+    expect(back[0].id).toBe('a1')
+    expect(back[0].serviceIds).toBe('s1')               // última columna que llegó
+    expect(back[0].serviceNames).toBe('')               // 6ª: no llegó → ''
+    expect(back[0].date).toBe('')                       // tampoco
+    expect(back[0].calendarEventId).toBe('')            // ni el id de Calendar
+    expect(env.store.logs.some(l => l.includes('rellenan'))).toBe(true)
+  })
+
+  it('cellStr normaliza fechas Date y horas fraccionarias de Sheets', () => {
+    // Un Date DEBE construirse dentro del sandbox: `instanceof Date` no
+    // cruza reinos de vm (mismo motivo que en el mock de Calendar).
+    const d = env.g.call('mkDate', '2026-03-05', '00:00', 0)
+    expect(env.g.call('cellStr', d, 'date')).toBe('2026-03-05')
+    expect(env.g.call('cellStr', 0.75, 'time')).toBe('18:00')   // 0.75*1440=1080
+    expect(env.g.call('cellStr', 0, 'time')).toBe('00:00')
+    expect(env.g.call('cellStr', null, 'x')).toBe('')
+    expect(env.g.call('cellStr', 'texto', 'x')).toBe('texto')
+  })
+
+  it('reconciliación: lo que se escribe con writeSheet es lo que devuelve doGet', () => {
+    post(env.g, { clients: [{ id: 'c9', name: 'Zoe', phone: '320', createdAt: '2026-02-02' }] })
+    const viaGet = rawGet(env.g, TOKEN).data.clients
+    const viaRead = env.g.call('readSheet', env.ss, 'clients')
+    expect(viaGet).toEqual(viaRead)
+    expect(viaGet[0]).toEqual({ id: 'c9', name: 'Zoe', phone: '320', createdAt: '2026-02-02' })
+  })
+
+  it('una cita que referencia un servicio ya eliminado NO se reescribe sola', () => {
+    // Los servicios se limpian con un POST de servicios; las citas NO se
+    // cascadean. Se documenta el comportamiento real: la cita conserva el
+    // id huérfano y `serviceNames` deja de coincidir con el catálogo.
+    post(env.g, {
+      appointments: [{
+        id: 'a1', clientId: 'c1', clientName: 'Ana', clientPhone: '300',
+        serviceIds: 's1', serviceNames: S1.name, servicePrice: '50000', servicePrices: '{"s1":50000}',
+        domicilio: 'false', domicilioPrice: '0', totalPrice: '50000', address: '',
+        date: '2099-09-01', time: '10:00', createdAt: '2026-01-01T09:00:00',
+        calendarCreated: 'false', calendarEventId: '', completed: 'true',
+        duration: '30', paymentMethod: '',
+      }],
+    })
+    post(env.g, { services: [S2] })                  // s1 queda fuera del catálogo
+
+    const appt = env.g.call('readSheet', env.ss, 'appointments')[0]
+    expect(appt.serviceIds).toBe('s1')               // id huérfano, sin cascade
+    expect(env.g.call('readSheet', env.ss, 'services').map(s => s.id)).toEqual(['s2'])
   })
 })
