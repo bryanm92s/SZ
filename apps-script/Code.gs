@@ -284,16 +284,94 @@ function _requestResetCode() {
 
   // Se envía EXCLUSIVAMENTE al correo autorizado. El código no se
   // guarda en claro, no se registra y no se devuelve al cliente.
+  // La lógica (generación, hash, vigencia e intentos) NO cambia: solo
+  // se mejora la presentación. Se envía HTML + texto plano.
   try {
     GmailApp.sendEmail(
       _authorizedEmail(),
       'SZ · Código de restablecimiento',
-      'Se solicitó un restablecimiento de datos.\n\n' +
-      'Tu código es: ' + code + '\n\n' +
-      'Vence en ' + (CODE_TTL_MS / 60000) + ' minutos y solo puede usarse una vez.\n' +
-      'Si no fuiste tú, ignora este mensaje y no compartas el código.');
+      _resetEmailText(code),
+      { htmlBody: _resetEmailHtml(code) });
   } catch(_) {}
   return { sent: true };
+}
+
+/* ── Plantillas del correo de restablecimiento ──
+   Solo presentación: leen CODE_TTL_MS para no inventar una duración.
+   El código sale de CODE_ALPHABET (A-Z y 2-9), sin caracteres HTML,
+   pero se escapa igual por robustez ante cambios de alfabeto. */
+function _escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function _resetEmailText(code) {
+  const mins = CODE_TTL_MS / 60000;
+  return 'SZ · Código de restablecimiento\n\n' +
+    'Se recibió una solicitud para restablecer los datos del sistema.\n' +
+    'Usa el siguiente código para autorizarla:\n\n' +
+    code + '\n\n' +
+    'Vigencia: ' + mins + ' minutos. Solo puede usarse una vez.\n\n' +
+    'No compartas este código con nadie. SZ nunca te lo pedirá por\n' +
+    'teléfono ni por mensaje.\n\n' +
+    '— SZ';
+}
+
+function _resetEmailHtml(code) {
+  const mins  = CODE_TTL_MS / 60000;
+  const c     = _escHtml(code);
+  // Tablas + estilos en línea: máxima compatibilidad (Gmail, Outlook, iOS).
+  return '' +
+  '<div style="margin:0;padding:0;background-color:#f4f5f7;">' +
+  '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f5f7;">' +
+    '<tr><td align="center" style="padding:28px 14px;">' +
+
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border-radius:12px;border:1px solid #e6e8eb;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;">' +
+
+      // Encabezado
+      '<tr><td align="center" style="background-color:#1f2937;padding:20px 24px;">' +
+        '<span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:3px;">SZ</span>' +
+      '</td></tr>' +
+
+      // Cuerpo
+      '<tr><td style="padding:32px 28px 8px;">' +
+        '<h1 style="margin:0 0 14px;font-size:20px;line-height:26px;font-weight:700;color:#111827;text-align:center;">Código de restablecimiento</h1>' +
+        '<p style="margin:0;font-size:14px;line-height:22px;color:#4b5563;text-align:center;">Se recibió una solicitud para restablecer los datos del sistema. Usa el siguiente código para autorizarla:</p>' +
+      '</td></tr>' +
+
+      // Código destacado
+      '<tr><td style="padding:22px 28px 6px;">' +
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;">' +
+          '<tr><td align="center" style="padding:22px 12px;">' +
+            '<span style="display:inline-block;font-family:\'SFMono-Regular\',Consolas,\'Liberation Mono\',Menlo,monospace;font-size:32px;font-weight:700;color:#111827;letter-spacing:9px;">' + c + '</span>' +
+          '</td></tr>' +
+        '</table>' +
+      '</td></tr>' +
+
+      // Vigencia
+      '<tr><td style="padding:14px 28px 0;">' +
+        '<p style="margin:0;font-size:13px;line-height:20px;color:#6b7280;text-align:center;">Vigencia: <strong style="color:#374151;">' + mins + ' minutos</strong>. Solo puede usarse una vez.</p>' +
+      '</td></tr>' +
+
+      // Aviso de seguridad
+      '<tr><td style="padding:18px 28px 4px;">' +
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fff7ed;border:1px solid #fed7aa;border-radius:8px;">' +
+          '<tr><td style="padding:12px 14px;">' +
+            '<p style="margin:0;font-size:13px;line-height:19px;color:#9a3412;">No compartas este código con nadie. SZ nunca te lo pedirá por teléfono ni por mensaje.</p>' +
+          '</td></tr>' +
+        '</table>' +
+      '</td></tr>' +
+
+      // Pie
+      '<tr><td align="center" style="padding:22px 28px 28px;">' +
+        '<p style="margin:0;font-size:12px;color:#9ca3af;letter-spacing:1px;">SZ</p>' +
+      '</td></tr>' +
+
+    '</table>' +
+    '</td></tr>' +
+  '</table>' +
+  '</div>';
 }
 
 // ── Paso 2: verificar el código y emitir el grant. ──

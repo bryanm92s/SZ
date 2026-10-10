@@ -224,8 +224,13 @@ function runCodeGs(ss, store = makeStore()) {
       }),
     },
     // Solo REGISTRA los correos; nada se envía a un destinatario real.
+    // El 4º argumento (opciones) trae `htmlBody`, que se guarda aparte
+    // para poder assertar el correo HTML sin confundirlo con el texto plano.
     GmailApp: {
-      sendEmail: (to, subject, body) => { store.mail.push({ to, subject, body }); return {} },
+      sendEmail: (to, subject, body, opts) => {
+        store.mail.push({ to, subject, body, htmlBody: (opts && opts.htmlBody) || '' })
+        return {}
+      },
     },
     // Calendar simulado en memoria (ver makeCalendar): crear, buscar,
     // actualizar y borrar quedan registrados sin tocar Calendar real.
@@ -288,10 +293,17 @@ const svcRows = (ss) => ss._sheets.services._rows().slice(1).map(r => r[0])
 const AUTHORIZED_EMAIL = 'bryanmorales8240@gmail.com'
 
 // El código de recuperación aparece ÚNICAMENTE en el correo simulado.
+// El texto plano lo deja en una línea propia (8 caracteres), y el HTML
+// lo muestra dentro del span del código. Se busca en ambos.
 const lastMail = (store) => store.mail[store.mail.length - 1]
 const lastCode = (store) => {
-  const m = /Tu código es: ([A-Z0-9]+)/.exec(lastMail(store).body)
-  return m ? m[1] : null
+  const m = lastMail(store)
+  // Texto plano: una línea que sea exactamente el código (p. ej. 'K7QM2X9B').
+  const fromText = /^([A-Z0-9]{8})$/m.exec(m.body || '')
+  if (fromText) return fromText[1]
+  // HTML: dentro del span monoespaciado del código.
+  const fromHtml = /font-size:32px[^>]*>([A-Z0-9]{8})</.exec(m.htmlBody || '')
+  return fromHtml ? fromHtml[1] : null
 }
 
 // Paso 1 (solicitar) + paso 2 (verificar) → grant de un solo uso.
@@ -1705,5 +1717,110 @@ describe('TEST-01 — Reconciliación y consistencia de datos', () => {
     const appt = env.g.call('readSheet', env.ss, 'appointments')[0]
     expect(appt.serviceIds).toBe('s1')               // id huérfano, sin cascade
     expect(env.g.call('readSheet', env.ss, 'services').map(s => s.id)).toEqual(['s2'])
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════
+   CORREO DE RESTABLECIMIENTO — presentación (SZ)
+   Verifica sobre el Code.gs REAL (sandbox vm) que:
+     · el asunto y el cuerpo usan SZ, sin «Studio Beauty»;
+     · hay texto plano Y HTML (alternativa para clientes sin HTML);
+     · la vigencia es la de la lógica (CODE_TTL_MS), no inventada;
+     · la lógica de seguridad NO cambió: hash, un solo uso, expiración,
+       intentos máximos, bloqueo y destinatario autorizado.
+   NO se envía ningún correo real: GmailApp solo registra.
+   ══════════════════════════════════════════════════════════════ */
+describe('correo de restablecimiento · presentación y seguridad', () => {
+  const request = (g) => post(g, { action: 'requestResetCode' })
+
+  it('asunto y cuerpo usan SZ y NO mencionan Studio Beauty', () => {
+    const { g } = makeEnv()
+    expect(request(g).ok).toBe(true)
+    const m = lastMail(g.store)
+    expect(m.subject).toContain('SZ')
+    expect(m.subject).not.toMatch(/studio/i)
+    expect(m.body).toContain('SZ')
+    expect(m.body).not.toMatch(/studio/i)
+    expect(m.htmlBody).toContain('SZ')
+    expect(m.htmlBody).not.toMatch(/studio/i)
+  })
+
+  it('envía HTML y también texto plano (alternativa sin HTML)', () => {
+    const { g } = makeEnv()
+    request(g)
+    const m = lastMail(g.store)
+    // Texto plano con el contenido esencial…
+    expect(m.body).toMatch(/restablecer los datos del sistema/)
+    // …y HTML con la tarjeta y el código destacado.
+    expect(m.htmlBody).toContain('<table')
+    expect(m.htmlBody).toMatch(/font-size:32px/)
+    // Ninguno de los dos está vacío.
+    expect(m.body.length).toBeGreaterThan(0)
+    expect(m.htmlBody.length).toBeGreaterThan(0)
+  })
+
+  it('el código llega igual en texto plano y en HTML', () => {
+    const { g } = makeEnv()
+    request(g)
+    const m = lastMail(g.store)
+    const code = lastCode(g.store)
+    expect(code).toMatch(/^[A-Z0-9]{8}$/)      // 8 caracteres, CODE_ALPHABET
+    expect(m.body).toContain(code)
+    expect(m.htmlBody).toContain(code)
+  })
+
+  it('la vigencia anunciada es la de la lógica (CODE_TTL_MS), no otra', () => {
+    const { g } = makeEnv()
+    request(g)
+    // CODE_TTL_MS = 15 min → la plantilla lo DERIVA (CODE_TTL_MS/60000),
+    // no lo escribe a mano, así que no puede divergir de la lógica real.
+    const m = lastMail(g.store)
+    expect(m.body).toContain('15 minutos')
+    expect(m.htmlBody).toContain('15 minutos')
+  })
+
+  it('el correo va EXCLUSIVAMENTE al correo autorizado', () => {
+    const { g } = makeEnv()
+    request(g)
+    expect(lastMail(g.store).to).toBe(AUTHORIZED_EMAIL)
+  })
+
+  it('el cuerpo del correo NO expone el código al cliente (solo hash)', () => {
+    const { g } = makeEnv()
+    request(g)
+    // El código vive solo en el correo: en el store solo está su hash.
+    expect(g.store.props.has('SB_RESET_CODE')).toBe(true)
+    expect(String(g.store.props.get('SB_RESET_CODE'))).not.toContain(lastCode(g.store))
+    expect(JSON.parse(g.store.props.get('SB_RESET_CODE')).hash).toBeTruthy()
+  })
+
+  it('SEGURIDAD intacta: un solo uso, expiración e intentos máximos', () => {
+    const { g } = makeEnv()
+    expect(request(g).ok).toBe(true)
+    const code = lastCode(g.store)
+
+    // 1) El grant es de UN SOLO USE: reutilizarlo se rechaza.
+    const r = post(g, { action: 'verifyResetCode', code })
+    expect(r.ok).toBe(true)
+    const again = post(g, { action: 'verifyResetCode', code })
+    expect(again.ok).toBe(false)
+
+    // 2) Intentos máximos: 5 códigos erróneos → bloqueo.
+    const { g: g2 } = makeEnv()
+    request(g2)
+    for (let i = 0; i < 5; i++) {
+      const bad = post(g2, { action: 'verifyResetCode', code: 'ZZZZZZZZ' })
+      expect(bad.ok).toBe(false)
+    }
+    const locked = post(g2, { action: 'verifyResetCode', code: lastCode(g2.store) })
+    expect(locked.ok).toBe(false)
+    expect(locked.error).toMatch(/Demasiados intentos/)
+  })
+
+  it('SEGURIDAD intacta: el código caduca (expiresAt en el futuro)', () => {
+    const { g } = makeEnv()
+    request(g)
+    const st = JSON.parse(g.store.props.get('SB_RESET_CODE'))
+    expect(st.expiresAt).toBeGreaterThan(Date.now())
   })
 })

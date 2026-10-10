@@ -194,6 +194,14 @@ const BIZ_SUBTITLE = import.meta.env.VITE_BIZ_SUBTITLE || ''
 const BIZ_EMOJI    = import.meta.env.VITE_BIZ_EMOJI    || '🌸'
 const BIZ_LOGO     = import.meta.env.VITE_BIZ_LOGO     || ''
 
+/* ── WhatsApp del administrador ──
+   Destino de los reportes del ReportTab (botón «💬 WhatsApp admin»).
+   ÚNICO lugar donde se define el número: cámbiase aquí o en la variable
+   de entorno VITE_ADMIN_WHATSAPP, sin tocar el resto del archivo.
+   El envío lo abre el FRONTEND (wa.me), no Apps Script, por eso la
+   configuración vive en el cliente junto al resto del branding. */
+const DEFAULT_ADMIN_WHATSAPP = import.meta.env.VITE_ADMIN_WHATSAPP || '3223992340'
+
 const DEF_CATS   = ['Insumos','Arriendo','Publicidad','Servicios','Transporte','Gasolina','Otros']
 const CAT_COLORS = ['#C4827A','#7A9FC4','#82C494','#C4A87A','#A47AC4','#C4C47A','#7AC4C4','#C47AA4']
 
@@ -3381,8 +3389,9 @@ function TopServices({appts,services,priceHistory,setTab}) {
 /* ══════════════════════════════════════════════════════════════
    REPORT TAB — reporte de actividad por día o rango de fechas,
    con exportación a Excel (.xlsx) y envío por WhatsApp al admin.
+   El número del admin NO se muestra en la interfaz: vive en
+   DEFAULT_ADMIN_WHATSAPP (bloque de configuración).
 ══════════════════════════════════════════════════════════════ */
-const ADMIN_WA = '3223992340'
 
 function ReportTab({appts,expenses,services,setTab}) {
   const safeA = Array.isArray(appts)?appts:[]
@@ -3577,8 +3586,12 @@ function ReportTab({appts,expenses,services,setTab}) {
   }
 
   // ─── Enviar por WhatsApp al admin ─────────────────────────────
+  // Destino: DEFAULT_ADMIN_WHATSAPP (config central). Se normaliza quitando
+  // todo lo que no sea dígito y forzando el prefijo internacional 57
+  // (Colombia), evitando duplicarlo si el número ya lo trae.
   const sendWA = () => {
-    const p = ('57' + ADMIN_WA.replace(/\D/g, '')).replace(/^5757/, '57')
+    const digits = DEFAULT_ADMIN_WHATSAPP.replace(/\D/g, '')
+    const p = (digits.startsWith('57') ? digits : '57' + digits).replace(/^5757/, '57')
     const SPARK = '\u2728'        // ✨
     const MONEY = '\uD83D\uDCB0'  // 💰
     const CAL   = '\uD83D\uDCC5'  // 📅
@@ -3770,11 +3783,6 @@ function ReportTab({appts,expenses,services,setTab}) {
         </button>
       </div>
       {ledger.rows.length===0 && <div style={{textAlign:'center',fontSize:12,color:'var(--t2)',marginBottom:14}}>No hay movimientos en este período para exportar.</div>}
-
-      {/* Pista de destinatario */}
-      <div style={{textAlign:'center',fontSize:11,color:'var(--t2)',marginBottom:6}}>
-        El reporte por WhatsApp se envía al admin: 📱 {ADMIN_WA}
-      </div>
     </div>
   )
 }
