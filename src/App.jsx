@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { loadData, saveData } from './api.js'
+import {
+  loadData, saveData,
+  requestResetCode as apiRequestResetCode,
+  verifyResetCode   as apiVerifyResetCode,
+  resetData         as apiResetData,
+} from './api.js'
 // Helpers puros extraídos para poder testearlos sin React:
 import {
   toN, localDateStr, todayStr, tomorrowStr, monthStr, localNowISO,
@@ -368,20 +373,38 @@ export default function App() {
   const confirm  = (msg, onOk) => setModal({type:'confirm', msg, onOk})
   const infoModal= (msg)       => setModal({type:'info', msg})
 
-  const resetAll = useCallback(async () => {
-    // Delete all Google Calendar events before wiping data
-    const calAppts = appts.filter(a => a.calendarEventId)
-    calAppts.forEach(a => {
-      saveData({action:'deleteCalendarEvent',eventId:a.calendarEventId}).catch(()=>{})
-    })
-    // resetPriceHistory:true tells the backend to wipe history and seed with new service prices
-    const empty = { clients:[], appointments:[], expenses:[], services:DEFAULT_SERVICES, resetPriceHistory:true }
-    setC([]); setA([]); setE([]); setS(DEFAULT_SERVICES); setPH([]); setPH([])
-    try { ['sb_c','sb_a','sb_e','sb_s'].forEach(k=>localStorage.removeItem(k)) } catch {}
+  /* ── Restablecimiento protegido (R2/R4) ──────────────────────
+     El correo, el código de recuperación y la autorización de reset
+     los resuelve y valida el servidor. Aquí solo se piden pasos:
+     (1) `requestResetCode` dispara el envío del código al propietario,
+     (2) `resetAll(codigo)` verifica el código y ejecuta el reset con
+     el grant temporal que devuelve el backend.
+     Nada de esto se guarda en localStorage ni en estado React, y NO se
+     borra nada localmente hasta que el backend confirma la operación.
+     Los eventos de Calendar ya los borra el backend, dentro del reset
+     autorizado: el frontend no elimina recursos antes de autorizar. */
+  const requestResetCode = useCallback(async () => {
+    try { await apiRequestResetCode(); return { ok:true } }
+    catch(e) { return { ok:false, error:e.message } }
+  }, [])
+
+  const resetAll = useCallback(async (code) => {
+    let grant
+    try { grant = await apiVerifyResetCode(code) }
+    catch(e) { return { ok:false, error:e.message } }
+
     setSt('saving')
-    try { await saveData(empty); setSt('ok'); setLS(new Date()) }
-    catch(e) { setEM(e.message); setSt('error'); setTimeout(()=>setSt('ok'),5000) }
-  }, [appts])
+    try {
+      const r = await apiResetData(grant, DEFAULT_SERVICES)
+      setC([]); setA([]); setE([]); setS(DEFAULT_SERVICES); setPH([])
+      try { ['sb_c','sb_a','sb_e','sb_s'].forEach(k=>localStorage.removeItem(k)) } catch {}
+      setSt('ok'); setLS(new Date())
+      return { ok:true, data:r }
+    } catch(e) {
+      setEM(e.message); setSt('error'); setTimeout(()=>setSt('ok'),5000)
+      return { ok:false, error:e.message }
+    }
+  }, [])
 
   const deleteAppt = useCallback(async appt => {
     const next = appts.filter(x=>x.id!==appt.id)
@@ -390,7 +413,7 @@ export default function App() {
       saveData({action:'deleteCalendarEvent',eventId:appt.calendarEventId}).catch(()=>{})
   }, [appts, SA])
 
-  const p = {clients,services,appts,expenses,SC,SS,SA,SE,sync,deleteAppt,setTab,confirm,infoModal,tabExtra,resetAll,themePalette,setThemePalette,priceHistory}
+  const p = {clients,services,appts,expenses,SC,SS,SA,SE,sync,deleteAppt,setTab,confirm,infoModal,tabExtra,resetAll,requestResetCode,themePalette,setThemePalette,priceHistory}
 
   if (status==='loading') return <Cent><div style={{fontSize:52,animation:'pulse 2s ease-in-out infinite'}}>{BIZ_EMOJI}</div></Cent>
   if (status==='noconfig') return <Cent><div style={{fontSize:36,marginBottom:8}}>⚙️</div><p style={{fontSize:16,fontWeight:600}}>Configura VITE_SCRIPT_URL y VITE_TOKEN en Vercel</p></Cent>
@@ -3381,15 +3404,41 @@ function IncomeDetail({appts,setTab,tabExtra}) {
 /* ══════════════════════════════════════════════════════════════
    SETTINGS TAB — Zona de peligro / Reset total
 ══════════════════════════════════════════════════════════════ */
-function SettingsTab({clients, appts, expenses, resetAll, themePalette, setThemePalette}) {
+function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, themePalette, setThemePalette}) {
   const [step, setStep] = useState(0)
   const [confirmWord, setConfirmWord] = useState('')
+  // Flujo de restablecimiento en 3 pasos, autorizado por el servidor:
+  // palabra de confirmación → código enviado al propietario → ejecución.
+  const [phase, setPhase] = useState('word')   // 'word' | 'code'
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
 
   const totalClients  = Array.isArray(clients) ? clients.length : 0
   const totalAppts    = Array.isArray(appts)   ? appts.length   : 0
   const totalExpenses = Array.isArray(expenses)? expenses.length: 0
 
-  const handleReset = async () => { setStep(3); setConfirmWord(''); await resetAll() }
+  // El backend decide a qué correo manda el código; aquí solo se pide
+  // el envío y se espera. La respuesta es genérica por diseño.
+  const requestCode = async () => {
+    setBusy(true); setErr('')
+    const r = await requestResetCode()
+    setBusy(false)
+    if (!r.ok) setErr(r.error)
+    else { setPhase('code'); setCode('') }
+  }
+
+  // Ejecuta el reset solo si el backend valida el código y emite el grant.
+  const handleReset = async () => {
+    if (!code.trim() || busy) return
+    setBusy(true); setErr('')
+    const r = await resetAll(code)
+    setBusy(false)
+    if (r.ok) { setStep(3); setConfirmWord(''); setPhase('word'); setCode('') }
+    else setErr(r.error)
+  }
+
+  const back = () => { setStep(0); setPhase('word'); setConfirmWord(''); setCode(''); setErr('') }
 
   if (step===1) return (
     <div>
@@ -3422,10 +3471,11 @@ function SettingsTab({clients, appts, expenses, resetAll, themePalette, setTheme
 
   if (step===2) {
     const ok = confirmWord.trim() === 'CONFIRMAR'
+    const codeOk = code.replace(/\s/g,'').length >= 6
     return (
       <div>
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:24}}>
-          <button className="btn-sm" onClick={()=>{setStep(0);setConfirmWord('')}}>← Cancelar</button>
+          <button className="btn-sm" onClick={back}>← Cancelar</button>
           <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>Confirmación final</span>
         </div>
         <div className="card-neo" style={{background:'var(--red-bg)',border:'2px solid var(--red)',borderRadius:20,padding:28,textAlign:'center'}}>
@@ -3440,39 +3490,79 @@ function SettingsTab({clients, appts, expenses, resetAll, themePalette, setTheme
           <div className="card-glass" style={{padding:'12px 16px',marginBottom:20,fontSize:13,color:'var(--t2)'}}>
             🗑️ Se eliminarán <strong style={{color:'var(--red)'}}>{totalClients} clientes, {totalAppts} citas y {totalExpenses} gastos</strong>
           </div>
-          <div style={{marginBottom:20,textAlign:'left'}}>
-            <label style={{display:'block',fontSize:12,fontWeight:700,color:'var(--t2)',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:8}}>
-              Escribe <span style={{color:'var(--red)',fontFamily:'monospace',fontSize:14}}>CONFIRMAR</span> para continuar
-            </label>
-            <input
-              className="inp"
-              value={confirmWord}
-              onChange={e=>setConfirmWord(e.target.value)}
-              placeholder="CONFIRMAR"
-              autoComplete="off"
-              style={{textAlign:'center',fontWeight:700,fontSize:16,letterSpacing:'.05em',
-                borderColor: confirmWord.length>0 ? (ok?'var(--green)':'var(--red)') : 'var(--border)',
-                color: ok ? 'var(--green)' : 'var(--t)'
-              }}
-            />
-            {confirmWord.length>0 && !ok && (
-              <div style={{fontSize:11,color:'var(--red)',marginTop:5,textAlign:'center'}}>
-                Debe escribir exactamente: CONFIRMAR
+
+          {phase==='word' ? (
+            <div style={{marginBottom:20,textAlign:'left'}}>
+              <label style={{display:'block',fontSize:12,fontWeight:700,color:'var(--t2)',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:8}}>
+                Escribe <span style={{color:'var(--red)',fontFamily:'monospace',fontSize:14}}>CONFIRMAR</span> para continuar
+              </label>
+              <input
+                className="inp"
+                value={confirmWord}
+                onChange={e=>setConfirmWord(e.target.value)}
+                placeholder="CONFIRMAR"
+                autoComplete="off"
+                style={{textAlign:'center',fontWeight:700,fontSize:16,letterSpacing:'.05em',
+                  borderColor: confirmWord.length>0 ? (ok?'var(--green)':'var(--red)') : 'var(--border)',
+                  color: ok ? 'var(--green)' : 'var(--t)'
+                }}
+              />
+              {confirmWord.length>0 && !ok && (
+                <div style={{fontSize:11,color:'var(--red)',marginTop:5,textAlign:'center'}}>
+                  Debe escribir exactamente: CONFIRMAR
+                </div>
+              )}
+              {ok && (
+                <div style={{fontSize:11,color:'var(--green)',marginTop:5,textAlign:'center',fontWeight:700}}>
+                  ✓ Confirmación válida
+                </div>
+              )}
+              {err && (
+                <div style={{fontSize:12,color:'var(--red)',marginTop:8,textAlign:'center',fontWeight:700}}>{err}</div>
+              )}
+              <div style={{display:'flex',gap:10,marginTop:20}}>
+                <button className="btn-o" style={{flex:1}} onClick={back}>No, cancelar</button>
+                <button onClick={()=>{if(ok&&!busy)requestCode()}} disabled={!ok||busy}
+                  style={{flex:1,background:ok&&!busy?'linear-gradient(135deg, #B03030 0%, #D04040 100%)':'var(--border)',color:ok&&!busy?'white':'var(--t2)',border:'none',borderRadius:10,padding:'12px 10px',fontWeight:700,fontSize:14,cursor:ok&&!busy?'pointer':'not-allowed',fontFamily:'inherit',transition:'all .2s',boxShadow:ok&&!busy?'var(--shadow-sm)':'none'}}>
+                  {busy?'Enviando…':'📧 Enviar código de autorización'}
+                </button>
               </div>
-            )}
-            {ok && (
-              <div style={{fontSize:11,color:'var(--green)',marginTop:5,textAlign:'center',fontWeight:700}}>
-                ✓ Confirmación válida
+            </div>
+          ) : (
+            <div style={{marginBottom:20,textAlign:'left'}}>
+              <div className="card-glass" style={{padding:'12px 16px',marginBottom:16,fontSize:13,color:'var(--t2)',lineHeight:1.7}}>
+                📩 Si los datos de recuperación son válidos, se envió un código de <strong>un solo uso</strong> al correo autorizado del propietario.<br/>
+                Caduca en 15 minutos. El servidor no lo muestra ni lo guarda en claro.
               </div>
-            )}
-          </div>
-          <div style={{display:'flex',gap:10}}>
-            <button className="btn-o" style={{flex:1}} onClick={()=>{setStep(0);setConfirmWord('')}}>No, cancelar</button>
-            <button onClick={()=>{if(ok)handleReset()}} disabled={!ok}
-              style={{flex:1,background:ok?'linear-gradient(135deg, #B03030 0%, #D04040 100%)':'var(--border)',color:ok?'white':'var(--t2)',border:'none',borderRadius:10,padding:'12px 10px',fontWeight:700,fontSize:14,cursor:ok?'pointer':'not-allowed',fontFamily:'inherit',transition:'all .2s',boxShadow:ok?'var(--shadow-sm)':'none'}}>
-              🗑️ Eliminar todo
-            </button>
-          </div>
+              <label style={{display:'block',fontSize:12,fontWeight:700,color:'var(--t2)',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:8}}>
+                Código de recuperación
+              </label>
+              <input
+                className="inp"
+                value={code}
+                onChange={e=>setCode(e.target.value.toUpperCase())}
+                placeholder="XXXX XXXX"
+                autoComplete="off"
+                maxLength={16}
+                style={{textAlign:'center',fontWeight:700,fontSize:17,letterSpacing:'.22em',
+                  borderColor: err ? 'var(--red)' : (codeOk?'var(--green)':'var(--border)')}}
+              />
+              {err && (
+                <div style={{fontSize:12,color:'var(--red)',marginTop:8,textAlign:'center',fontWeight:700}}>{err}</div>
+              )}
+              <div style={{display:'flex',gap:10,marginTop:20}}>
+                <button className="btn-o" style={{flex:1}} onClick={()=>{setPhase('word');setCode('');setErr('')}} disabled={busy}>← Volver</button>
+                <button onClick={()=>{if(!busy)requestCode()}} disabled={busy}
+                  style={{flex:1,background:'transparent',color:'var(--red)',border:'1.5px solid var(--red)',borderRadius:10,padding:'12px 10px',fontWeight:700,fontSize:14,cursor:busy?'not-allowed':'pointer',fontFamily:'inherit'}}>
+                  {busy?'Enviando…':'🔁 Reenviar'}
+                </button>
+                <button onClick={handleReset} disabled={!codeOk||busy}
+                  style={{flex:1.4,background:codeOk&&!busy?'linear-gradient(135deg, #B03030 0%, #D04040 100%)':'var(--border)',color:codeOk&&!busy?'white':'var(--t2)',border:'none',borderRadius:10,padding:'12px 10px',fontWeight:700,fontSize:14,cursor:codeOk&&!busy?'pointer':'not-allowed',fontFamily:'inherit',transition:'all .2s'}}>
+                  {busy?'Verificando…':'🗑️ Verificar y eliminar'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     )

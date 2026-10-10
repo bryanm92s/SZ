@@ -50,13 +50,30 @@ function doPost(e) {
   try {
     const b = JSON.parse(e.postData.contents);
     if (b.token !== SECRET_TOKEN) { lock.releaseLock(); return err('No autorizado'); }
-    // Defensa en profundidad: clip a 0 todo campo monetario antes de
-    // persistir, por si alguien llama al endpoint con valores negativos.
+
+    // ── Recuperación de acceso (solo el propietario) ──
+    // No escriben nada y responden siempre igual, para no filtrar
+    // si el destinatario registrado existe o cuál es.
+    if (b.action==='requestResetCode') { const r=_requestResetCode(); lock.releaseLock(); return ok(r); }
+    if (b.action==='verifyResetCode')  {
+      const v=_verifyResetCode(b.code); lock.releaseLock();
+      return v.ok ? ok({grantId:v.grantId,grantSecret:v.grantSecret,expiresAt:v.expiresAt})
+                  : err(v.error);
+    }
+
+    // ── Guarda destructiva: se decide ANTES de escribir, borrar o
+    // modificar CUALQUIER recurso (hojas o calendario). Una operación
+    // normal de sincronización nunca lleva grant, y un reset nunca
+    // se vuelve a permitir sin él. ──
+    const auth = _checkResetAuth(b);
+    if (!auth.ok) { lock.releaseLock(); return err(auth.error); }
+
     try { sanitizePayload(b); } catch(_) {}
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     initSheets(ss);
     if (b.action==='deleteCalendarEvent') return ok({calResult:deleteCalEvent(b.eventId)});
     if (b.action==='updateCalendarEvent') return ok({calResult:updateCalEvent(b.eventId,b.calendarEvent)});
+    if (b.action==='resetData')           return ok(_resetData(ss, b, auth));
     if (b.clients      !== undefined) writeSheet(ss,'clients',b.clients);
     if (b.services !== undefined) {
       // ── Regla de negocio: no eliminar servicios con citas futuras
@@ -71,17 +88,10 @@ function doPost(e) {
       if (svcErr) { lock.releaseLock(); return err(svcErr); }
 
       if (b.resetPriceHistory) {
-        // Full reset: wipe history and seed with the new service prices
-        const sh = ss.getSheetByName(SHEETS.priceHistory);
-        if (sh) sh.clearContents();
-        const now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
-        const phSh = ss.getSheetByName(SHEETS.priceHistory);
-        const headers = HEADERS_ES.priceHistory;
-        phSh.getRange(1, 1, 1, headers.length).setNumberFormat('@').setValues([headers]);
-        if (b.services.length > 0) {
-          const initRows = b.services.map(s => [s.id, s.name, String(s.price), now]);
-          phSh.getRange(2, 1, initRows.length, 4).setNumberFormat('@').setValues(initRows);
-        }
+        // Full reset: wipe history and seed with the new service prices.
+        // Esta rama solo es alcanzable con una autorización válida
+        // (ver _checkResetAuth), nunca desde una sincronización normal.
+        _seedPriceHistory(ss, b.services);
       } else {
         // Normal save: detect and record price changes
         trackPriceChanges(ss, b.services);
@@ -95,6 +105,271 @@ function doPost(e) {
     lock.releaseLock();
     return ok({saved:true,calResult});
   } catch(ex) { lock.releaseLock(); return err('POST: '+ex.message); }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESTABLECIMIENTO PROTEGIDO — autorización SOLO del lado servidor
+
+   Problema: el token de sincronización (SECRET_TOKEN / VITE_TOKEN)
+   viaja dentro del bundle JS público, así que no puede considerarse
+   un secreto. Cualquiera con la URL podía reproducir el payload de
+   restablecimiento y borrarlo todo.
+
+   Por eso el restablecimiento es ahora una operación EXPLÍCITA
+   (`action:'resetData'`) que exige una autorización temporal y de
+   un solo uso emitida por el servidor tras verificar a su dueño por
+   correo. Esa autorización NUNCA existe en el frontend.
+
+   ── Flujo (tres pasos, todos explícitos) ──
+     1. `requestResetCode` → el backend genera un código aleatorio,
+        lo guarda con vencimiento y lo envía SOLO al correo
+        autorizado. La respuesta es siempre idéntica.
+     2. `verifyResetCode`  → valida el código (un solo uso,
+        vencimiento, límite de intentos) y emite un grant.
+     3. `resetData`        → exige el grant. Se consume ANTES de
+        escribir nada y no puede repetirse.
+
+   ── Detección de operación destructiva ──
+   Las sincronizaciones normales de la app envían UNA sola colección
+   por petición (`SC`/`SS`/`SA`/`SE`). Un restablecimiento envía
+   varias a la vez y/o `resetPriceHistory`. Se trata como
+   destructivo cualquier payload con: `action:'resetData'`,
+   `resetPriceHistory:true` o más de una colección definida.
+
+   ── Configuración ──
+   El correo se toma de la propiedad de script `AUTHORIZED_EMAIL`
+   (Editor → Propiedades del proyecto) y solo cae al único constante
+   de abajo si esa propiedad no existe. Cambiar el correo NO exige
+   tocar código ni el frontend. No existe ninguna acción pública que
+   lo modifique.
+══════════════════════════════════════════════════════════════ */
+
+// ÚNICO lugar del código con el correo autorizado (respaldo).
+const DEFAULT_AUTHORIZED_EMAIL = 'bryanmorales8240@gmail.com';
+
+const PROP_KEY = {
+  email:  'SB_AUTHORIZED_EMAIL', // propiedad de script que respalda/cede al constante
+  code:   'SB_RESET_CODE',        // JSON {hash, expiresAt, tries}
+  grants: 'SB_RESET_GRANTS',      // JSON {grantId: {hash, expiresAt, usedAt}}
+  limits: 'SB_RESET_LIMITS'       // JSON {sends:[ms], lockedUntil:ms}
+};
+
+const CODE_TTL_MS      = 15 * 60 * 1000;  // vigencia del código de recuperación
+const GRANT_TTL_MS     = 10 * 60 * 1000;  // vigencia de la autorización de reset
+const MAX_VERIFY_TRIES = 5;               // intentos de verificación por código
+const LOCKOUT_MS       = 30 * 60 * 1000;  // bloqueo tras agotar intentos/solicitudes
+const MAX_SENDS        = 3;               // códigos por ventana
+const SEND_WINDOW_MS   = 60 * 60 * 1000;  // ventana de solicitudes (1 h)
+
+function _props() {
+  return PropertiesService.getScriptProperties();
+}
+
+function _authorizedEmail() {
+  let v = '';
+  try { v = String(_props().getProperty(PROP_KEY.email) || '').trim(); } catch(_) { v = ''; }
+  return v || DEFAULT_AUTHORIZED_EMAIL;
+}
+
+function _readProp(key, fallback) {
+  let raw = null;
+  try { raw = _props().getProperty(key); } catch(_) { raw = null; }
+  if (raw === null || raw === undefined || raw === '') return fallback;
+  try { const v = JSON.parse(raw); return (v === null || v === undefined) ? fallback : v; }
+  catch(_) { return fallback; }
+}
+function _writeProp(key, value) {
+  try { _props().setProperty(key, JSON.stringify(value)); } catch(_) {}
+}
+function _deleteProp(key) {
+  try { _props().deleteProperty(key); } catch(_) {}
+}
+
+// Alfabeto sin 0/O/I/1 para que el dueño pueda teclearlo sin errores.
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 símbolos (256 % 32 = 0)
+
+// Utilities.getUuid() se alimenta del CSPRNG del sistema.
+function _randomToken(byteLen) {
+  let s = '';
+  while (s.length < byteLen * 2) s += String(Utilities.getUuid()).replace(/-/g, '');
+  return s.substring(0, byteLen * 2);
+}
+
+function _randomCode(len) {
+  const hex = _randomToken(len);
+  let out = '';
+  for (let i = 0; i < len; i++) out += CODE_ALPHABET[parseInt(hex.substr(i * 2, 2), 16) % CODE_ALPHABET.length];
+  return out;
+}
+
+function _hash(s) {
+  const bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256, String(s), Utilities.Charset.UTF_8);
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) {
+    let b = bytes[i]; if (b < 0) b += 256;
+    hex += ('0' + b.toString(16)).slice(-2);
+  }
+  return hex;
+}
+
+// Comparación en tiempo lineal: no deja atajar el código por timing.
+function _secureEqual(a, b) {
+  a = String(a === null || a === undefined ? '' : a);
+  b = String(b === null || b === undefined ? '' : b);
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+// ── ¿Es una operación destructiva? ──
+// OJO: `resetPriceHistory` se evalúa por ser VERDADERO, no solo `=== true`,
+// para que valores como `1` o `"true"` no esquiven la guarda y aun así
+// consigan borrar HistorialPrecios en la rama de abajo.
+function _isDestructivePayload(b) {
+  if (!b || typeof b !== 'object') return false;
+  if (b.action === 'resetData') return true;
+  if (b.resetPriceHistory) return true;
+  let cols = 0;
+  const keys = ['clients', 'services', 'appointments', 'expenses'];
+  for (let i = 0; i < keys.length; i++) if (b[keys[i]] !== undefined) cols++;
+  return cols > 1; // las syncs normales mandan una sola colección
+}
+
+function _checkResetAuth(b) {
+  if (!_isDestructivePayload(b)) return { ok: true };  // sync normal: no toca el grant
+  return _consumeGrant(b);
+}
+
+function _consumeGrant(b) {
+  const grantId = String((b && b.grantId) || '').trim();
+  const secret  = String((b && b.grantSecret) || '');
+  if (!grantId || !secret) return { ok: false, error: 'Restablecimiento no autorizado.' };
+
+  const now = Date.now();
+  const grants = _readProp(PROP_KEY.grants, {});
+  const g = grants[grantId];
+  if (!g) return { ok: false, error: 'Restablecimiento no autorizado.' };
+  if (g.usedAt) return { ok: false, error: 'Autorización ya utilizada.' };
+  if (now > g.expiresAt) {
+    delete grants[grantId]; _writeProp(PROP_KEY.grants, grants);
+    return { ok: false, error: 'Autorización vencida.' };
+  }
+  if (!_secureEqual(_hash(secret), g.hash)) return { ok: false, error: 'Restablecimiento no autorizado.' };
+  // Un solo uso: se consume ANTES de escribir nada en las hojas.
+  g.usedAt = now; grants[grantId] = g; _writeProp(PROP_KEY.grants, grants);
+  return { ok: true, grantId: grantId };
+}
+
+// ── Paso 1: solicitar el código. ──
+// Devuelve SIEMPRE lo mismo: no revela si hay un correo configurado,
+// si es distinto del registrado, si se está rate-limited ni nada más.
+function _requestResetCode() {
+  const now = Date.now();
+  const lim = _readProp(PROP_KEY.limits, { sends: [], lockedUntil: 0 });
+  lim.sends = (Array.isArray(lim.sends) ? lim.sends : []).filter(t => now - t < SEND_WINDOW_MS);
+
+  if (lim.lockedUntil && now < lim.lockedUntil) return { sent: true };
+  if (lim.sends.length >= MAX_SENDS) {
+    lim.lockedUntil = now + LOCKOUT_MS;
+    _writeProp(PROP_KEY.limits, lim);
+    return { sent: true };
+  }
+
+  const code = _randomCode(8);
+  _writeProp(PROP_KEY.code, { hash: _hash(code), expiresAt: now + CODE_TTL_MS, tries: 0 });
+  lim.sends.push(now);
+  _writeProp(PROP_KEY.limits, lim);
+
+  // Se envía EXCLUSIVAMENTE al correo autorizado. El código no se
+  // guarda en claro, no se registra y no se devuelve al cliente.
+  try {
+    GmailApp.sendEmail(
+      _authorizedEmail(),
+      'STUDIO-BEAUTY · Código de restablecimiento',
+      'Se solicitó un restablecimiento de datos.\n\n' +
+      'Tu código es: ' + code + '\n\n' +
+      'Vence en ' + (CODE_TTL_MS / 60000) + ' minutos y solo puede usarse una vez.\n' +
+      'Si no fuiste tú, ignora este mensaje y no compartas el código.');
+  } catch(_) {}
+  return { sent: true };
+}
+
+// ── Paso 2: verificar el código y emitir el grant. ──
+function _verifyResetCode(rawCode) {
+  const now = Date.now();
+  const lim = _readProp(PROP_KEY.limits, { sends: [], lockedUntil: 0 });
+  if (lim.lockedUntil && now < lim.lockedUntil)
+    return { ok: false, error: 'Demasiados intentos. Intenta de nuevo más tarde.' };
+
+  const st = _readProp(PROP_KEY.code, null);
+  if (!st || !st.hash) return { ok: false, error: 'Código inválido o vencido.' };
+  if (now > st.expiresAt) {
+    _deleteProp(PROP_KEY.code);
+    return { ok: false, error: 'Código inválido o vencido.' };
+  }
+
+  st.tries = (st.tries || 0) + 1;
+  const given = String(rawCode === null || rawCode === undefined ? '' : rawCode).trim().toUpperCase();
+  if (!_secureEqual(_hash(given), st.hash)) {
+    if (st.tries >= MAX_VERIFY_TRIES) {
+      _deleteProp(PROP_KEY.code);
+      lim.lockedUntil = now + LOCKOUT_MS;
+      _writeProp(PROP_KEY.limits, lim);
+      return { ok: false, error: 'Demasiados intentos. Intenta de nuevo más tarde.' };
+    }
+    _writeProp(PROP_KEY.code, st);
+    return { ok: false, error: 'Código inválido.' };
+  }
+
+  // Válido → el código queda invalidado (un solo uso) y se emite el grant.
+  _deleteProp(PROP_KEY.code);
+  const grantId     = _randomToken(16);
+  const grantSecret = _randomToken(32);
+  const grants = _readProp(PROP_KEY.grants, {});
+  Object.keys(grants).forEach(k => {
+    if (!grants[k] || now > grants[k].expiresAt) delete grants[k];
+  });
+  grants[grantId] = { hash: _hash(grantSecret), expiresAt: now + GRANT_TTL_MS, usedAt: 0 };
+  _writeProp(PROP_KEY.grants, grants);
+  return { ok: true, grantId: grantId, grantSecret: grantSecret, expiresAt: now + GRANT_TTL_MS };
+}
+
+function _seedPriceHistory(ss, services) {
+  const sh = ss.getSheetByName(SHEETS.priceHistory);
+  if (!sh) return;
+  sh.clearContents();
+  const now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
+  const headers = HEADERS_ES.priceHistory;
+  sh.getRange(1, 1, 1, headers.length).setNumberFormat('@').setValues([headers]);
+  if (services && services.length > 0) {
+    const initRows = services.map(s => [s.id, s.name, String(s.price), now]);
+    sh.getRange(2, 1, initRows.length, 4).setNumberFormat('@').setValues(initRows);
+  }
+}
+
+// ── Paso 3: ejecutar el restablecimiento. ──
+// Solo se llega aquí con un grant consumido previamente y válido.
+function _resetData(ss, b, auth) {
+  const services = Array.isArray(b.services) ? b.services : [];
+
+  // Borra los eventos de Calendar del lado del servidor y ya
+  // autorizados: el frontend ya no elimina nada antes de autorizar.
+  const curAppts = readSheet(ss, 'appointments');
+  let deletedEvents = 0;
+  for (let i = 0; i < curAppts.length; i++) {
+    const id = curAppts[i] && curAppts[i].calendarEventId;
+    if (id) { try { if (deleteCalEvent(id).ok) deletedEvents++; } catch(_) {} }
+  }
+
+  writeSheet(ss, 'clients', []);
+  writeSheet(ss, 'appointments', []);
+  writeSheet(ss, 'expenses', []);
+  writeSheet(ss, 'services', services);
+  _seedPriceHistory(ss, services);
+
+  return { reset: true, deletedEvents: deletedEvents, grantId: auth.grantId };
 }
 
 /* ══════════════════════════════════════════════════════════════

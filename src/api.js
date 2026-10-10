@@ -22,3 +22,27 @@ export async function saveData(payload) {
   if (!json.ok) throw new Error(json.error||'Error guardando')
   return json.data
 }
+
+/* ── Restablecimiento protegido ────────────────────────────────
+   El destinatario del correo, el código de recuperación y la
+   autorización de reset los decide y valida EXCLUSIVAMENTE el
+   backend. Aquí solo se piden y se entregan; nunca hay un secreto
+   permanente en el frontend y ninguno de los tres se guarda en
+   localStorage ni en React.                                              */
+export async function requestResetCode() {
+  return saveData({ action: 'requestResetCode' })
+}
+
+// Devuelve {grantId, grantSecret, expiresAt} o lanza con el error del servidor.
+export async function verifyResetCode(code) {
+  return saveData({ action: 'verifyResetCode', code })
+}
+
+export async function resetData(grant, services) {
+  return saveData({
+    action:      'resetData',
+    grantId:     grant && grant.grantId,
+    grantSecret: grant && grant.grantSecret,
+    services,
+  })
+}
