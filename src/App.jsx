@@ -3788,8 +3788,10 @@ function ReportTab({appts,expenses,services,setTab}) {
         </div>
       </div>
       {/* El neto es el único indicador con color propio: es el resultado
-          real del período (ingresos de completadas − gastos). */}
-      <div className="kpi kpi-net" style={{marginTop:8}}>
+          real del período (ingresos de completadas − gastos).
+          marginBottom: los .kpi no traen margen inferior, y sin él el
+          Neto quedaba pegado a «Top servicios» o a «Movimientos». */}
+      <div className="kpi kpi-net" style={{marginTop:8,marginBottom:14}}>
         <div className="kpi-label">Neto</div>
         <div className="kpi-value">{fmtM(neto)}</div>
         <div className="kpi-sub">Total ingresos − gastos{neto<0?' · resultado negativo':''}</div>
