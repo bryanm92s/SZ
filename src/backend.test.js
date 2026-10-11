@@ -62,24 +62,43 @@ const SHEET_NAME = {
 /* ── Hoja simulada en memoria (solo los métodos que usa Code.gs) ── */
 function makeSheet(name) {
   const rows = []
+  const formulas = {}          // 'fila,col' → fórmula escrita (para assertar)
+  let title = name
   return {
     _rows: () => rows,
-    getName: () => name,
+    _formulas: () => formulas,
+    _title: () => title,
+    getName: () => title,
+    setName: (n) => { title = n },
     getLastRow: () => rows.length,
     getLastColumn: () => rows.reduce((m, r) => Math.max(m, r.length), 0),
+    setColumnWidths: () => {},
     getRange(r, c, nr, nc) {
+      // Apps Script acepta también getRange(fila, col) (1 celda).
+      const nRows = nr || 1
+      const nCols = nc || 1
+      // setFormulas/setFormula dejan registro; '' significa «sin fórmula».
+      const grabar = (valor) => {
+        for (let i = 0; i < nRows; i++)
+          for (let j = 0; j < nCols; j++) {
+            const v = valor(i, j)
+            if (v) formulas[(r + i) + ',' + (c + j)] = v
+          }
+      }
       return {
         getValues: () => {
           const out = []
-          for (let i = r - 1; i < r - 1 + nr; i++) {
+          for (let i = r - 1; i < r - 1 + nRows; i++) {
             const row = rows[i] || []
             const slice = []
-            for (let j = c - 1; j < c - 1 + nc; j++) slice.push(row[j] !== undefined ? row[j] : '')
+            for (let j = c - 1; j < c - 1 + nCols; j++) slice.push(row[j] !== undefined ? row[j] : '')
             out.push(slice)
           }
           return out
         },
         setValues: (data) => { data.forEach((row, i) => { rows[r - 1 + i] = row.slice() }) },
+        setFormulas: (data) => grabar((i, j) => (data[i] && data[i][j] ? data[i][j] : '')),
+        setFormula:  (f)    => grabar(() => f),
         // Code.gs encadena .setNumberFormat('@').setValues(...) → debe devolver el rango.
         setNumberFormat: function () { return this },
       }
@@ -87,6 +106,24 @@ function makeSheet(name) {
     clearContents: () => { rows.length = 0 },
     // utilidad de test: sembrar datos
     _seed: (data) => { rows.length = 0; data.forEach(r => rows.push(r.slice())) },
+  }
+}
+
+/* ── Libro TEMPORAL del Excel adjunto ──
+   Lo que devuelve SpreadsheetApp.create(): arranca con una hoja por
+   defecto y se le agregan las demás con insertSheet. Todo queda
+   registrado en store.books para poder assertar el libro sin abrir
+   Google Sheets de verdad. */
+function makeBook(name) {
+  const sheets = [makeSheet('Hoja 1')]
+  return {
+    _id: 'libro-' + name,
+    _name: name,
+    _sheets: sheets,
+    getId: () => 'libro-' + name,
+    getSheets: () => sheets.slice(),
+    insertSheet: (n) => { const s = makeSheet(n); sheets.push(s); return s },
+    getSheetByName: (n) => sheets.find(s => s.getName() === n) || null,
   }
 }
 
@@ -173,6 +210,10 @@ function makeStore() {
     // aquí para que el resto de tests no tenga que pensarlo.
     props: new Map([['SB_SYNC_TOKEN', TOKEN]]), mail: [], logs: [],
     calLookups: [], calDeleted: [], calCreated: [],
+    // Libros temporales del Excel adjunto, descargas y papelera.
+    books: [], fetched: [], trashed: [],
+    failBook: false,   // simula que SpreadsheetApp.create() revienta
+    fetchFails: 0,     // cuántas primeras descargas .xlsx responden != 200
     /* ── Control del LockService ──
        `acquires`/`releases` cuentan las llamadas reales a waitLock y
        releaseLock; `blocked` simula otro proceso reteniendo el lock.
@@ -201,7 +242,15 @@ function runCodeGs(ss, store = makeStore()) {
         releaseLock() { store.lock.releases++ },
       }),
     },
-    SpreadsheetApp: { getActiveSpreadsheet: () => ss },
+    SpreadsheetApp: {
+      getActiveSpreadsheet: () => ss,
+      // Libro temporal del Excel adjunto. `failBook` permite simular
+      // que la creación revienta (el correo debe salir igual).
+      create: (name) => {
+        if (store.failBook) throw new Error('No se pudo crear la hoja')
+        const b = makeBook(name); store.books.push(b); return b
+      },
+    },
     ContentService: {
       MimeType: { JSON: 'application/json' },
       createTextOutput: (s) => ({ setMimeType: () => ({ json: s }) }),
@@ -209,6 +258,7 @@ function runCodeGs(ss, store = makeStore()) {
     Session: { getScriptTimeZone: () => 'America/Bogota' },
     Utilities: {
       formatDate: () => '2026-01-15T13:00:00',
+      sleep: () => {},   // solo lo usa el reintento del export .xlsx
       // CSPRNG real (node:crypto): igual que Utilities.getUuid() en Apps Script.
       getUuid: () => randomUUID(),
       DigestAlgorithm: { SHA_256: 'SHA_256' },
@@ -229,13 +279,47 @@ function runCodeGs(ss, store = makeStore()) {
     },
     // Solo REGISTRA los correos; nada se envía a un destinatario real.
     // El 4º argumento (opciones) trae `htmlBody`, que se guarda aparte
-    // para poder assertar el correo HTML sin confundirlo con el texto plano.
+    // para poder assertar el correo HTML sin confundirlo con el texto
+    // plano, y `attachments` (el Excel del reporte).
     GmailApp: {
       sendEmail: (to, subject, body, opts) => {
-        store.mail.push({ to, subject, body, htmlBody: (opts && opts.htmlBody) || '' })
+        store.mail.push({
+          to, subject, body,
+          htmlBody: (opts && opts.htmlBody) || '',
+          attachments: (opts && opts.attachments) || [],
+        })
         return {}
       },
     },
+    // Drive: solo alcanza para el Excel temporal del reporte (se crea,
+    // se descarga y se manda a la papelera). Nada real se mueve.
+    DriveApp: {
+      getFileById: (id) => ({
+        getId: () => id,
+        setTrashed: (v) => { store.trashed.push({ id, trashed: !!v }); return {} },
+      }),
+    },
+    // Descarga del libro temporal como .xlsx (export de Drive). El export
+    // de una hoja RECIÉN creada a veces tarda en estar listo y responde
+    // != 200; `fetchFails` cuenta cuántas primeras descargas fallan.
+    UrlFetchApp: {
+      fetch: (url, opts) => {
+        store.fetched.push({ url, opts })
+        return {
+          getResponseCode: () => {
+            if (store.fetchFails > 0) { store.fetchFails -= 1; return 503 }
+            return 200
+          },
+          getBlob: () => ({
+            _nombre: null,
+            setName: function (n) { this._nombre = n; return this },
+            getName: () => null,
+            url,
+          }),
+        }
+      },
+    },
+    ScriptApp: { getOAuthToken: () => 'token-de-prueba' },
     // Calendar simulado en memoria (ver makeCalendar): crear, buscar,
     // actualizar y borrar quedan registrados sin tocar Calendar real.
     CalendarApp: {
@@ -2040,5 +2124,222 @@ describe('REPORTE: el correo del trigger = el WhatsApp del admin', () => {
     expect(tramo.split('\n').filter(l => l.startsWith('   - ')).length).toBe(20)
     expect(body).toContain('   … y 5 gasto(s) más')
     expect(body).toContain('• Total gastos: *$25.000*')
+  })
+})
+
+
+/* ══════════════════════════════════════════════════════════════
+   EL CORREO DEL REPORTE LLEVA EL EXCEL ADJUNTO
+   ────────────────────────────────────────────────────────────
+   Apps Script no escribe .xlsx: crea una hoja temporal, la
+   descarga por Drive y la adjunta. Acá se comprueba que el libro
+   tiene la MISMA estructura que el botón «📊 Exportar Excel» de
+   la app (Resumen / Movimientos / Citas), que se manda a la
+   papelera, y que un fallo del Excel nunca hace perder el correo.
+   ══════════════════════════════════════════════════════════════ */
+describe('REPORTE: el correo lleva el Excel adjunto', () => {
+  const D = '2026-08-04'
+
+  const filaAppt = (id, over = {}) => toRow('appointments', {
+    id, clientId: 'c1', clientName: 'Ana', clientPhone: '300111222',
+    serviceIds: 's1', serviceNames: 'Diseño de cejas', servicePrice: '350000', servicePrices: '{}',
+    domicilio: 'true', domicilioPrice: '10000', totalPrice: '360000', address: 'Calle 1 #2-3',
+    date: D, time: '9:05', createdAt: '2026-08-01T09:00:00',
+    calendarCreated: 'false', calendarEventId: '', completed: 'true',
+    duration: '30', paymentMethod: 'Efectivo', ...over,
+  })
+  const filaGasto = (id, over = {}) => toRow('expenses', {
+    id, description: '', amount: '10000', category: 'Gasolina', date: D, ...over,
+  })
+
+  const appts = [
+    filaAppt('a1'),                                                        // completada, domicilio
+    filaAppt('a2', { serviceNames: 'Lifting de pestañas', servicePrice: '130000',
+      domicilio: 'false', domicilioPrice: '0', totalPrice: '130000', time: '11:00',
+      paymentMethod: 'Transferencia' }),
+    filaAppt('a3', { completed: 'false', time: '15:00', paymentMethod: '',
+      domicilio: 'false', domicilioPrice: '0', totalPrice: '90000' }),      // pendiente
+  ]
+  const exps = [filaGasto('e1'), filaGasto('e2', { amount: '20000', category: 'Cera' })]
+
+  const env = (opts = {}) => {
+    const ss = makeSpreadsheet({
+      services:     [toRow('services', S1), toRow('services', S2)],
+      appointments: opts.appts === undefined ? appts : opts.appts,
+      expenses:     opts.exps === undefined ? exps : opts.exps,
+    })
+    return runCodeGs(ss)
+  }
+  const enviar = (g, period = { type: 'day', day: D }, kind = 'DIARIO') => {
+    g.call('_sendReportEmail', period, kind)
+    return g.store.mail[g.store.mail.length - 1]
+  }
+  const libro = (g) => g.store.books[0]
+  const hoja = (g, nombre) => libro(g)._sheets.find(s => s._title() === nombre)
+
+  it('el correo sale con el Excel adjunto y con el nombre del período', () => {
+    const g = env()
+    const mail = enviar(g)
+    expect(mail.attachments.length).toBe(1)
+    expect(mail.attachments[0]._nombre).toBe('reporte_2026-08-04.xlsx')
+  })
+
+  it('el libro trae las tres hojas: Resumen, Movimientos y Citas', () => {
+    const g = env()
+    enviar(g)
+    expect(libro(g)._sheets.map(s => s._title()))
+      .toEqual(['Resumen', 'Movimientos', 'Citas'])
+  })
+
+  it('Movimientos lista cada ingreso y cada gasto, con Totales y Neto', () => {
+    const g = env()
+    enviar(g)
+    const filas = hoja(g, 'Movimientos')._rows()
+    // Encabezado + 2 gastos + 2 completadas + en blanco + TOTAL + NETO.
+    // Ojo: los gastos van ARRIBA porque no tienen hora y el libro ordena
+    // por fecha y hora (mismo criterio que el de la app).
+    expect(filas.length).toBe(8)
+    expect(filas[0].slice(0, 5)).toEqual(
+      ['Fecha','Hora','Tipo','Cliente / Categoría','Detalle (servicios / gasto)'])
+    expect(filas[1][2]).toBe('Gasto')
+    expect(filas[1][3]).toBe('Gasolina')
+    expect(filas[1][8]).toBe(10000)
+    expect(filas[2][3]).toBe('Cera')
+    expect(filas[2][8]).toBe(20000)
+    expect(filas[3][2]).toBe('Ingreso')
+    expect(filas[3][3]).toBe('Ana')
+    expect(filas[3][1]).toBe('09:05')        // hora normalizada
+    expect(filas[3][5]).toBe(350000)         // servicios (sin el domicilio)
+    expect(filas[3][6]).toBe(10000)          // domicilio
+    expect(filas[3][7]).toBe(360000)         // total de la cita
+    expect(filas[3][9]).toBe('Efectivo')
+    expect(filas[4][3]).toBe('Ana')            // cliente en D…
+    expect(filas[4][4]).toBe('Lifting de pestañas')   // …y el detalle en E
+    expect(filas[4][9]).toBe('Transferencia')
+    expect(filas[6][4]).toBe('TOTAL')
+    expect(filas[7][4]).toBe('NETO (Ingreso − Gasto)')
+  })
+
+  it('Movimientos calcula Ingreso con fórmula y TOTAL/NETO con SUM', () => {
+    const g = env()
+    enviar(g)
+    const f = hoja(g, 'Movimientos')._formulas()
+    // H = F+G solo en los renglones de ingreso (filas 4 y 5).
+    expect(f['4,8']).toBe('=F4+G4')
+    expect(f['5,8']).toBe('=F5+G5')
+    expect(f['2,8']).toBeUndefined()          // el gasto no calcula ingreso
+    // Fila TOTAL (7): SUM de servicios, domicilio, ingreso y gasto.
+    expect(f['7,6']).toBe('=SUM(F2:F5)')
+    expect(f['7,7']).toBe('=SUM(G2:G5)')
+    expect(f['7,8']).toBe('=SUM(H2:H5)')
+    expect(f['7,9']).toBe('=SUM(I2:I5)')
+    // Fila NETO (8): ingreso − gasto de la fila TOTAL.
+    expect(f['8,8']).toBe('=H7-I7')
+  })
+
+  it('Resumen saca las cifras de Movimientos (sin duplicarlas a mano)', () => {
+    const g = env()
+    enviar(g)
+    const f = hoja(g, 'Resumen')._formulas()
+    expect(f['12,2']).toBe('=Movimientos!F7')      // Ingresos por servicios
+    expect(f['13,2']).toBe('=Movimientos!G7')      // Ingresos por domicilios
+    expect(f['14,2']).toBe('=B12+B13')             // TOTAL INGRESOS
+    expect(f['15,2']).toBe('=Movimientos!I7')      // Gastos del período
+    expect(f['16,2']).toBe('=B14-B15')             // NETO
+    expect(f['21,2']).toBe('=SUMIF(Movimientos!J2:J5,"Efectivo",Movimientos!H2:H5)')
+    expect(f['22,2']).toBe('=SUMIF(Movimientos!J2:J5,"Transferencia",Movimientos!H2:H5)')
+    expect(f['23,2']).toBe('=SUMIF(Movimientos!J2:J5,"Sin registrar",Movimientos!H2:H5)')
+  })
+
+  it('Citas trae las del período (completadas y pendientes) con su estado', () => {
+    const g = env()
+    enviar(g)
+    const filas = hoja(g, 'Citas')._rows()
+    expect(filas.length).toBe(4)                   // encabezado + 3 citas
+    expect(filas[0].slice(0, 3)).toEqual(['Fecha','Hora','Cliente'])
+    const estados = filas.slice(1).map(r => r[10]).sort()
+    expect(estados).toEqual(['Completada', 'Completada', 'Pendiente'])
+    // La de domicilio separa servicios y domicilio.
+    const ana = filas[1]
+    expect(ana[5]).toBe(350000)   // valor servicios
+    expect(ana[6]).toBe(10000)    // valor domicilio
+    expect(ana[7]).toBe(360000)   // total
+    expect(ana[8]).toBe('Sí')
+  })
+
+  it('el libro se descarga como .xlsx por Drive y con el token del script', () => {
+    const g = env()
+    enviar(g)
+    expect(g.store.fetched.length).toBe(1)
+    const { url, opts } = g.store.fetched[0]
+    // Usa el id del libro temporal que acaba de crear y pide el formato xlsx.
+    expect(url).toBe('https://docs.google.com/spreadsheets/d/' + libro(g).getId() + '/export?format=xlsx')
+    expect(opts.headers.Authorization).toBe('Bearer token-de-prueba')
+  })
+
+  it('la hoja temporal se manda a la papelera (no queda basura en Drive)', () => {
+    const g = env()
+    enviar(g)
+    expect(g.store.trashed).toEqual([{ id: libro(g)._id, trashed: true }])
+    expect(g.store.trashed[0].id).toBe(libro(g).getId())
+  })
+
+  it('el nombre del archivo sigue el período: día, mes y semana', () => {
+    const g = env()
+    enviar(g, { type: 'month', ym: '2026-08' }, 'MENSUAL')
+    expect(g.store.mail[g.store.mail.length - 1].attachments[0]._nombre)
+      .toBe('reporte_2026-08.xlsx')
+    enviar(g, { type: 'week', from: '2026-08-03', to: '2026-08-09' }, 'SEMANAL')
+    expect(g.store.mail[g.store.mail.length - 1].attachments[0]._nombre)
+      .toBe('reporte_2026-08-03_2026-08-09.xlsx')
+  })
+
+  it('sin movimientos no hay adjunto, pero el correo sale igual', () => {
+    const g = env({ appts: [], exps: [] })
+    const mail = enviar(g)
+    expect(mail.body).toContain('• Total gastos: *$0*')
+    expect(mail.attachments).toEqual([])
+    expect(g.store.books).toEqual([])            // ni siquiera crea el libro
+    expect(g.store.logs.join(' ')).toContain('(sin adjunto)')
+  })
+
+  it('si el Excel falla, el correo sale igual y se registra el error', () => {
+    const g = env()
+    g.store.failBook = true
+    const mail = enviar(g)
+    expect(mail.attachments).toEqual([])
+    expect(mail.body).toContain('*Reporte de actividad*')   // el correo llegó
+    expect(g.store.logs.join(' ')).toMatch(/ERROR generando el Excel del reporte/)
+  })
+
+  it('reintenta la descarga si el export todavía no está listo', () => {
+    const g = env()
+    g.store.fetchFails = 2        // las 2 primeras responden 503
+    const mail = enviar(g)
+    expect(mail.attachments.length).toBe(1)                 // la 3ª sí salió
+    expect(g.store.fetched.length).toBe(3)
+    expect(mail.attachments[0]._nombre).toBe('reporte_2026-08-04.xlsx')
+  })
+
+  it('si el export nunca responde 200, el correo sale sin adjunto', () => {
+    const g = env()
+    g.store.fetchFails = 99
+    const mail = enviar(g)
+    expect(mail.attachments).toEqual([])
+    expect(mail.body).toContain('*Reporte de actividad*')   // el correo llegó
+    expect(g.store.fetched.length).toBe(3)                 // agotó los 3 intentos
+    expect(g.store.logs.join(' ')).toMatch(/El export \.xlsx respondi/)
+  })
+
+  it('el pie del correo quedó solo con «Reporte automático …»', () => {
+    const g = env()
+    const mail = enviar(g, { type: 'day', day: D }, 'SEMANAL')
+    expect(mail.htmlBody).toContain('Reporte automático semanal')
+    expect(mail.htmlBody).not.toContain('Activa/desactiva con')
+    expect(mail.htmlBody).not.toContain('setupAllReportTriggers')
+    expect(mail.htmlBody).not.toContain('12:00 p.m.')
+    const g2 = env()
+    const mail2 = enviar(g2, { type: 'day', day: D }, 'MENSUAL')
+    expect(mail2.htmlBody).toContain('Reporte automático mensual')
   })
 })

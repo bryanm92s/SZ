@@ -956,6 +956,16 @@ function _cleanDate(raw) {
   } catch(_) { return ''; }
 }
 
+// '9:5' → '09:05'; '' si no hay hora válida. Réplica de cleanTime
+// (helpers.js): el Excel adjunto usa la misma normalización que el
+// que se descarga desde la app.
+function _cleanTime(raw) {
+  if (!raw) return '';
+  var m = String(raw).trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return '';
+  return String(Number(m[1])).padStart(2, '0') + ':' + m[2];
+}
+
 // period = {type:'day'|'week'|'month', day?, from?, to?, ym?}
 // 'week' se trata como range from..to (Lun-Dom ISO).
 function _inPeriod(d, period) {
@@ -1087,6 +1097,68 @@ function _buildReport(period) {
   var totalExpenses = expensesInPeriod.reduce(function(s,e){ return s + toN(e.amount||0); }, 0);
   var neto = revenue - totalExpenses;
 
+  // ── Filas del libro (las que van al Excel adjunto) ────────────
+  // Una fila por cita completada y una por gasto, en el mismo orden
+  // que el libro del frontend (periodLedger): fecha, hora, y dentro
+  // del mismo momento los ingresos antes que los gastos.
+  var movsRows = [];
+  incomes.forEach(function(a){
+    var amount   = toN(a.totalPrice || a.servicePrice || 0);
+    var isDom    = a.domicilio === true || a.domicilio === 'true';
+    var delivery = isDom ? Math.min(toN(a.domicilioPrice || 0), amount) : 0;
+    var m = String(a.paymentMethod || '').trim();
+    movsRows.push({
+      kind: 'in', date: _cleanDate(a.date), time: _cleanTime(a.time),
+      who: a.clientName || '', detail: a.serviceNames || '',
+      service: amount - delivery, delivery: delivery, amount: amount,
+      payMethod: (m === 'Efectivo' || m === 'Transferencia') ? m : 'Sin registrar'
+    });
+  });
+  expensesInPeriod.forEach(function(e){
+    movsRows.push({
+      kind: 'out', date: _cleanDate(e.date), time: '',
+      who: e.category || '', detail: e.description || '',
+      service: 0, delivery: 0, amount: toN(e.amount || 0), payMethod: ''
+    });
+  });
+  movsRows.sort(function(a, b){
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    if (a.time !== b.time) return a.time < b.time ? -1 : 1;
+    if (a.kind === b.kind) return 0;
+    return a.kind === 'in' ? -1 : 1;
+  });
+
+  // ── Hoja «Citas» del Excel ────────────────────────────────────
+  // Las agendadas para el período MÁS las creadas en él (una cita
+  // agendada para mañana y creada hoy aparece en ambos mundos).
+  var citasRows = [];
+  var yaVistas = {};
+  var pushCita = function(a){
+    var key = String(a.id || '');
+    if (yaVistas[key]) return;
+    yaVistas[key] = true;
+    var tot    = toN(a.totalPrice || a.servicePrice || 0);
+    var isDom  = a.domicilio === true || a.domicilio === 'true';
+    var dv     = isDom ? Math.min(toN(a.domicilioPrice || 0), tot) : 0;
+    var done   = boolV(a.completed);
+    var falta  = a.completed === 'noshow';
+    var m = String(a.paymentMethod || '').trim();
+    citasRows.push({
+      date: _cleanDate(a.date), time: _cleanTime(a.time),
+      clientName: a.clientName || '', clientPhone: a.clientPhone || '',
+      serviceNames: a.serviceNames || '',
+      service: tot - dv, delivery: dv, total: tot,
+      dom: isDom ? 'Sí' : 'No', address: a.address || '',
+      status: falta ? 'No asistió' : (done ? 'Completada' : 'Pendiente'),
+      payMethod: (done && !falta)
+        ? ((m === 'Efectivo' || m === 'Transferencia') ? m : 'Sin registrar') : '',
+      createdAt: String(a.createdAt || '').slice(0, 19).replace('T', ' ')
+    });
+  };
+  apptsInPeriod.forEach(pushCita);
+  createdInPeriod.forEach(pushCita);
+  citasRows.sort(function(a, b){ return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
+
   // Domicilios (cantidad de citas + ingresos por domicilio en completadas)
   var domicilios = apptsInPeriod.filter(function(a){ return boolV(a.domicilio); }).length;
   var domRevenue = totalDelivery;
@@ -1120,8 +1192,179 @@ function _buildReport(period) {
     totalExpenses: totalExpenses, neto: neto,
     domicilios: domicilios, domRevenue: domRevenue,
     topByDemand: topByDemand,
+    movsRows: movsRows, citasRows: citasRows,
+    range: { from: fromStr, to: toStr },
     label: label
   };
+}
+
+// ── Excel adjunto del reporte ───────────────────────────────────
+// Apps Script no escribe .xlsx directamente: se crea una hoja de
+// cálculo TEMPORAL con la MISMA estructura que el botón «📊 Exportar
+// Excel» del ReportTab (Resumen / Movimientos / Citas), se descarga
+// como xlsx por Drive y se adjunta al correo. La hoja temporal va a
+// la papelera al terminar: no queda basura en el Drive.
+//
+// Devuelve el Blob listo para adjuntar, o null si algo falla. En ese
+// caso el correo sale SIN adjunto: un reporte nunca se pierde por un
+// problema del Excel.
+function _buildReportXlsx(period, r) {
+  var ssNew = null;
+  try {
+    // Misma guarda que el botón de Excel de la app: sin filas no hay
+    // libro (evita rangos invertidos como SUM(F2:F1)).
+    if (!r.movsRows.length) return null;
+
+    ssNew = SpreadsheetApp.create('Reporte ' + r.label);
+    var wsR = ssNew.getSheets()[0];
+    wsR.setName('Resumen');
+    var wsM = ssNew.insertSheet('Movimientos');
+    var wsC = ssNew.insertSheet('Citas');
+
+    var PESO  = '"$"#,##0';
+    var first = 2;                        // 1ª fila de datos
+    var last  = r.movsRows.length + 1;    // última fila de datos
+    var tRow  = r.movsRows.length + 3;    // fila del TOTAL
+
+    // ── Hoja Movimientos ──────────────────────────────────────
+    // A Fecha, B Hora, C Tipo, D Cliente/Categoría, E Detalle,
+    // F Servicios, G Domicilio, H Ingreso (=F+G), I Gasto, J Método
+    var movs = [['Fecha','Hora','Tipo','Cliente / Categoría','Detalle (servicios / gasto)',
+                 'Servicios','Domicilio','Ingreso (total cita)','Gasto','Método de pago']];
+    r.movsRows.forEach(function(row){
+      movs.push(row.kind === 'in'
+        ? [row.date, row.time, 'Ingreso', row.who, row.detail,
+           row.service, row.delivery, row.amount, '', row.payMethod]
+        : [row.date, row.time, 'Gasto', row.who, row.detail,
+           '', '', '', row.amount, '']);
+    });
+    movs.push([]);
+    movs.push(['', '', '', '', 'TOTAL', '', '', '', '', '']);
+    movs.push(['', '', '', '', 'NETO (Ingreso − Gasto)', '', '', '', '', '']);
+    wsM.getRange(1, 1, movs.length, 10).setValues(movs);
+
+    // Las fórmulas se aplican aparte: setValues no crea fórmulas, y en
+    // los renglones de gasto la columna de ingreso debe quedar vacía.
+    wsM.getRange(first, 8, r.movsRows.length, 1).setFormulas(
+      r.movsRows.map(function(row, i){
+        return [row.kind === 'in' ? '=F' + (i + 2) + '+G' + (i + 2) : ''];
+      }));
+    wsM.getRange(tRow, 6, 1, 4).setFormulas([[
+      '=SUM(F' + first + ':F' + last + ')',
+      '=SUM(G' + first + ':G' + last + ')',
+      '=SUM(H' + first + ':H' + last + ')',
+      '=SUM(I' + first + ':I' + last + ')',
+    ]]);
+    wsM.getRange(tRow + 1, 8, 1, 1).setFormula('=H' + tRow + '-I' + tRow);
+    // Datos + fila en blanco + TOTAL + NETO
+    wsM.getRange(first, 6, r.movsRows.length + 3, 4).setNumberFormat(PESO);
+    wsM.setColumnWidths(1, 10, [11, 7, 9, 22, 40, 13, 13, 18, 13, 16]);
+
+    // ── Hoja Resumen ──────────────────────────────────────────
+    var resumen = [
+      ['REPORTE DE ACTIVIDAD'],
+      ['Período', r.label],
+      ['Generado', Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss')],
+      [''],
+      ['Métrica', 'Valor'],
+      ['Citas creadas (registradas en el período)', r.created],
+      ['Citas agendadas para el período', r.scheduled],
+      ['Citas completadas', r.completed],
+      ['Citas pendientes', r.pending],
+      ['No asistió', r.noshow],
+      [''],
+      ['Ingresos por servicios', ''],
+      ['Ingresos por domicilios', ''],
+      ['TOTAL INGRESOS', ''],
+      ['Gastos del período', ''],
+      ['NETO (ingresos − gastos)', ''],
+      [''],
+      ['Domicilios (cantidad de citas)', r.domicilios],
+      ['Ingresos proyectados (con pendientes, incl. domicilios)', r.projected],
+      [''],
+      ['Cobrado en efectivo', ''],
+      ['Cobrado por transferencia', ''],
+      ['Cobrado sin método registrado', ''],
+    ];
+    wsR.getRange(1, 1, resumen.length, 2).setValues(resumen);
+
+    // filaDe() devuelve el NÚMERO DE FILA de Excel (el índice 0-based
+    // del arreglo + 1), que es lo que piden las fórmulas.
+    var filaDe = function(etiqueta){
+      for (var i = 0; i < resumen.length; i++) if (resumen[i][0] === etiqueta) return i + 1;
+      return -1;
+    };
+    var sumif = function(metodo){
+      return '=SUMIF(Movimientos!J' + first + ':J' + last + ',"' + metodo +
+             '",Movimientos!H' + first + ':H' + last + ')';
+    };
+    var fServ = filaDe('Ingresos por servicios');
+    var fDom  = filaDe('Ingresos por domicilios');
+    var fTot  = filaDe('TOTAL INGRESOS');
+    var fGas  = filaDe('Gastos del período');
+    var fNeto = filaDe('NETO (ingresos − gastos)');
+    wsR.getRange(fServ, 2).setFormula('=Movimientos!F' + tRow);
+    wsR.getRange(fDom,  2).setFormula('=Movimientos!G' + tRow);
+    wsR.getRange(fTot,  2).setFormula('=B' + fServ + '+B' + fDom);
+    wsR.getRange(fGas,  2).setFormula('=Movimientos!I' + tRow);
+    wsR.getRange(fNeto, 2).setFormula('=B' + fTot + '-B' + fGas);
+    var fEfe = filaDe('Cobrado en efectivo');
+    wsR.getRange(fEfe,     2).setFormula(sumif('Efectivo'));
+    wsR.getRange(fEfe + 1, 2).setFormula(sumif('Transferencia'));
+    wsR.getRange(fEfe + 2, 2).setFormula(sumif('Sin registrar'));
+    wsR.getRange(fServ, 2, fNeto - fServ + 1, 1).setNumberFormat(PESO);
+    wsR.getRange(filaDe('Ingresos proyectados (con pendientes, incl. domicilios)'), 2)
+       .setNumberFormat(PESO);
+    wsR.getRange(fEfe, 2, 3, 1).setNumberFormat(PESO);
+    wsR.setColumnWidths(1, 2, [52, 18]);
+
+    // ── Hoja Citas ────────────────────────────────────────────
+    var citas = [['Fecha','Hora','Cliente','Teléfono','Servicios','Valor servicios',
+                  'Valor domicilio','Total','Domicilio','Dirección','Estado',
+                  'Método de pago','Creada el']];
+    r.citasRows.forEach(function(c){
+      citas.push([c.date, c.time, c.clientName, c.clientPhone, c.serviceNames,
+                  c.service, c.delivery, c.total, c.dom, c.address, c.status,
+                  c.payMethod, c.createdAt]);
+    });
+    wsC.getRange(1, 1, citas.length, 13).setValues(citas);
+    if (r.citasRows.length) wsC.getRange(2, 6, r.citasRows.length, 3).setNumberFormat(PESO);
+    wsC.setColumnWidths(1, 13, [10, 6, 20, 14, 30, 14, 14, 12, 10, 30, 12, 16, 20]);
+
+    // ── Descargar como .xlsx y devolver el blob ──
+    var id  = ssNew.getId();
+    var url = 'https://docs.google.com/spreadsheets/d/' + id + '/export?format=xlsx';
+    var token = 'Bearer ' + ScriptApp.getOAuthToken();
+    var resp = null;
+    // El export de una hoja RECIÉN creada a veces tarda un momento en
+    // estar listo: se reintenta 3 veces antes de desistir. Si sigue
+    // fallando, se lanza el error y el correo sale sin adjunto.
+    for (var intento = 1; intento <= 3; intento++) {
+      resp = UrlFetchApp.fetch(url, {
+        headers: { Authorization: token }, muteHttpExceptions: true
+      });
+      if (resp.getResponseCode() === 200) break;
+      Utilities.sleep(700);
+    }
+    if (resp.getResponseCode() !== 200)
+      throw new Error('El export .xlsx respondi\u00f3 ' + resp.getResponseCode());
+
+    return resp.getBlob().setName(_xlsxName(period));
+  } catch (ex) {
+    console.error('ERROR generando el Excel del reporte: ' + ex.message);
+    return null;
+  } finally {
+    // La hoja temporal se manda a la papelera sin importar el resultado.
+    try { if (ssNew) DriveApp.getFileById(ssNew.getId()).setTrashed(true); } catch (_) {}
+  }
+}
+
+// Nombre del archivo: igual que el del botón de la app
+// (reporte_<día> / reporte_<mes> / reporte_<desde>_<hasta>.xlsx).
+function _xlsxName(period) {
+  if (period.type === 'day')   return 'reporte_' + period.day + '.xlsx';
+  if (period.type === 'month') return 'reporte_' + period.ym + '.xlsx';
+  return 'reporte_' + period.from + '_' + period.to + '.xlsx';
 }
 
 // ── Núcleo: arma el mensaje (plain + HTML) y lo envía ─────────
@@ -1259,13 +1502,19 @@ function _sendReportEmail(period, kind) {
     '<div style="font-family:monospace;white-space:pre-wrap;line-height:1.5;color:#222;background:#fff;padding:8px">' +
     hlines.join('\n').replace(/\n/g, '<br>') +
     '</div>' +
-    '<br><br><small style="color:#888">Reporte autom\u00e1tico ' + kind.toLowerCase() +
-    ' \u2014 12:00 p.m. (hora Colombia). Activa/desactiva con ' +
-    '<code>setupAllReportTriggers()</code> / <code>removeAllReportTriggers()</code>.</small>' +
+    '<br><br><small style="color:#888">Reporte autom\u00e1tico ' + kind.toLowerCase() + '</small>' +
     '</body></html>';
 
-  GmailApp.sendEmail(recipient, subject, msg, { htmlBody: htmlBody, noReply: true });
-  console.log('OK Reporte ' + kind + ' enviado a ' + recipient);
+  // Excel adjunto: la MISMA estructura que el botón de la app
+  // (Resumen / Movimientos / Citas). Si falla, sale null y el correo
+  // se manda igual, sin adjunto.
+  var xlsx = _buildReportXlsx(period, r);
+  var opts = { htmlBody: htmlBody, noReply: true };
+  if (xlsx) opts.attachments = [xlsx];
+
+  GmailApp.sendEmail(recipient, subject, msg, opts);
+  console.log('OK Reporte ' + kind + ' enviado a ' + recipient +
+              (xlsx ? ' (con Excel adjunto)' : ' (sin adjunto)'));
 }
 
 /**
