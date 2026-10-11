@@ -1144,9 +1144,6 @@ function GS() { return <style>{`
   .kpi-net{background:var(--gradient);border:none;color:white}
   .kpi-net .kpi-label,.kpi-net .kpi-sub{color:rgba(255,255,255,.85)}
   .kpi-net .kpi-value{color:white}
-  /* «No asistió»: mismo KPI pero en rojo — cuenta actividad, no ingreso */
-  .kpi-ns{background:var(--red-bg);border-color:#F5C0B0}
-  .kpi-ns .kpi-label,.kpi-ns .kpi-value{color:var(--red)}
 
   /* Encabezado de sección del reporte */
   .rep-sec{
@@ -3514,8 +3511,8 @@ function ReportTab({appts,expenses,services,setTab}) {
   // que replica exactamente las fórmulas de siempre. Así la presentación
   // puede cambiar sin alterar un solo número.
   const M = reportMetrics({appts:safeA, expenses:safeE, inPeriod, from:fromVal(), to:toVal()})
-  const { created, scheduled, completed, pending, noshow, noshowAppts,
-          cancelledRate, completionRate, revenue, projected,
+  const { created, scheduled, completed, pending, noshow,
+          completionRate, revenue, projected,
           totalExpenses, neto, avgTicket, domicilios, domRevenue } = M
 
   // LIBRO ÚNICO del período: ingresos (citas completadas) y gastos.
@@ -3744,19 +3741,6 @@ function ReportTab({appts,expenses,services,setTab}) {
           <div className="kpi-label">Pendientes</div>
           <div className="kpi-value" style={{color:'var(--gold)'}}>{pending}</div>
         </div>
-        {/* No asistió: la tarjeta que faltaba. A doble columna porque
-            cierra la actividad del período. Cuenta actividad, NO ingreso:
-            esas citas no entran ni en el neto ni en el «Proyectado». */}
-        <div className="kpi kpi-ns" style={{gridColumn:'span 2',display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
-          <div style={{minWidth:0}}>
-            <div className="kpi-label" style={{marginBottom:2}}>✗ No asistió</div>
-            <div className="kpi-sub" style={{marginTop:0}}>no cuentan como ingreso</div>
-          </div>
-          <div style={{flexShrink:0,textAlign:'right'}}>
-            <div className="kpi-value">{noshow}</div>
-            {noshow>0 && <div className="kpi-sub" style={{marginTop:0}}>{cancelledRate}% del período</div>}
-          </div>
-        </div>
       </div>
       <div className="kpi" style={{marginTop:8,display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
         <div style={{minWidth:0}}>
@@ -3766,29 +3750,12 @@ function ReportTab({appts,expenses,services,setTab}) {
         <div className="kpi-value" style={{flexShrink:0}}>{completionRate}%</div>
       </div>
 
-      {/* Las citas que no asistieron: no generan ingreso, pero tampoco
-          deben desaparecer del reporte. Se listan aquí, con el importe
-          tachado, para que se vea cuáles fueron y cuánto dejaron de
-          ingresar. (Los ingresos siguen siendo solo de completadas.) */}
-      {noshowAppts.length>0 && (
-        <div className="card" style={{marginBottom:14}}>
-          <div style={{fontWeight:700,fontSize:14,marginBottom:10}}>✗ Citas que no asistieron</div>
-          {noshowAppts.map((a,i)=>{
-            const d = cleanDate(a.date) || ''
-            return (
-              <div key={a.id||i} className="row" style={{fontSize:13}}>
-                <div style={{flexShrink:0,width:46,fontSize:11,color:'var(--t2)',fontWeight:600}}>{d?`${d.slice(8)}/${d.slice(5,7)}`:'—'}</div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.clientName||'Cliente'}</div>
-                  <div style={{fontSize:11,color:'var(--t2)'}}>✨ {a.serviceNames||'—'}{bool(a.domicilio)?' · 🛵 domicilio':''}</div>
-                </div>
-                <div style={{flexShrink:0,fontWeight:700,color:'var(--t2)',textDecoration:'line-through'}}>{fmtM(a.totalPrice||a.servicePrice)}</div>
-              </div>
-            )
-          })}
-          <div style={{marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)',fontSize:12,color:'var(--t2)',lineHeight:1.5}}>
-            No cuentan como ingreso: no entran en el neto, en «Total ingresos» ni en el «Proyectado».
-          </div>
+      {/* No asistió: SOLO el número. No se lista la clienta, la cita ni el
+          importe — el reporte informa cuántas, no cuáles. */}
+      {noshow>0 && (
+        <div className="kpi" style={{marginTop:8,display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+          <div className="kpi-label" style={{marginBottom:0}}>✗ No asistió</div>
+          <div className="kpi-value" style={{color:'var(--red)',flexShrink:0}}>{noshow}</div>
         </div>
       )}
 
@@ -3810,10 +3777,14 @@ function ReportTab({appts,expenses,services,setTab}) {
           <div className="kpi-label">Gastos</div>
           <div className="kpi-value" style={{color:'var(--red)'}}>{fmtM(totalExpenses)}</div>
         </div>
-        <div className="kpi">
-          <div className="kpi-label">Domicilios</div>
-          <div className="kpi-value">{domicilios}</div>
-          <div className="kpi-sub">{fmtM(domRevenue)} en domicilios</div>
+        {/* Domicilios ocupa las dos columnas: eran 3 tarjetas en una rejilla
+            de 2 y la tercera quedaba sola a media anchura. */}
+        <div className="kpi" style={{gridColumn:'span 2',display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+          <div style={{minWidth:0}}>
+            <div className="kpi-label" style={{marginBottom:2}}>Domicilios</div>
+            <div className="kpi-sub" style={{marginTop:0}}>{fmtM(domRevenue)} en domicilios</div>
+          </div>
+          <div className="kpi-value" style={{flexShrink:0}}>{domicilios}</div>
         </div>
       </div>
       {/* El neto es el único indicador con color propio: es el resultado

@@ -513,13 +513,6 @@ export const reportMetrics = ({ appts, expenses, inPeriod, from, to }) => {
 
   return {
     created, scheduled, completed, pending, noshow, domicilios,
-    // Las citas «no asistió» del período, de la más reciente a la más
-    // antigua. No son ingreso, pero tampoco deben desaparecer del
-    // reporte: la vista las lista una a una.
-    noshowAppts: apptsInPeriod
-      .filter(a => a.completed === 'noshow')
-      .sort((a, b) => `${cleanDate(b.date)} ${cleanTime(b.time)}`
-        .localeCompare(`${cleanDate(a.date)} ${cleanTime(a.time)}`)),
     completionRate: scheduled > 0 ? Math.round(completed / scheduled * 100) : 0,
     cancelledRate:  scheduled > 0 ? Math.round(noshow / scheduled * 100) : 0,
     revenue:      ledger.totalIncome,   // «Total ingresos» (solo completadas)

@@ -608,27 +608,23 @@ describe('reportMetrics', () => {
     expect(m.cancelledRate).toBe(25)    // 1 de 4
   })
 
-  it('lista las citas «no asistió» del período, de la más reciente a la más antigua', () => {
+  it('cuenta las «no asistió» del período sin mezclarlas con lo demás', () => {
     const ns = [
       { id: 'n1', date: '2026-01-03', time: '09:00', completed: 'noshow', totalPrice: 10000 },
       { id: 'n2', date: '2026-01-20', time: '15:00', completed: 'noshow', totalPrice: 20000 },
-      { id: 'n3', date: '2026-01-20', time: '10:00', completed: 'noshow', totalPrice: 30000 },
       { id: 'n4', date: '2026-02-01', time: '10:00', completed: 'noshow', totalPrice: 40000 }, // fuera del período
       { id: 'n5', date: '2026-01-10', time: '10:00', completed: true,     totalPrice: 50000 }, // completada
       { id: 'n6', date: '2026-01-11', time: '10:00', completed: false,    totalPrice: 60000 }, // pendiente
     ]
     const m = reportMetrics({ appts: ns, expenses: [], inPeriod, from: FROM, to: TO })
-    expect(m.noshow).toBe(3)
-    expect(m.noshowAppts.map(a => a.id)).toEqual(['n2', 'n3', 'n1']) // más reciente primero
-    expect(m.noshowAppts.some(a => a.id === 'n4')).toBe(false)        // fuera del período
-    expect(m.noshowAppts.some(a => a.id === 'n5')).toBe(false)        // completada, no noshow
-    expect(m.noshowAppts.some(a => a.id === 'n6')).toBe(false)        // pendiente, no noshow
-  })
-
-  it('sin citas «no asistió» la lista sale vacía (nunca undefined)', () => {
-    expect(M().noshowAppts.map(a => a.id)).toEqual(['a3'])
+    expect(m.noshow).toBe(2)      // n1 y n2: ni la de febrero, ni completadas ni pendientes
+    expect(m.scheduled).toBe(4)   // n1, n2, n5, n6
+    expect(m.completed).toBe(1)
+    expect(m.pending).toBe(1)
+    expect(m.cancelledRate).toBe(50)  // 2 de 4
+    // Sin citas «no asistió» el contador es 0, nunca undefined
     const none = reportMetrics({ appts: [], expenses: [], inPeriod, from: FROM, to: TO })
-    expect(none.noshowAppts).toEqual([])
+    expect(none.noshow).toBe(0)
   })
 
   it('el neto NO es «Proyectado − Gastos»', () => {
