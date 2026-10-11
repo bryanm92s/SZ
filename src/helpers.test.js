@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptGroup, reportMetrics, periodLedger, isResetOutcome, domBreakdown } from './helpers.js'
+import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, canRemindAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptGroup, reportMetrics, periodLedger, isResetOutcome, domBreakdown } from './helpers.js'
 
 // phoneMatch/getSlots depend on todayStr() (local today). Freeze the clock
 // so the tests are deterministic.
@@ -908,5 +908,52 @@ describe('domBreakdown', () => {
 
   it('cita a domicilio sin recargo: solo el indicador, todo en servicios', () => {
     expect(domBreakdown(350000, true, 0)).toEqual({ services: 350000, delivery: 0, total: 350000 })
+  })
+})
+
+/* -- canRemindAppt ------------------------------------------------
+   Regla única de las tres vistas (Panel, Citas, Calendario): no se
+   manda recordatorio de una cita que ya pasó.                    */
+describe('canRemindAppt', () => {
+  const base = { clientName: 'Ana', clientPhone: '3001234567', serviceNames: 'Cejas', totalPrice: 350000 }
+  const hoy     = '2026-01-15'  // reloj congelado a las 13:00 (ver beforeAll)
+  const manana  = '2026-01-16'
+  const ayer    = '2026-01-14'
+
+  it('sí se puede recordar una cita futura o de hoy por venir', () => {
+    expect(canRemindAppt({ ...base, date: manana, time: '09:00' })).toBe(true)
+    expect(canRemindAppt({ ...base, date: hoy,    time: '14:00' })).toBe(true)
+    expect(canRemindAppt({ ...base, date: hoy,    time: '13:05' })).toBe(true)
+  })
+
+  it('gracia de 10 min tras empezar (la del aviso «⏰ Recordar ahora»)', () => {
+    expect(canRemindAppt({ ...base, date: hoy, time: '12:59' })).toBe(true)  // hace 1 min
+    expect(canRemindAppt({ ...base, date: hoy, time: '12:50' })).toBe(true)  // hace 10
+    expect(canRemindAppt({ ...base, date: hoy, time: '12:49' })).toBe(false) // hace 11
+  })
+
+  it('NO se puede recordar una cita pasada', () => {
+    expect(canRemindAppt({ ...base, date: hoy,    time: '09:00' })).toBe(false)
+    expect(canRemindAppt({ ...base, date: ayer,   time: '09:00' })).toBe(false)
+    expect(canRemindAppt({ ...base, date: ayer,   time: '23:00' })).toBe(false)
+  })
+
+  it('NO se puede recordar una cita completada ni «no asistió»', () => {
+    expect(canRemindAppt({ ...base, date: manana, time: '09:00', completed: 'true' })).toBe(false)
+    expect(canRemindAppt({ ...base, date: manana, time: '09:00', completed: 'noshow' })).toBe(false)
+  })
+
+  it('sin fecha o hora válidas no hay recordatorio posible', () => {
+    expect(canRemindAppt({ ...base, date: '',      time: '09:00' })).toBe(false)
+    expect(canRemindAppt({ ...base, date: manana,  time: '' })).toBe(false)
+    expect(canRemindAppt({ ...base, date: 'basura', time: '09:00' })).toBe(false)
+    expect(canRemindAppt({ ...base, date: manana,  time: 'basura' })).toBe(false)
+    expect(canRemindAppt(null)).toBe(false)
+    expect(canRemindAppt(undefined)).toBe(false)
+  })
+
+  it('la ventana de gracia es configurable', () => {
+    expect(canRemindAppt({ ...base, date: hoy, time: '12:49' }, undefined, 30)).toBe(true)
+    expect(canRemindAppt({ ...base, date: hoy, time: '12:59' }, undefined, 0)).toBe(false)
   })
 })

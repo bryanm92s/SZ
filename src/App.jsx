@@ -10,7 +10,7 @@ import {
   toN, localDateStr, todayStr, tomorrowStr, monthStr, localNowISO,
   bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots, monthLedger,
   svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, openWhatsApp, PAYMENT_METHODS, payMethodOf,
-  apptStatus, canModifyAppt, checkSlot, confirmOutcome, projectedIncome, movsRanges,
+  apptStatus, canModifyAppt, canRemindAppt, checkSlot, confirmOutcome, projectedIncome, movsRanges,
   serviceDeletionCheck, apptGroup, reportMetrics, isResetOutcome, domBreakdown,
 } from './helpers.js'
 
@@ -1343,13 +1343,15 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab}) 
   // Citas "por recordar": pendientes de HOY a ≤60 min de empezar
   // (o que empezaron hace <10 min). Botón rápido para enviar el WA.
   const remindNow = new Date()
+  // Misma regla que Citas y Calendario (canRemindAppt: pendiente, con
+  // fecha y hora válidas, y dentro de la gracia de 10 min tras empezar),
+  // más la ventana de «≤60 min antes» que define este aviso del Panel.
   const toRemind = ta.filter(a => {
-    if (bool(a.completed) || a.completed==='noshow') return false
+    if (!canRemindAppt(a)) return false
     const [h, m] = cleanTime(a.time).split(':').map(Number)
     if (isNaN(h)) return false
     const start = new Date(); start.setHours(h, m, 0, 0)
-    const mins = Math.round((start - remindNow) / 60000)
-    return mins <= 60 && mins > -10
+    return Math.round((start - remindNow) / 60000) <= 60
   })
 
   const allDone  = safeA.filter(a=>bool(a.completed))
@@ -1968,6 +1970,10 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
   const dom    = bool(appt.domicilio)
   const status = apptStatus(appt)
   const past   = isPastAppt(appt)
+  // El recordatorio se rige por canRemindAppt — MISMA regla que el Panel
+  // y el Calendario: nada de avisos a citas que ya pasaron, salvo la
+  // gracia de 10 min tras empezar (la del aviso «⏰ Recordar ahora»).
+  const remindable = canRemindAppt(appt)
   // Es una cita futura si su fecha es posterior a HOY (aún no llega
   // el día). En ese caso no se puede marcar como Completada ni como
   // No asistió — no tiene sentido. Editar y Eliminar sí siguen activos.
@@ -2032,7 +2038,7 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
           style={{background:status==='noshow'?'var(--red)':'#FFF4F0',color:status==='noshow'?'white':'var(--red)',border:`1.5px solid ${status==='noshow'?'var(--red)':'#F5C0B0'}`,borderRadius:8,padding:'6px 10px',fontSize:12,fontWeight:600,cursor:isFuture?'not-allowed':'pointer',fontFamily:'inherit',transition:'all .15s',opacity: status==='done'?.5:1}}>
           ✗ No asistió
         </button>
-        {status==='pending' && <button className="btn-wa" onClick={()=>openWA(appt.clientPhone,appt.clientName,appt.time,appt.date,appt.serviceNames,appt.totalPrice||appt.servicePrice,dom,appt.domicilioPrice)}>💬 Recordatorio</button>}
+        {status==='pending' && remindable && <button className="btn-wa" onClick={()=>openWA(appt.clientPhone,appt.clientName,appt.time,appt.date,appt.serviceNames,appt.totalPrice||appt.servicePrice,dom,appt.domicilioPrice)}>💬 Recordatorio</button>}
         {/* Editar/Eliminar: única decisión canModifyAppt (solo pendientes),
             la misma que aplican el Calendario y el detalle. Una cita pasada
             PENDIENTE también se puede editar o eliminar desde aquí. */}
@@ -4447,7 +4453,9 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
               ✏️ Editar
             </button>
           )}
-          {!done && !noshow && (
+          {/* Recordatorio: MISMA regla que en Citas y en el Panel
+              (canRemindAppt) — no se avisa de una cita que ya pasó. */}
+          {canRemindAppt(a) && (
             <button className="btn-sm" style={{ flex: 1 }}
               onClick={() => {
                 const phone = clients.find(c => c.id === a.clientId)?.phone || ''

@@ -197,6 +197,32 @@ export const apptStatus = a => {
 // La pestaña Citas y el Calendario usan esta misma regla.
 export const canModifyAppt = a => apptStatus(a) === 'pending'
 
+/* ── ¿Se puede enviar el recordatorio de esta cita? ──────────────────
+   Regla ÚNICA para el Panel, la pestaña Citas y el Calendario: no se
+   manda recordatorio de una cita que ya pasó (el mensaje anuncia una
+   fecha y una hora, avisar de algo de lo que ya pasó confunde a la
+   clienta). La única concesión es la ventana de gracia de `graceMin`
+   (10 min por defecto) después de empezar — la misma del aviso
+   «⏰ Recordar ahora» — pensada para el recordatorio que se manda
+   justo a la hora.
+   También devuelve false si la cita está completada o marcada como
+   «no asistió», o si no tiene fecha y hora válidas: sin ellas no hay
+   recordatorio posible (el mensaje las lleva dentro).             */
+export const canRemindAppt = (a, now = new Date(), graceMin = 10) => {
+  if (!a) return false
+  if (bool(a.completed) || a.completed === 'noshow') return false
+  const d = cleanDate(a.date)
+  const t = cleanTime(a.time)
+  if (!d || !t) return false
+  const td = localDateStr(now)
+  if (d < td) return false                  // otro día: ya pasó
+  if (d > td) return true                   // futuro: siempre
+  const [h, m] = t.split(':').map(Number)   // hoy: gracia tras empezar
+  if (isNaN(h)) return false
+  const start = new Date(now); start.setHours(h, m, 0, 0)
+  return (now.getTime() - start.getTime()) <= graceMin * 60000
+}
+
 /**
  * Grupo de la pestaña Citas en el que cae una cita.
  * Réplica de los filtros de `groups` en ApptsTab: sirve para abrir y
