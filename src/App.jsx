@@ -3522,6 +3522,14 @@ function ReportTab({appts,expenses,services,setTab}) {
   // Gastos del período (filas de salida del libro único)
   const expensesInPeriod = ledger.outs
 
+  // ¿Hay algo que mandar? El botón de WhatsApp antes se apagaba con
+  // «Creadas = 0», pero Creadas cuenta por `createdAt` —cuándo se
+  // REGISTRÓ la cita— y no por el período de la cita. Una cita creada
+  // ayer y agendada para hoy dejaba el botón inutilizado aunque el
+  // reporte tuviera neto que enviar. Basta con que el período tenga
+  // citas agendadas o movimientos.
+  const hayQueReportar = created > 0 || scheduled > 0 || ledger.rows.length > 0
+
   // Top servicios del período (por demanda en completadas)
   const svcStats = {}
   apptsInPeriod.filter(a => bool(a.completed) && a.completed!=='noshow').forEach(a => {
@@ -3843,8 +3851,10 @@ function ReportTab({appts,expenses,services,setTab}) {
         <button className="btn-o" onClick={exportExcel} disabled={ledger.rows.length===0} style={{padding:'14px 12px'}}>
           📊 Exportar Excel
         </button>
-        <button className="btn-wa" onClick={sendWA} disabled={created===0 || !ADMIN_WA_DIGITS}
-          title={!ADMIN_WA_DIGITS ? 'Falta configurar VITE_ADMIN_WHATSAPP en Vercel (Settings → Environment Variables)' : ''}
+        <button className="btn-wa" onClick={sendWA} disabled={!ADMIN_WA_DIGITS || !hayQueReportar}
+          title={!ADMIN_WA_DIGITS
+            ? 'Falta configurar VITE_ADMIN_WHATSAPP en Vercel (Settings → Environment Variables)'
+            : !hayQueReportar ? 'No hay citas ni movimientos en este período' : ''}
           style={{padding:'14px 12px'}}>
           💬 WhatsApp admin
         </button>
