@@ -3588,7 +3588,6 @@ function ReportTab({appts,expenses,services,setTab}) {
       ['Citas completadas', completed],
       ['Citas pendientes', pending],
       ['No asistió', noshow],
-      ['Tasa de completado (%)', completionRate],
       [''],
       ['Ingresos por servicios', link('F', ledger.totalService)],
       ['Ingresos por domicilios', link('G', ledger.totalDelivery)],
@@ -3750,14 +3749,6 @@ function ReportTab({appts,expenses,services,setTab}) {
           <div className="kpi-value" style={{color:'var(--gold)'}}>{pending}</div>
         </div>
       </div>
-      <div className="kpi" style={{marginTop:8,display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
-        <div style={{minWidth:0}}>
-          <div className="kpi-label" style={{marginBottom:2}}>Porcentaje completado</div>
-          <div className="kpi-sub" style={{marginTop:0}}>{completed} de {scheduled} agendadas</div>
-        </div>
-        <div className="kpi-value" style={{flexShrink:0}}>{completionRate}%</div>
-      </div>
-
       {/* No asistió: SOLO el número. No se lista la clienta, la cita ni el
           importe — el reporte informa cuántas, no cuáles. */}
       {noshow>0 && (
@@ -3845,6 +3836,15 @@ function ReportTab({appts,expenses,services,setTab}) {
           <span style={{color:neto>=0?'var(--green)':'var(--red)'}}>{fmtM(neto)}</span>
         </div>
       </div>
+
+      {/* El número del admin NO vive en el código: sale de
+          VITE_ADMIN_WHATSAPP (Vercel → Environment Variables). Si falta,
+          se avisa de forma VISIBLE, no solo al pasar el mouse. */}
+      {!ADMIN_WA_DIGITS && (
+        <div style={{background:'var(--warn-bg)',border:'1px solid #F5C0B0',borderRadius:12,padding:'10px 14px',marginBottom:10,fontSize:12,color:'var(--warn-t)',lineHeight:1.6}}>
+          ⚠️ Falta configurar el número del administrador. Agrega la variable <strong>VITE_ADMIN_WHATSAPP</strong> en Vercel <em>(Settings → Environment Variables)</em> y vuelve a desplegar: mientras tanto el botón de WhatsApp queda apagado.
+        </div>
+      )}
 
       {/* Botones de acción */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
