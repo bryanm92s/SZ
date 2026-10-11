@@ -3512,8 +3512,8 @@ function ReportTab({appts,expenses,services,setTab}) {
   // puede cambiar sin alterar un solo número.
   const M = reportMetrics({appts:safeA, expenses:safeE, inPeriod, from:fromVal(), to:toVal()})
   const { created, scheduled, completed, pending, noshow,
-          completionRate, revenue, projected,
-          totalExpenses, neto, avgTicket, domicilios, domRevenue } = M
+          revenue, projected,
+          totalExpenses, neto, domicilios, domRevenue } = M
 
   // LIBRO ÚNICO del período: ingresos (citas completadas) y gastos.
   // Pantalla, WhatsApp y Excel salen de aquí, así el neto siempre cuadra.
@@ -3661,7 +3661,6 @@ function ReportTab({appts,expenses,services,setTab}) {
       `• Creadas (registradas): *${created}*`,
       `• Agendadas para el período: *${scheduled}*`,
       `• Completadas: *${completed}*${pending?` · Pendientes: ${pending}`:''}`,
-      `• Tasa completado: *${completionRate}%*`,
       ...(noshow>0 ? [`• No asistió: *${noshow}*`] : []),
       '',
       `${MONEY} *Ingresos*`,
