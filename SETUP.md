@@ -120,9 +120,15 @@ Con los pasos anteriores la app ya funciona. Estas funciones se activan
 aparte y están explicadas en detalle en
 [`docs/MANUAL_USUARIO.md`](docs/MANUAL_USUARIO.md):
 
-- **Reportes automáticos** (diario, semanal, mensual y anual por correo) y
-  **respaldos automáticos** en Drive. Se instalan ejecutando
-  `setupAllReportTriggers()` **una sola vez** desde el editor de Apps Script.
+- **Reportes automáticos** (diario, semanal, mensual y anual por correo).
+  Se instalan ejecutando `setupAllReportTriggers()` **una sola vez**.
+- **Respaldos automáticos** en Drive. Se instalan con **dos** funciones
+  separadas — ninguna de ellas es `setupAllReportTriggers()`:
+  - `setupDailyBackupTrigger()` → copia diaria a las 23:00. **Es la que
+    crea** las carpetas `BACKUP-PROYECTO/Backups/<nombre de la hoja>/`.
+  - `setupWeeklyEmailTrigger()` → envía el último respaldo los sábados 9:00.
+  > ⚠️ El correo semanal **no funciona hasta que exista al menos una copia**,
+  > y la única que la genera es el trigger diario.
 - **Recuperación de acceso por código** — funciona sola, pero depende de que
   exista la propiedad `SB_AUTHORIZED_EMAIL`.
 
@@ -143,9 +149,18 @@ aparte y están explicadas en detalle en
 - Verifica que ambos dispositivos apuntan a la misma URL de Vercel
 - Los datos viven en Google Sheets, no en el navegador
 
-**No llegan los reportes ni el respaldo semanal**
+**No llegan los reportes automáticos**
 - Revisa que existe la propiedad `SB_AUTHORIZED_EMAIL` (engranaje ⚙️ →
   *Propiedades del proyecto* → *Propiedades de script*)
 - Abre **Registro de ejecución** en el editor de Apps Script: si falta la
   propiedad, ahí aparece el aviso «falta la propiedad SB_AUTHORIZED_EMAIL»
 - Verifica que ejecutaste `setupAllReportTriggers()` una vez
+
+**No llega el correo de respaldo del sábado**
+- El correo adjunta el respaldo **más reciente**, así que **primero debe
+  existir al menos una copia**. Sin ninguna, falla con
+  «Carpeta de backups de "…" no encontrada».
+- Verifica que ejecutaste `setupDailyBackupTrigger()` (crea la copia diaria
+  a las 23:00 y **genera las carpetas**) y `setupWeeklyEmailTrigger()`.
+- Para no esperar, ejecuta `createDailyBackup()` a mano: crea el primer
+  respaldo al instante y ya podrás probar el correo.
