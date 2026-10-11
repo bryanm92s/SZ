@@ -1240,7 +1240,10 @@ function _buildReportXlsx(period, r) {
         : [row.date, row.time, 'Gasto', row.who, row.detail,
            '', '', '', row.amount, '']);
     });
-    movs.push([]);
+    // Ojo con el renglón en blanco: setValues exige un arreglo
+    // rectangular, así que va lleno con 10 celdas vacías (una fila []
+    // lanza excepción y se pierde el adjunto entero).
+    movs.push(['', '', '', '', '', '', '', '', '', '']);
     movs.push(['', '', '', '', 'TOTAL', '', '', '', '', '']);
     movs.push(['', '', '', '', 'NETO (Ingreso − Gasto)', '', '', '', '', '']);
     wsM.getRange(1, 1, movs.length, 10).setValues(movs);
@@ -1263,27 +1266,29 @@ function _buildReportXlsx(period, r) {
     wsM.setColumnWidths(1, 10, [11, 7, 9, 22, 40, 13, 13, 18, 13, 16]);
 
     // ── Hoja Resumen ──────────────────────────────────────────
+    // Mismo cuidado que en Movimientos: todas las filas con 2 celdas,
+    // aunque la segunda quede vacía (setValues exige filas rectangulares).
     var resumen = [
-      ['REPORTE DE ACTIVIDAD'],
+      ['REPORTE DE ACTIVIDAD', ''],
       ['Período', r.label],
       ['Generado', Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss')],
-      [''],
+      ['', ''],
       ['Métrica', 'Valor'],
       ['Citas creadas (registradas en el período)', r.created],
       ['Citas agendadas para el período', r.scheduled],
       ['Citas completadas', r.completed],
       ['Citas pendientes', r.pending],
       ['No asistió', r.noshow],
-      [''],
+      ['', ''],
       ['Ingresos por servicios', ''],
       ['Ingresos por domicilios', ''],
       ['TOTAL INGRESOS', ''],
       ['Gastos del período', ''],
       ['NETO (ingresos − gastos)', ''],
-      [''],
+      ['', ''],
       ['Domicilios (cantidad de citas)', r.domicilios],
       ['Ingresos proyectados (con pendientes, incl. domicilios)', r.projected],
-      [''],
+      ['', ''],
       ['Cobrado en efectivo', ''],
       ['Cobrado por transferencia', ''],
       ['Cobrado sin método registrado', ''],
@@ -1561,7 +1566,14 @@ function _sendReportEmail(period, kind) {
   // se manda igual, sin adjunto.
   var xlsx = _buildReportXlsx(period, r);
   var opts = { htmlBody: htmlBody, noReply: true };
-  if (xlsx) opts.attachments = [xlsx];
+  if (xlsx) {
+    opts.attachments = [xlsx];
+  } else {
+    // Señal VISIBLE de que el adjunto no salió (el texto plano no se
+    // toca: tiene que quedar idéntico al WhatsApp del admin).
+    opts.htmlBody += '<br><small style="color:#c0392b">' +
+      String.fromCharCode(0x26A0) + ' El Excel del reporte no se pudo generar: el correo va sin adjunto.</small>';
+  }
 
   GmailApp.sendEmail(recipient, subject, msg, opts);
   console.log('OK Reporte ' + kind + ' enviado a ' + recipient +

@@ -96,7 +96,20 @@ function makeSheet(name) {
           }
           return out
         },
-        setValues: (data) => { data.forEach((row, i) => { rows[r - 1 + i] = row.slice() }) },
+        // Apps Script exige un arreglo RECTANGULAR que llene el rango:
+        // filas de más o de menos, o filas cortas, lanzan excepción.
+        // Sin esta validación el mock era más blando que el original y
+        // dejó pasar una fila vacía que rompía el Excel del reporte.
+        setValues: (data) => {
+          const ancho = data.reduce((m, row) => Math.max(m, Array.isArray(row) ? row.length : 0), 0)
+          if (data.length !== nRows || ancho !== nCols ||
+              data.some(row => !Array.isArray(row) || row.length !== nCols)) {
+            throw new Error(
+              'The number of rows in the data must match the number of rows in the range ' +
+              '(esperaba ' + nRows + 'x' + nCols + ', llegó ' + data.length + 'x' + ancho + ')')
+          }
+          data.forEach((row, i) => { rows[r - 1 + i] = row.slice() })
+        },
         setFormulas: (data) => grabar((i, j) => (data[i] && data[i][j] ? data[i][j] : '')),
         setFormula:  (f)    => grabar(() => f),
         // Code.gs encadena .setNumberFormat('@').setValues(...) → debe devolver el rango.
@@ -2339,6 +2352,34 @@ describe('REPORTE: el correo lleva el Excel adjunto', () => {
     expect(mail.attachments).toEqual([])
     expect(mail.body).toContain('*Reporte de actividad*')   // el correo llegó
     expect(g.store.logs.join(' ')).toMatch(/ERROR generando el Excel del reporte/)
+  })
+
+  it('si el Excel no se pudo generar, el correo lo avisa en el HTML', () => {
+    const g = env()
+    expect(enviar(g).htmlBody).not.toContain('El Excel del reporte no se pudo generar')
+
+    const g2 = env()
+    g2.store.failBook = true
+    const falla = enviar(g2)
+    expect(falla.htmlBody).toContain('El Excel del reporte no se pudo generar')
+    // El texto plano NO cambia: es el que compara la paridad con el
+    // WhatsApp del admin.
+    expect(falla.body).toContain('*Reporte de actividad*')
+    expect(falla.body).not.toContain('El Excel del reporte')
+  })
+
+  it('las hojas se llenan con filas rectangulares (setValues lo exige)', () => {
+    // Regresión real: una fila vacía [] dentro del setValues de 10
+    // columnas hace que Apps Script lance excepción, y entonces el
+    // reporte se pierde el adjunto entero (el Resumen quedaba vacío).
+    const g = env()
+    enviar(g)
+    const movs = hoja(g, 'Movimientos')._rows()
+    // Fila 6: la separadora entre los datos y el TOTAL, completa.
+    expect(movs[5]).toEqual(['', '', '', '', '', '', '', '', '', ''])
+    movs.forEach(f => expect(f).toHaveLength(10))
+    // La hoja Resumen: todas sus filas con sus 2 columnas.
+    hoja(g, 'Resumen')._rows().forEach(f => expect(f).toHaveLength(2))
   })
 
   it('reintenta la descarga si el export todavía no está listo', () => {
