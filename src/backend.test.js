@@ -243,6 +243,9 @@ function makeStore() {
     books: [], fetched: [], trashed: [],
     failBook: false,   // simula que SpreadsheetApp.create() revienta
     fetchFails: 0,     // cuántas primeras descargas .xlsx responden != 200
+    fetchHtmlFails: 0, // cuántas primeras descargas devuelven HTML con código 200
+    flushes: 0,        // cuántas veces se forzó la escritura (flush)
+    pasos: [],         // orden en que pasan las cosas ('flush', 'fetch')
     /* ── Control del LockService ──
        `acquires`/`releases` cuentan las llamadas reales a waitLock y
        releaseLock; `blocked` simula otro proceso reteniendo el lock.
@@ -273,6 +276,9 @@ function runCodeGs(ss, store = makeStore()) {
     },
     SpreadsheetApp: {
       getActiveSpreadsheet: () => ss,
+      // Fuerza a aplicar los cambios pendientes antes de exportar el
+      // .xlsx: sin esto, el export puede devolver el archivo VACÍO.
+      flush: () => { store.flushes += 1; store.pasos.push('flush') },
       // Libro temporal del Excel adjunto. `failBook` permite simular
       // que la creación revienta (el correo debe salir igual).
       create: (name) => {
@@ -330,14 +336,27 @@ function runCodeGs(ss, store = makeStore()) {
     },
     // Descarga del libro temporal como .xlsx (export de Drive). El export
     // de una hoja RECIÉN creada a veces tarda en estar listo y responde
-    // != 200; `fetchFails` cuenta cuántas primeras descargas fallan.
+    // != 200; `fetchFails` cuenta cuántas primeras descargas fallan. Con
+    // `fetchHtml` se simula una página HTML de error con código 200 (eso
+    // es lo que producía el adjunto «vacío»).
     UrlFetchApp: {
       fetch: (url, opts) => {
         store.fetched.push({ url, opts })
+        store.pasos.push('fetch')
         return {
           getResponseCode: () => {
             if (store.fetchFails > 0) { store.fetchFails -= 1; return 503 }
             return 200
+          },
+          // Un .xlsx es un ZIP: empieza por 'PK' (0x50 0x4B). Con
+          // `fetchHtmlFails` se simulan páginas HTML de error con código
+          // 200: eso es lo que producía el adjunto «vacío».
+          getBytes: () => {
+            if (store.fetchHtmlFails > 0) {
+              store.fetchHtmlFails -= 1
+              return [0x3C, 0x68, 0x74, 0x6D, 0x6C]        // "<html"
+            }
+            return [0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00]
           },
           getBlob: () => ({
             _nombre: null,
@@ -2428,6 +2447,42 @@ describe('REPORTE: el correo lleva el Excel adjunto', () => {
     expect(mail.body).toContain('*Reporte de actividad*')   // el correo llegó
     expect(g.store.fetched.length).toBe(3)                 // agotó los 3 intentos
     expect(g.store.logs.join(' ')).toMatch(/El export \.xlsx respondi/)
+  })
+
+  it('fuerza la escritura ANTES de exportar (el .xlsx no sale vacío)', () => {
+    // Regresión real: exportar apenas se escribe devuelve el archivo
+    // VACÍO con código 200, así que el adjunto llegaba en blanco aunque
+    // el libro en Drive sí tuviera los datos.
+    const g = env()
+    enviar(g)
+    expect(g.store.flushes).toBe(1)
+    expect(g.store.pasos).toEqual(['flush', 'fetch'])
+  })
+
+  it('si el export devuelve HTML con código 200, no se adjunta basura', () => {
+    // Otra forma del adjunto «vacío»: una página de error de Google con
+    // código 200. Un .xlsx es un ZIP y empieza por 'PK', así que se
+    // descarta y se reintenta en vez de mandar un archivo inservible.
+    const g = env()
+    g.store.fetchHtmlFails = 99
+    const mail = enviar(g)
+    expect(mail.attachments).toEqual([])              // nunca se adjunta basura
+    expect(g.store.fetched.length).toBe(3)            // agotó los 3 intentos
+    expect(g.store.logs.join(' ')).toMatch(/no devolvi/)
+    // El correo sale igual, con el aviso visible en el HTML.
+    expect(mail.body).toContain('*Reporte de actividad*')
+    expect(mail.htmlBody).toContain('El Excel del reporte no se pudo generar')
+  })
+
+  it('si el primer export viene en blanco, el siguiente sí lleva el archivo', () => {
+    const g = env()
+    g.store.fetchHtmlFails = 1
+    const mail = enviar(g)
+    expect(mail.attachments).toHaveLength(1)
+    expect(mail.attachments[0]._nombre).toBe('reporte_2026-08-04.xlsx')
+    expect(g.store.fetched.length).toBe(2)
+    // Y como sí salió el adjunto, el correo NO trae el aviso de fallo.
+    expect(mail.htmlBody).not.toContain('El Excel del reporte no se pudo generar')
   })
 
   it('el pie del correo quedó solo con «Reporte automático …»', () => {
