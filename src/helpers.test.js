@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, canRemindAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptGroup, reportMetrics, periodLedger, isResetOutcome, domBreakdown, reportLines, expenseLabel,
-MAX_REPORT_EXPENSES } from './helpers.js'
+MAX_REPORT_EXPENSES, REPORT_EXPENSE_DETAIL_MAX, groupExpensesByCategory } from './helpers.js'
 
 // phoneMatch/getSlots depend on todayStr() (local today). Freeze the clock
 // so the tests are deterministic.
@@ -1006,8 +1006,9 @@ describe('reportLines — reporte de actividad', () => {
   const M = () => reportMetrics({ appts, expenses, inPeriod: d => d === D, from: D, to: D })
   const lines = (m = M()) => reportLines({ label: 'martes, 4 de agosto de 2026', m, topByDemand: [], stamp: 'PRUEBA' })
   const idx = (arr, sub) => arr.findIndex(l => l.includes(sub))
-  // Tramo de la sección 💸 Gastos: desde su cabecera hasta el total.
-  const gastoTramo = out => out.slice(idx(out, '💸 *Gastos*'), idx(out, '• Total gastos:'))
+  // Tramo de la sección 💸 Gastos: desde su cabecera (detallada
+  // «*Gastos*» o agrupada «*Gastos (por categoría)*») hasta el total.
+  const gastoTramo = out => out.slice(idx(out, '💸 *Gastos'), idx(out, '• Total gastos:'))
 
   it('lista CADA gasto del período con su monto, y cierra con el total', () => {
     const out = lines()
@@ -1041,16 +1042,18 @@ describe('reportLines — reporte de actividad', () => {
   })
 
   it('el total de gastos SIEMPRE cuadra con el libro, aunque se corte el detalle', () => {
-    // 25 gastos de $1.000 → solo entran MAX_REPORT_EXPENSES renglones,
-    // pero el total debe seguir sumando los 25 ($25.000).
+    // 25 gastos de $1.000 en 25 categorías: se pasa al formato «por
+    // categoría» y solo entran MAX_REPORT_EXPENSES renglones, pero el
+    // total debe seguir sumando los 25 ($25.000).
     const muchos = Array.from({ length: 25 }, (_, i) => ({
       id: 'g' + i, date: D, category: 'Gasto ' + i, description: '', amount: '1000',
     }))
     const m = reportMetrics({ appts, expenses: muchos, inPeriod: d => d === D, from: D, to: D })
     const out = lines(m)
     const tramo = gastoTramo(out)
+    expect(tramo[0]).toBe('💸 *Gastos (por categoría)*')
     expect(tramo.filter(l => l.startsWith('   - ')).length).toBe(MAX_REPORT_EXPENSES)
-    expect(out).toContain('   … y 5 gasto(s) más')
+    expect(out).toContain('   … y 5 categoría(s) más')
     expect(out).toContain('• Total gastos: *$25.000*')
     expect(m.ledger.totalExpenses).toBe(25000)
   })
@@ -1134,5 +1137,114 @@ describe('expenseLabel — nombre de un gasto en el reporte', () => {
   })
   it('vacío total cae en «Gasto», nunca deja el renglón sin nombre', () => {
     expect(expenseLabel({ who: '', detail: '' })).toBe('Gasto')
+  })
+})
+
+describe('groupExpensesByCategory — gastos agrupados por categoría', () => {
+  const g = (who, amount, detail = '') => ({ who, amount, detail })
+
+  it('agrupa por categoría, suma los montos y cuenta cuántas veces', () => {
+    expect(groupExpensesByCategory([
+      g('Gasolina', 30000), g('Gasolina', 50000), g('Cera', 20000),
+    ])).toEqual([
+      { cat: 'Gasolina', amount: 80000, count: 2 },
+      { cat: 'Cera', amount: 20000, count: 1 },
+    ])
+  })
+
+  it('ordena de mayor a menor monto', () => {
+    const grupos = groupExpensesByCategory([
+      g('Almuerzo', 22000), g('Arriendo', 1300000), g('Gasolina', 150000), g('Cera', 60000),
+    ])
+    expect(grupos.map(x => x.cat)).toEqual(['Arriendo', 'Gasolina', 'Cera', 'Almuerzo'])
+  })
+
+  it('los empates se resuelven por nombre con comparación simple', () => {
+    // localeCompare ordenaría «Éter» por sonido (cerca de la E); la
+    // comparación simple por código es la única que calza igual en el
+    // navegador, en node y en Apps Script (paridad correo ↔ WhatsApp).
+    const grupos = groupExpensesByCategory([g('Zeta', 1000), g('Alfa', 1000), g('Éter', 1000)])
+    expect(grupos.map(x => x.cat)).toEqual(['Alfa', 'Zeta', 'Éter'])
+  })
+
+  it('los gastos sin categoría se juntan en «Sin categoría», nunca desaparecen', () => {
+    expect(groupExpensesByCategory([g('', 5000), g('   ', 7000), g('Cera', 20000)])).toEqual([
+      { cat: 'Cera', amount: 20000, count: 1 },
+      { cat: 'Sin categoría', amount: 12000, count: 2 },
+    ])
+  })
+
+  it('la suma de las categorías da exactamente el total del período', () => {
+    const cats = ['Gasolina', 'Cera', '']
+    const gastos = Array.from({ length: 30 }, (_, i) =>
+      g(cats[i % 3], (i + 1) * 1000, i % 2 ? 'detalle' : ''))
+    const grupos = groupExpensesByCategory(gastos)
+    expect(grupos.reduce((s, x) => s + x.amount, 0))
+      .toBe(gastos.reduce((s, x) => s + x.amount, 0))
+    expect(grupos.reduce((s, x) => s + x.count, 0)).toBe(gastos.length)
+  })
+})
+
+describe('reportLines — gastos detallados (pocos) vs. por categoría (muchos)', () => {
+  const D = '2026-08-04'
+  const gasto = (i, category, amount) => ({
+    id: 'g' + i, date: D, category, description: '', amount: String(amount),
+  })
+  const render = gastos => {
+    const m = reportMetrics({ appts: [], expenses: gastos, inPeriod: d => d === D, from: D, to: D })
+    return reportLines({ label: 'período', m, topByDemand: [], stamp: 'X' })
+  }
+  const tramo = out => out.slice(
+    out.findIndex(l => l.startsWith('💸 *Gastos')),
+    out.findIndex(l => l.startsWith('• Total gastos:')))
+
+  it('con 8 gastos o menos se lista el detalle, uno por uno', () => {
+    const out = render(Array.from({ length: REPORT_EXPENSE_DETAIL_MAX }, (_, i) =>
+      gasto(i, i % 2 ? 'Gasolina' : 'Cera', 10000)))
+    expect(tramo(out)[0]).toBe('💸 *Gastos*')
+    // Ningún renglón trae conteo: sigue siendo el detalle de siempre.
+    expect(tramo(out).filter(l => l.startsWith('   - ') && /\(\d\)$/.test(l))).toEqual([])
+    expect(tramo(out).filter(l => l.startsWith('   - ')).length).toBe(REPORT_EXPENSE_DETAIL_MAX)
+  })
+
+  it('con un gasto más se pasa a «por categoría» con su conteo', () => {
+    // 9 gastos: 3 de Gasolina ($30.000) y 6 de Cera ($60.000).
+    const out = render(Array.from({ length: REPORT_EXPENSE_DETAIL_MAX + 1 }, (_, i) =>
+      gasto(i, i < 3 ? 'Gasolina' : 'Cera', 10000)))
+    expect(tramo(out)[0]).toBe('💸 *Gastos (por categoría)*')
+    expect(tramo(out)).toContain('   - Cera: *$60.000* (6)')
+    expect(tramo(out)).toContain('   - Gasolina: *$30.000* (3)')
+    expect(out).toContain('• Total gastos: *$90.000*')
+    // Con 2 categorías no aparece ningún «… y más».
+    expect(out.some(l => l.includes('… y '))).toBe(false)
+  })
+
+  it('la vista agrupada muestra el TOTAL de la categoría, no uno de ellos', () => {
+    const out = render([
+      gasto(0, 'Gasolina', 30000), gasto(1, 'Gasolina', 50000), gasto(2, 'Cera', 20000),
+      gasto(3, 'Cera', 10000), gasto(4, 'Arriendo', 1300000), gasto(5, 'Almuerzo', 22000),
+      gasto(6, '', 8000), gasto(7, '', 9000), gasto(8, 'Gasolina', 70000),
+    ])
+    expect(tramo(out)).toContain('   - Arriendo: *$1.300.000* (1)')
+    expect(tramo(out)).toContain('   - Gasolina: *$150.000* (3)')
+    expect(tramo(out)).toContain('   - Cera: *$30.000* (2)')
+    expect(tramo(out)).toContain('   - Almuerzo: *$22.000* (1)')
+    expect(tramo(out)).toContain('   - Sin categoría: *$17.000* (2)')
+    // El total del reporte sigue sumando TODO.
+    expect(out).toContain('• Total gastos: *$1.519.000*')
+  })
+
+  it('la descripción no se pierde del todo: queda en el Excel y en la app', () => {
+    // El formato agrupado usa solo la categoría; el detalle de cada gasto
+    // vive en el libro (periodLedger) y en el Excel exportado.
+    const gastos = Array.from({ length: 9 }, (_, i) => ({
+      id: 'g' + i, date: D, category: 'Gasolina', description: 'Cargar tanque',
+      amount: '10000',
+    }))
+    const m = reportMetrics({ appts: [], expenses: gastos, inPeriod: d => d === D, from: D, to: D })
+    expect(m.ledger.outs).toHaveLength(9)
+    expect(m.ledger.outs[0]).toMatchObject({ who: 'Gasolina', detail: 'Cargar tanque' })
+    expect(reportLines({ label: 'x', m, topByDemand: [], stamp: 'X' }))
+      .toContain('   - Gasolina: *$90.000* (9)')
   })
 })

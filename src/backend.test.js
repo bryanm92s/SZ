@@ -1994,11 +1994,11 @@ describe('REPORTE: el correo del trigger = el WhatsApp del admin', () => {
     gasto('e3', { category: 'Papelería', amount: '5000', date: '2026-08-09' }),  // fuera
   ]
 
-  const env = () => {
+  const env = (exps = seedExps) => {
     const ss = makeSpreadsheet({
       services:     [toRow('services', S1), toRow('services', S2)],
       appointments: seedAppts,
-      expenses:     seedExps,
+      expenses:     exps,
     })
     return runCodeGs(ss)
   }
@@ -2019,10 +2019,10 @@ describe('REPORTE: el correo del trigger = el WhatsApp del admin', () => {
     return Object.values(stats).sort((a, b) => b.count - a.count).slice(0, 3)
   }
 
-  const frontendLines = (label) => {
+  const frontendLines = (label, exps = seedExps) => {
     const apptsObj = seedAppts.map(r => Object.fromEntries(
       JS_KEYS.appointments.map((k, i) => [k, r[i]])))
-    const expsObj = seedExps.map(r => Object.fromEntries(
+    const expsObj = exps.map(r => Object.fromEntries(
       JS_KEYS.expenses.map((k, i) => [k, r[i]])))
     const m = reportMetrics({
       appts: apptsObj, expenses: expsObj,
@@ -2045,6 +2045,33 @@ describe('REPORTE: el correo del trigger = el WhatsApp del admin', () => {
 
     const strip = arr => arr.filter(l => !l.startsWith('_Generado '))
     expect(strip(backend)).toEqual(strip(frontendLines(label)))
+  })
+
+  it('el correo agrupa los gastos por categoría IGUAL que el WhatsApp', () => {
+    // Mes cargado: 12 gastos en 4 categorías → los dos lados pasan a la
+    // vista «por categoría» y tienen que calzar renglón por renglón.
+    const montos = { Gasolina: 30000, Cera: 20000, Almuerzo: 22000, Arriendo: 100000 }
+    const cats = Object.keys(montos)
+    const muchos = Array.from({ length: 12 }, (_, i) =>
+      gasto('m' + i, { category: cats[i % 4], amount: String(montos[cats[i % 4]]) }))
+
+    const g = env(muchos)
+    g.call('_sendReportEmail', { type: 'day', day: D }, 'DIARIO')
+    const backend = String(g.store.mail[g.store.mail.length - 1].body).split('\n')
+    expect(backend[1]).toMatch(/^📅 /)
+    const label = backend[1].slice('📅 '.length).trim()
+    const strip = arr => arr.filter(l => !l.startsWith('_Generado '))
+    expect(strip(backend)).toEqual(strip(frontendLines(label, muchos)))
+
+    // Y de paso: quedó agrupado y ordenado de mayor a menor monto.
+    expect(backend).toContain('💸 *Gastos (por categoría)*')
+    expect(backend).toContain('   - Arriendo: *$300.000* (3)')
+    expect(backend).toContain('   - Gasolina: *$90.000* (3)')
+    expect(backend).toContain('   - Almuerzo: *$66.000* (3)')
+    expect(backend).toContain('   - Cera: *$60.000* (3)')
+    // El HTML del correo dice lo mismo.
+    const h = String(g.store.mail[g.store.mail.length - 1].htmlBody)
+    expect(h).toContain('Gastos (por categoría)')
   })
 
   it('el correo lista cada gasto con su monto y el total', () => {
@@ -2109,8 +2136,10 @@ describe('REPORTE: el correo del trigger = el WhatsApp del admin', () => {
     expect(body).not.toContain('   - Gasolina')
   })
 
-  it('el detalle de gastos del correo respeta el tope y el total suma todo', () => {
-    // 25 gastos de $1.000: solo entran 20 renglones, pero el total es $25.000.
+  it('con muchos gastos el correo agrupa por categoría y el total suma todo', () => {
+    // 25 gastos de $1.000 en 25 categorías: el correo deja de listarlos
+    // uno por uno y pasa a una línea por categoría (máx. 20), pero el
+    // total sigue sumando los 25 ($25.000).
     const ss = makeSpreadsheet({
       services:     [toRow('services', S1), toRow('services', S2)],
       appointments: seedAppts,
@@ -2120,9 +2149,9 @@ describe('REPORTE: el correo del trigger = el WhatsApp del admin', () => {
     const g = runCodeGs(ss)
     g.call('_sendReportEmail', { type: 'day', day: D }, 'DIARIO')
     const body = String(g.store.mail[g.store.mail.length - 1].body)
-    const tramo = body.split('💸 *Gastos*')[1].split('• Total gastos:')[0]
+    const tramo = body.split('💸 *Gastos (por categoría)*')[1].split('• Total gastos:')[0]
     expect(tramo.split('\n').filter(l => l.startsWith('   - ')).length).toBe(20)
-    expect(body).toContain('   … y 5 gasto(s) más')
+    expect(body).toContain('   … y 5 categoría(s) más')
     expect(body).toContain('• Total gastos: *$25.000*')
   })
 })

@@ -554,6 +554,10 @@ export const movsRanges = rowCount => {
 export const reportLines = ({ label, m, topByDemand, stamp }) => {
   const L = m.ledger
   const money = n => `$${(Number(n) || 0).toLocaleString('es-CO')}`
+  // Pocos gastos → el detalle uno por uno; muchos → una línea por
+  // categoría. Con `grupos = null` se queda el detalle (ver
+  // REPORT_EXPENSE_DETAIL_MAX).
+  const grupos = L.outs.length > REPORT_EXPENSE_DETAIL_MAX ? groupExpensesByCategory(L.outs) : null
   const lines = [
     `✨ *Reporte de actividad*`,
     `📅 ${label}`,
@@ -573,16 +577,21 @@ export const reportLines = ({ label, m, topByDemand, stamp }) => {
     ...(L.totalNoMethod > 0 ? [`   - Sin método registrado: *${money(L.totalNoMethod)}*`] : []),
     `• Proyectado: *${money(m.projected)}*`,
     '',
-    `💸 *Gastos*`,
+    `💸 ${grupos ? '*Gastos (por categoría)*' : '*Gastos*'}`,
   ]
-  // Detalle de gastos: uno por movimiento del período, en el mismo orden
-  // del libro. El tope evita pasarse del límite de texto de WhatsApp
-  // (~2.048 caracteres) en meses cargados; el total de abajo SIEMPRE
-  // suma todos los gastos del período, aunque se corten renglones.
-  L.outs.slice(0, MAX_REPORT_EXPENSES).forEach(r =>
-    lines.push(`   - ${expenseLabel(r)}: *${money(r.amount)}*`))
-  if (L.outs.length > MAX_REPORT_EXPENSES)
-    lines.push(`   … y ${L.outs.length - MAX_REPORT_EXPENSES} gasto(s) más`)
+  // Gastos: si son pocos, un renglón por gasto; si son muchos, un
+  // renglón por CATEGORÍA de mayor a menor con el conteo («Gasolina:
+  // $150.000 (5)»), que además no se corta: el número de categorías es
+  // chico. El tope solo aplica a esa vista agrupada, y el total de
+  // abajo SIEMPRE suma todos los gastos del período.
+  if (!grupos) {
+    L.outs.forEach(r => lines.push(`   - ${expenseLabel(r)}: *${money(r.amount)}*`))
+  } else {
+    grupos.slice(0, MAX_REPORT_EXPENSES).forEach(c =>
+      lines.push(`   - ${c.cat}: *${money(c.amount)}* (${c.count})`))
+    if (grupos.length > MAX_REPORT_EXPENSES)
+      lines.push(`   … y ${grupos.length - MAX_REPORT_EXPENSES} categoría(s) más`)
+  }
   lines.push(`• Total gastos: *${money(L.totalExpenses)}*`)
   lines.push('')
   lines.push(`💳 *Neto*: *${money(m.neto)}*`)
@@ -598,6 +607,34 @@ export const reportLines = ({ label, m, topByDemand, stamp }) => {
 
 // Renglones de detalle de gastos que caben en el mensaje (ver arriba).
 export const MAX_REPORT_EXPENSES = 20
+
+/**
+ * Umbral del reporte: con 8 gastos o menos se lee mejor el detalle uno
+ * por uno; con más, una línea por CATEGORÍA («Gasolina: $150.000 (5)»),
+ * que además casi nunca llega a tocar el límite de MAX_REPORT_EXPENSES.
+ */
+export const REPORT_EXPENSE_DETAIL_MAX = 8
+
+/**
+ * Gastos agrupados por categoría, de mayor a menor monto, con su conteo.
+ *
+ * `Sin categoría` reúne los que no traen categoría: nunca se pierden.
+ * Los empates se desempatan por nombre con comparación simple (NO
+ * localeCompare, que puede variar entre entornos y rompería la paridad
+ * con el correo en Code.gs).
+ */
+export const groupExpensesByCategory = outs => {
+  const mapa = new Map()
+  outs.forEach(r => {
+    const cat = String(r.who || '').trim() || 'Sin categoría'
+    const g = mapa.get(cat) || { cat, amount: 0, count: 0 }
+    g.amount += toN(r.amount)
+    g.count += 1
+    mapa.set(cat, g)
+  })
+  return [...mapa.values()].sort((a, b) =>
+    b.amount - a.amount || (a.cat < b.cat ? -1 : a.cat > b.cat ? 1 : 0))
+}
 
 // Nombre de un gasto para el reporte: «Categoría — Descripción», sin
 // repetir si las dos son iguales y sin dejarlo vacío.

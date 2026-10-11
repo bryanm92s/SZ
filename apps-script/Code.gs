@@ -1092,7 +1092,9 @@ function _buildReport(period) {
     var detail = String(e.description || '').trim();
     var name   = (who && detail && who !== detail) ? who + ' \u2014 ' + detail
                : (who || detail || 'Gasto');
-    return { name: name, amount: toN(e.amount || 0) };
+    // `cat` es la categoría sola: es la que usa la vista «por categoría»
+    // del reporte cuando hay muchos gastos (réplica de helpers.js).
+    return { name: name, cat: who, amount: toN(e.amount || 0) };
   });
   var totalExpenses = expensesInPeriod.reduce(function(s,e){ return s + toN(e.amount||0); }, 0);
   var neto = revenue - totalExpenses;
@@ -1367,6 +1369,36 @@ function _xlsxName(period) {
   return 'reporte_' + period.from + '_' + period.to + '.xlsx';
 }
 
+// ── Gastos por categoría (vista agrupada del reporte) ───────────
+// Cuando el período trae muchos gastos, el reporte deja de listarlos uno
+// por uno y pasa a UNA LÍNEA POR CATEGORÍA con su conteo
+// («Gasolina: $150.000 (5)»), de mayor a menor monto.
+//
+// Réplica de groupExpensesByCategory (helpers.js): MISMO orden y mismo
+// criterio de desempate (por nombre, SIN localeCompare, que puede variar
+// entre entornos), porque la prueba de paridad exige que el correo salga
+// idéntico al WhatsApp del admin.
+function _groupExpenses(items) {
+  var mapa = {};
+  items.forEach(function(e){
+    var cat = String(e.cat || '').trim() || 'Sin categor\u00eda';
+    if (!mapa[cat]) mapa[cat] = { cat: cat, amount: 0, count: 0 };
+    mapa[cat].amount += Number(e.amount) || 0;
+    mapa[cat].count  += 1;
+  });
+  var lista = [];
+  for (var k in mapa) {
+    if (Object.prototype.hasOwnProperty.call(mapa, k)) lista.push(mapa[k]);
+  }
+  lista.sort(function(a, b){
+    if (b.amount !== a.amount) return b.amount - a.amount;
+    if (a.cat < b.cat) return -1;
+    if (a.cat > b.cat) return 1;
+    return 0;
+  });
+  return lista;
+}
+
 // ── Núcleo: arma el mensaje (plain + HTML) y lo envía ─────────
 // period + kind ('DIARIO'|'SEMANAL'|'MENSUAL').
 // IMPORTANTE: el cuerpo replica LÍNEA POR LÍNEA el texto de
@@ -1382,7 +1414,13 @@ function _sendReportEmail(period, kind) {
   initSheets(SpreadsheetApp.getActiveSpreadsheet());
   var r = _buildReport(period);
 
-  // Renglones de detalle de gastos visibles (mismo tope que en el frontend)
+  // Con DETALLE_MAX gastos o menos el reporte lista el detalle uno por
+  // uno; con más, una línea por categoría (mismos umbrales del frontend).
+  var DETALLE_MAX = 8;
+  var agrupar = r.expenseItems.length > DETALLE_MAX;
+  var grupos = agrupar ? _groupExpenses(r.expenseItems) : [];
+  // Tope de categorías visibles en la vista agrupada (son poquísimas en
+  // la práctica); el total de abajo SIEMPRE suma todos los gastos.
   var MAX_EXP = 20;
 
   // ── Emojis (plain text via String.fromCharCode)
@@ -1422,15 +1460,22 @@ function _sendReportEmail(period, kind) {
   if (r.totalNoMethod > 0) lines.push('   - Sin m\u00e9todo registrado: *' + fmtM(r.totalNoMethod) + '*');
   lines.push(BULLET + ' Proyectado: *' + fmtM(r.projected) + '*');
   lines.push('');
-  lines.push(EXPENSE + ' *Gastos*');
-  // Detalle de CADA gasto (gasolina, cera, …). El tope evita pasarse del
-  // límite de caracteres de WhatsApp/correo; el total de abajo SIEMPRE
-  // suma todos los gastos del período, aunque se corten renglones.
-  r.expenseItems.slice(0, MAX_EXP).forEach(function(e){
-    lines.push('   - ' + e.name + ': *' + fmtM(e.amount) + '*');
-  });
-  if (r.expenseItems.length > MAX_EXP)
-    lines.push('   \u2026 y ' + (r.expenseItems.length - MAX_EXP) + ' gasto(s) m\u00e1s');
+  lines.push(EXPENSE + (agrupar ? ' *Gastos (por categor\u00eda)*' : ' *Gastos*'));
+  // Pocos gastos → un renglón por gasto; muchos → un renglón por
+  // CATEGORÍA de mayor a menor con el conteo («Gasolina: $150.000 (5)»),
+  // que no se corta casi nunca. El tope solo aplica a esa vista agrupada
+  // y el total de abajo SIEMPRE suma todos los gastos del período.
+  if (!agrupar) {
+    r.expenseItems.forEach(function(e){
+      lines.push('   - ' + e.name + ': *' + fmtM(e.amount) + '*');
+    });
+  } else {
+    grupos.slice(0, MAX_EXP).forEach(function(c){
+      lines.push('   - ' + c.cat + ': *' + fmtM(c.amount) + '* (' + c.count + ')');
+    });
+    if (grupos.length > MAX_EXP)
+      lines.push('   \u2026 y ' + (grupos.length - MAX_EXP) + ' categor\u00eda(s) m\u00e1s');
+  }
   lines.push(BULLET + ' Total gastos: *' + fmtM(r.totalExpenses) + '*');
   lines.push('');
   lines.push(CARD + ' *Neto*: *' + fmtM(r.neto) + '*');
@@ -1476,12 +1521,18 @@ function _sendReportEmail(period, kind) {
   if (r.totalNoMethod > 0) hlines.push('   - Sin m\u00e9todo registrado: <b>' + esc(fmtM(r.totalNoMethod)) + '</b>');
   hlines.push(hBULLET + ' Proyectado: <b>' + esc(fmtM(r.projected)) + '</b>');
   hlines.push('');
-  hlines.push(hEXPENSE + ' <b>Gastos</b>');
-  r.expenseItems.slice(0, MAX_EXP).forEach(function(e){
-    hlines.push('   - ' + esc(e.name) + ': <b>' + esc(fmtM(e.amount)) + '</b>');
-  });
-  if (r.expenseItems.length > MAX_EXP)
-    hlines.push('   \u2026 y ' + (r.expenseItems.length - MAX_EXP) + ' gasto(s) m\u00e1s');
+  hlines.push(hEXPENSE + (agrupar ? ' <b>Gastos (por categor\u00eda)</b>' : ' <b>Gastos</b>'));
+  if (!agrupar) {
+    r.expenseItems.forEach(function(e){
+      hlines.push('   - ' + esc(e.name) + ': <b>' + esc(fmtM(e.amount)) + '</b>');
+    });
+  } else {
+    grupos.slice(0, MAX_EXP).forEach(function(c){
+      hlines.push('   - ' + esc(c.cat) + ': <b>' + esc(fmtM(c.amount)) + '</b> (' + c.count + ')');
+    });
+    if (grupos.length > MAX_EXP)
+      hlines.push('   \u2026 y ' + (grupos.length - MAX_EXP) + ' categor\u00eda(s) m\u00e1s');
+  }
   hlines.push(hBULLET + ' Total gastos: <b>' + esc(fmtM(r.totalExpenses)) + '</b>');
   hlines.push('');
   hlines.push(hCARD + ' <b>Neto</b>: <b>' + esc(fmtM(r.neto)) + '</b>');
