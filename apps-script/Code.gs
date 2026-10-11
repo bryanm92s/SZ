@@ -73,7 +73,7 @@ function doPost(e) {
     initSheets(ss);
     if (b.action==='deleteCalendarEvent') { const r=deleteCalEvent(b.eventId);      lock.releaseLock(); return ok({calResult:r}); }
     if (b.action==='updateCalendarEvent') { const r=updateCalEvent(b.eventId,b.calendarEvent); lock.releaseLock(); return ok({calResult:r}); }
-    if (b.action==='resetData')           return ok(_resetData(ss, b, auth));
+    if (b.action==='resetData')           { const r=_resetData(ss, b, auth); lock.releaseLock(); return ok(r); }
     if (b.clients      !== undefined) writeSheet(ss,'clients',b.clients);
     if (b.services !== undefined) {
       // ── Regla de negocio: no eliminar servicios con citas futuras

@@ -1558,25 +1558,25 @@ describe('TEST-01 — Concurrencia y control de versiones', () => {
     expect(env.store.lock.releases).toBe(env.store.lock.acquires)
   })
 
-  it('HALLAZGO: resetData devuelve sin liberar el lock explícitamente', () => {
-    // Characterization, NO una validación: en Code.gs la rama `resetData`
-    // hace `return ok(_resetData(...))` sin pasar por releaseLock(), a
-    // diferencia del resto de ramas. En Apps Script el lock se libera al
-    // terminar la ejecución, así que no tiene efecto observable, pero es
-    // una asimetría respecto a los otros caminos. Se deja documentada;
-    // NO se corrige producción en TEST-01.
+  it('resetData libera el lock, igual que el resto de ramas de doPost', () => {
+    // Antes esta rama hacía `return ok(_resetData(...))` sin pasar por
+    // releaseLock() (a diferencia de todas las demás). En Apps Script el
+    // lock se libera al terminar la ejecución, así que no había fallo
+    // observable, pero era una asimetría: ahora se libera explícitamente
+    // igual que el resto de caminos.
     const grant = recoveryGrant(env.g)                    // 2 POSTs, ambos liberan
     const acquiresPre = env.store.lock.acquires
     const releasesPre = env.store.lock.releases
     expect(acquiresPre).toBe(releasesPre)                 // equilibrado hasta aquí
 
-    post(env.g, {
+    const r = post(env.g, {
       action: 'resetData', clients: [], appointments: [], expenses: [],
       services: [{ id: 'n1', name: 'Nuevo', price: '1000', duration: '30' }],
       resetPriceHistory: true, ...grant,
     })
+    expect(r.ok).toBe(true)
     expect(env.store.lock.acquires).toBe(acquiresPre + 1)  // adquirió
-    expect(env.store.lock.releases).toBe(releasesPre)      // pero no liberó
+    expect(env.store.lock.releases).toBe(releasesPre + 1)  // y liberó
   })
 
   it('control de versiones: cada escritura REEMPLAZA la colección (última gana, sin merge)', () => {

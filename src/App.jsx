@@ -397,8 +397,12 @@ export default function App() {
   }, [])
 
   const resetAll = useCallback(async (code) => {
+    // El backend compara el código ya normalizado: el dueño puede
+    // pegarlo con espacios (el correo lo muestra muy espaciado) o con
+    // saltos de línea, y eso no debe contar como código inválido.
+    const clean = String(code || '').replace(/\s+/g, '')
     let grant
-    try { grant = await apiVerifyResetCode(code) }
+    try { grant = await apiVerifyResetCode(clean) }
     catch(e) { return { ok:false, error:e.message } }
 
     setSt('saving')
