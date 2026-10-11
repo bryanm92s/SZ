@@ -712,6 +712,42 @@ function SyncBadge({status,lastSync}) {
   return <div style={{background:c.bg,color:c.col,borderRadius:20,padding:'4px 10px',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>{c.l}</div>
 }
 
+/* ── Paginación de listas largas ─────────────────────────────────
+   Las dos listas que pueden crecer sin control — «Gastos del mes»
+   (Finanzas) y «Movimientos del período» (Reportes) — se muestran
+   de PAGE_SIZE en PAGE_SIZE para no saturar la pantalla del celular.
+
+   Reglas del control:
+   • NO aparece si la lista cabe entera: la paginación es un añadido,
+     no una carga para el caso normal.
+   • `page` lo lleva el componente padre, que lo reinicia cuando
+     cambia la fuente de datos (ver useEffect en cada uso).
+   • El rango se recorta SIEMPRE dentro de [1, pages], así una lista
+     que encoge (p. ej. se borra un gasto) nunca deja la vista vacía.
+   ──────────────────────────────────────────────────────────────── */
+const PAGE_SIZE = 10
+
+function Pager({ page, total, onPage, label='registros' }) {
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  if (total <= PAGE_SIZE) return null
+  const p = Math.min(Math.max(1, page), pages)          // nunca fuera de rango
+  const first = (p - 1) * PAGE_SIZE + 1
+  const last  = Math.min(p * PAGE_SIZE, total)
+  const edge  = dir => p === dir
+  return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,paddingTop:10,marginTop:10,borderTop:'1px solid var(--border)'}}>
+      <button className="btn-sm" onClick={()=>onPage(p-1)} disabled={edge(1)}
+        style={{minWidth:58,opacity:edge(1)?0.4:1,cursor:edge(1)?'default':'pointer'}}>‹ Ant.</button>
+      <span style={{fontSize:11,color:'var(--t2)',fontWeight:600,textAlign:'center',lineHeight:1.4}}>
+        {first}–{last} de {total} {label}
+        <br/>pág. {p} de {pages}
+      </span>
+      <button className="btn-sm" onClick={()=>onPage(p+1)} disabled={edge(pages)}
+        style={{minWidth:58,opacity:edge(pages)?0.4:1,cursor:edge(pages)?'default':'pointer'}}>Sig. ›</button>
+    </div>
+  )
+}
+
 /* ── Global CSS ── Modern Flat + Neumorphism + Glassmorphism ── */
 function GS() { return <style>{`
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
@@ -2858,6 +2894,10 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
   const [amountErr,setAErr]=useState('')   // mensaje "no puede ser negativo"
   const [hiddenCats,setHC]=useState(()=>{try{return JSON.parse(localStorage.getItem('sz_hcats')||'[]')}catch{return[]}})
   const [showCatMgr,setSCM]=useState(false)
+  // Paginación de «Gastos del mes» (ver Pager). Se reinicia al cambiar de
+  // mes para no quedar mirando una página que ya no existe.
+  const [expPage,setExpPage]=useState(1)
+  useEffect(()=>{ setExpPage(1) },[month])
 
   const safe=Array.isArray(expenses)?expenses:[]
   const safeA=Array.isArray(appts)?appts:[]
@@ -2878,6 +2918,12 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
   }
   const ma=safeA.filter(a=>cleanDate(a.date).slice(0,7)===month)
   const me=safe.filter(e=>cleanDate(e.date).slice(0,7)===month)
+  // «Gastos del mes»: se ordena UNA sola vez y luego se corta por página,
+  // para no reordenar el arreglo completo en cada render.
+  const meSorted=[...me].sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date)))
+  const mePages =Math.max(1,Math.ceil(meSorted.length/PAGE_SIZE))
+  const mePage  =Math.min(Math.max(1,expPage),mePages)   // recorte defensivo
+  const meShown =meSorted.slice((mePage-1)*PAGE_SIZE, mePage*PAGE_SIZE)
   const ledger=monthLedger(safeA,safe,month)
   const revDone=ledger.totalIncome
   const revTotal=projectedIncome(ma) // «Proyectado»: excluye 'noshow'
@@ -2993,7 +3039,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
 
     {me.length>0&&<div className="card">
       <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>📋 Gastos del mes</div>
-      {[...me].sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date))).map(e=>{
+      {meShown.map(e=>{
         const isEdit=editId===e.id
         return <div key={e.id} style={{padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
           {isEdit
@@ -3017,6 +3063,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
           }
         </div>
       })}
+      <Pager page={mePage} total={meSorted.length} onPage={setExpPage} label="gastos" />
     </div>}
   </>
 }
@@ -3471,6 +3518,10 @@ function ReportTab({appts,expenses,services,setTab}) {
     setTo(t)
   }
   const [mvFilter, setMvFilter] = useState('all') // 'all'|'in'|'out'
+  // Paginación de «Movimientos del período» (ver Pager). Se reinicia al
+  // cambiar de período o de filtro, para no quedar en una página vacía.
+  const [mvPage, setMvPage] = useState(1)
+  useEffect(()=>{ setMvPage(1) },[mode,day,month,year,from,to,mvFilter])
 
   // Predicado de pertenencia al período (réplica del backend _inPeriod)
   const inPeriod = d => {
@@ -3533,6 +3584,15 @@ function ReportTab({appts,expenses,services,setTab}) {
 
   // Gastos del período (filas de salida del libro único)
   const expensesInPeriod = ledger.outs
+
+  // «Movimientos del período»: se filtra UNA sola vez (antes se filtraba
+  // dos veces, una para el «vacío» y otra para el .map) y luego se corta
+  // por página. El «Neto del período» de abajo usa `neto`, que sale del
+  // libro completo, NO de la página visible.
+  const mvRows  = ledger.rows.filter(r=>mvFilter==='all'||r.kind===mvFilter)
+  const mvPages = Math.max(1,Math.ceil(mvRows.length/PAGE_SIZE))
+  const mvCur   = Math.min(Math.max(1,mvPage),mvPages)   // recorte defensivo
+  const mvShown = mvRows.slice((mvCur-1)*PAGE_SIZE, mvCur*PAGE_SIZE)
 
   // ¿Hay algo que mandar? El botón de WhatsApp antes se apagaba con
   // «Creadas = 0», pero Creadas cuenta por `createdAt` —cuándo se
@@ -3808,9 +3868,9 @@ function ReportTab({appts,expenses,services,setTab}) {
             ))}
           </div>
         </div>
-        {ledger.rows.filter(r=>mvFilter==='all'||r.kind===mvFilter).length===0
+        {mvRows.length===0
           ? <div style={{textAlign:'center',color:'var(--t2)',fontSize:13,padding:'14px 0'}}>Sin movimientos en este período</div>
-          : ledger.rows.filter(r=>mvFilter==='all'||r.kind===mvFilter).map(r=>(
+          : mvShown.map(r=>(
             <div key={r.kind+r.id} className="row" style={{fontSize:13}}>
               <div style={{flexShrink:0,width:46,fontSize:11,color:'var(--t2)',fontWeight:600}}>{r.date.slice(8)}/{r.date.slice(5,7)}</div>
               <div style={{flex:1,minWidth:0}}>
@@ -3820,6 +3880,9 @@ function ReportTab({appts,expenses,services,setTab}) {
               <div style={{flexShrink:0,fontWeight:700,color:r.kind==='in'?'var(--green)':'var(--red)'}}>{r.kind==='in'?'+':'−'}{fmtM(r.amount)}</div>
             </div>
           ))}
+        {/* Paginación: el «Neto del período» de abajo SIEMPRE suma la lista
+            completa filtrada, no solo la página visible. */}
+        <Pager page={mvCur} total={mvRows.length} onPage={setMvPage} label="movimientos" />
         <div style={{display:'flex',justifyContent:'space-between',marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)',fontWeight:700,fontSize:13}}>
           <span>Neto del período</span>
           <span style={{color:neto>=0?'var(--green)':'var(--red)'}}>{fmtM(neto)}</span>
