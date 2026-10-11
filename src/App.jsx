@@ -258,7 +258,7 @@ const openWA = (phone, name, time, date, serviceNames, total, isDom, domPrice = 
     SPARK + ' *' + serviceNames + '*',
     CAL + ' *' + fmtDate(date) + '* a las *' + fmtTime(time) + '*',
     '',
-    MONEY + ' Servicios: *' + fmtM(svcFee) + '*',
+    MONEY + ' Servicio(s): *' + fmtM(svcFee) + '*',
     ...(isDom ? [MOTO + ' Domicilio: *' + fmtM(domFee) + '*'] : []),
     CARD + ' Total: *' + fmtM(totN) + '*',
     '',
