@@ -63,16 +63,32 @@ const SHEET_NAME = {
 function makeSheet(name) {
   const rows = []
   const formulas = {}          // 'fila,col' → fórmula escrita (para assertar)
+  const widths = []            // anchos aplicados con setColumnWidth
   let title = name
   return {
     _rows: () => rows,
     _formulas: () => formulas,
+    _widths: () => widths,
     _title: () => title,
     getName: () => title,
     setName: (n) => { title = n },
     getLastRow: () => rows.length,
     getLastColumn: () => rows.reduce((m, r) => Math.max(m, r.length), 0),
-    setColumnWidths: () => {},
+    setColumnWidths: (col, numCols, width) => {
+      // En un Sheet, setColumnWidths(col, numCols, width) recibe UN ancho
+      // (número); el que recibe arreglo es Range.setColumnWidths. Se
+      // valida como el original: así un error de formato se ve en las
+      // pruebas y no en producción.
+      if (!Number.isInteger(width)) {
+        throw new Error('Cannot convert \'' + String(width) + '\' to int.')
+      }
+    },
+    setColumnWidth: (col, width) => {
+      if (!Number.isInteger(width)) {
+        throw new Error('Cannot convert \'' + String(width) + '\' to int.')
+      }
+      widths.push({ col, width })
+    },
     getRange(r, c, nr, nc) {
       // Apps Script acepta también getRange(fila, col) (1 celda).
       const nRows = nr || 1
@@ -2380,6 +2396,19 @@ describe('REPORTE: el correo lleva el Excel adjunto', () => {
     movs.forEach(f => expect(f).toHaveLength(10))
     // La hoja Resumen: todas sus filas con sus 2 columnas.
     hoja(g, 'Resumen')._rows().forEach(f => expect(f).toHaveLength(2))
+  })
+
+  it('los anchos de columna se aplican uno por uno (nunca como arreglo)', () => {
+    // Regresión real: Sheet.setColumnWidths(col, numCols, width) recibe
+    // UN ancho; pasarle el arreglo hacía que Apps Script intentara
+    // convertirlo a entero y se perdiera el adjunto entero.
+    const g = env()
+    enviar(g)
+    const movs = hoja(g, 'Movimientos')
+    expect(movs._widths().map(w => w.width)).toEqual([11, 7, 9, 22, 40, 13, 13, 18, 13, 16])
+    expect(movs._widths().map(w => w.col)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    expect(hoja(g, 'Resumen')._widths().map(w => w.width)).toEqual([52, 18])
+    expect(hoja(g, 'Citas')._widths()).toHaveLength(13)
   })
 
   it('reintenta la descarga si el export todavía no está listo', () => {

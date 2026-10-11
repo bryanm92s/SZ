@@ -1228,6 +1228,18 @@ function _buildReportXlsx(period, r) {
     var last  = r.movsRows.length + 1;    // última fila de datos
     var tRow  = r.movsRows.length + 3;    // fila del TOTAL
 
+    // Anchos de columna: puramente COSMÉTICO, y van en su propio
+    // try/catch para que un detalle de formato nunca vuelva a hacer
+    // perder el adjunto entero.
+    // Ojo: en un Sheet, setColumnWidths(col, numCols, width) recibe UN
+    // ancho (número); el que recibe un arreglo es el de Range. Acá se
+    // usa setColumnWidth() una columna por una.
+    var anchosDe = function(ws, anchos){
+      try {
+        anchos.forEach(function(px, i){ ws.setColumnWidth(i + 1, px); });
+      } catch (ign) { /* cosmético: se ignora */ }
+    };
+
     // ── Hoja Movimientos ──────────────────────────────────────
     // A Fecha, B Hora, C Tipo, D Cliente/Categoría, E Detalle,
     // F Servicios, G Domicilio, H Ingreso (=F+G), I Gasto, J Método
@@ -1248,12 +1260,14 @@ function _buildReportXlsx(period, r) {
     movs.push(['', '', '', '', 'NETO (Ingreso − Gasto)', '', '', '', '', '']);
     wsM.getRange(1, 1, movs.length, 10).setValues(movs);
 
-    // Las fórmulas se aplican aparte: setValues no crea fórmulas, y en
-    // los renglones de gasto la columna de ingreso debe quedar vacía.
-    wsM.getRange(first, 8, r.movsRows.length, 1).setFormulas(
-      r.movsRows.map(function(row, i){
-        return [row.kind === 'in' ? '=F' + (i + 2) + '+G' + (i + 2) : ''];
-      }));
+    // La fórmula del ingreso se aplica celda por celda y SOLO en los
+    // renglones de ingreso (los de gasto quedan vacíos, que es lo
+    // mismo que hace el Excel de la app). Se evita setFormulas con
+    // cadenas vacías, que es la única forma ambigua de esa API.
+    r.movsRows.forEach(function(row, i){
+      if (row.kind === 'in')
+        wsM.getRange(i + 2, 8).setFormula('=F' + (i + 2) + '+G' + (i + 2));
+    });
     wsM.getRange(tRow, 6, 1, 4).setFormulas([[
       '=SUM(F' + first + ':F' + last + ')',
       '=SUM(G' + first + ':G' + last + ')',
@@ -1263,7 +1277,7 @@ function _buildReportXlsx(period, r) {
     wsM.getRange(tRow + 1, 8, 1, 1).setFormula('=H' + tRow + '-I' + tRow);
     // Datos + fila en blanco + TOTAL + NETO
     wsM.getRange(first, 6, r.movsRows.length + 3, 4).setNumberFormat(PESO);
-    wsM.setColumnWidths(1, 10, [11, 7, 9, 22, 40, 13, 13, 18, 13, 16]);
+    anchosDe(wsM, [11, 7, 9, 22, 40, 13, 13, 18, 13, 16]);
 
     // ── Hoja Resumen ──────────────────────────────────────────
     // Mismo cuidado que en Movimientos: todas las filas con 2 celdas,
@@ -1323,7 +1337,7 @@ function _buildReportXlsx(period, r) {
     wsR.getRange(filaDe('Ingresos proyectados (con pendientes, incl. domicilios)'), 2)
        .setNumberFormat(PESO);
     wsR.getRange(fEfe, 2, 3, 1).setNumberFormat(PESO);
-    wsR.setColumnWidths(1, 2, [52, 18]);
+    anchosDe(wsR, [52, 18]);
 
     // ── Hoja Citas ────────────────────────────────────────────
     var citas = [['Fecha','Hora','Cliente','Teléfono','Servicios','Valor servicios',
@@ -1336,7 +1350,7 @@ function _buildReportXlsx(period, r) {
     });
     wsC.getRange(1, 1, citas.length, 13).setValues(citas);
     if (r.citasRows.length) wsC.getRange(2, 6, r.citasRows.length, 3).setNumberFormat(PESO);
-    wsC.setColumnWidths(1, 13, [10, 6, 20, 14, 30, 14, 14, 12, 10, 30, 12, 16, 20]);
+    anchosDe(wsC, [10, 6, 20, 14, 30, 14, 14, 12, 10, 30, 12, 16, 20]);
 
     // ── Descargar como .xlsx y devolver el blob ──
     var id  = ssNew.getId();
