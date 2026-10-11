@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, canRemindAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptGroup, reportMetrics, periodLedger, isResetOutcome, domBreakdown, reportLines, expenseLabel,
+import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, canRemindAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptServiceRefs, topServicesByDemand, apptGroup, reportMetrics, periodLedger, isResetOutcome, domBreakdown, reportLines, expenseLabel,
 MAX_REPORT_EXPENSES, REPORT_EXPENSE_DETAIL_MAX, groupExpensesByCategory } from './helpers.js'
 
 // phoneMatch/getSlots depend on todayStr() (local today). Freeze the clock
@@ -493,6 +493,131 @@ describe('serviceDeletionCheck · relación cita ⇄ servicio', () => {
                      completed: false, serviceIds: 's1' }]
     expect(apptLife(appts[0], NOW)).toBe('unknown')
     expect(serviceDeletionCheck(S1, appts, catalog, NOW).ok).toBe(true)
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════
+   apptServiceRefs / topServicesByDemand — el NOMBRE con coma NO se parte
+   ────────────────────────────────────────────────────────────
+   Regresión real: «Diseño, depilación y sombreado» es UN solo servicio,
+   pero se partía `serviceNames` por la coma y salían DOS entradas en el
+   ranking (Servicios rentables y el Top servicios del reporte), con el
+   importe de la cita repartido a medias entre ambas. La relación real
+   son los IDs, y un ID no lleva comas.
+   ══════════════════════════════════════════════════════════════ */
+describe('apptServiceRefs — se resuelve por ID, no partiendo el nombre', () => {
+  const CATALOGO = [
+    { id: 's1', name: 'Diseño de cejas', price: '350000' },
+    { id: 's3', name: 'Diseño, depilación y sombreado', price: '60000' },
+  ]
+
+  it('un nombre con coma es UN servicio: no se parte', () => {
+    const a = { serviceIds: 's3', serviceNames: 'Diseño, depilación y sombreado' }
+    expect(apptServiceRefs(a, CATALOGO)).toEqual([
+      { id: 's3', name: 'Diseño, depilación y sombreado' },
+    ])
+  })
+
+  it('el catálogo vacío (o sin cargar) tampoco parte el nombre', () => {
+    const a = { serviceIds: 's3', serviceNames: 'Diseño, depilación y sombreado' }
+    expect(apptServiceRefs(a, [])).toEqual([
+      { id: 's3', name: 'Diseño, depilación y sombreado' },
+    ])
+    expect(apptServiceRefs(a, null)).toEqual([
+      { id: 's3', name: 'Diseño, depilación y sombreado' },
+    ])
+  })
+
+  it('dos servicios de la cita van cada uno con su id y su nombre', () => {
+    const a = { serviceIds: 's1,s3',
+                serviceNames: 'Diseño de cejas, Diseño, depilación y sombreado' }
+    expect(apptServiceRefs(a, CATALOGO)).toEqual([
+      { id: 's1', name: 'Diseño de cejas' },
+      { id: 's3', name: 'Diseño, depilación y sombreado' },
+    ])
+  })
+
+  it('servicio ya eliminado: cae al nombre snapshot de la MISMA posición', () => {
+    const a = { serviceIds: 's1,sX', serviceNames: 'Diseño de cejas, Cejas full' }
+    expect(apptServiceRefs(a, CATALOGO)).toEqual([
+      { id: 's1', name: 'Diseño de cejas' },
+      { id: 'sX', name: 'Cejas full' },
+    ])
+  })
+
+  it('sin ids: usa el nombre ENTERO si está en el catálogo', () => {
+    const a = { serviceIds: '', serviceNames: 'Diseño, depilación y sombreado' }
+    expect(apptServiceRefs(a, CATALOGO)).toEqual([
+      { id: 's3', name: 'Diseño, depilación y sombreado' },
+    ])
+  })
+
+  it('sin ids y sin coincidencia: último recurso, partido por comas', () => {
+    const a = { serviceIds: '', serviceNames: 'Depilación de pierna, Cejas' }
+    expect(apptServiceRefs(a, CATALOGO)).toEqual([
+      { id: '', name: 'Depilación de pierna' },
+      { id: '', name: 'Cejas' },
+    ])
+  })
+
+  it('una cita sin nada no aporta servicios', () => {
+    expect(apptServiceRefs({}, CATALOGO)).toEqual([])
+    expect(apptServiceRefs(null, CATALOGO)).toEqual([])
+  })
+})
+
+describe('topServicesByDemand — el ranking no inventa servicios', () => {
+  const CATALOGO = [
+    { id: 's1', name: 'Diseño de cejas', price: '350000' },
+    { id: 's3', name: 'Diseño, depilación y sombreado', price: '60000' },
+  ]
+
+  it('un servicio con coma es UNA entrada, no dos', () => {
+    const a = { completed: 'true', serviceIds: 's3',
+                serviceNames: 'Diseño, depilación y sombreado', servicePrice: '60000' }
+    const top = topServicesByDemand([a], CATALOGO)
+    expect(top).toHaveLength(1)
+    expect(top[0]).toEqual({ name: 'Diseño, depilación y sombreado', count: 1, revenue: 60000 })
+  })
+
+  it('dos citas con el mismo servicio con coma acumulan, no se duplican', () => {
+    const mk = () => ({ completed: 'true', serviceIds: 's3',
+                        serviceNames: 'Diseño, depilación y sombreado', servicePrice: '60000' })
+    expect(topServicesByDemand([mk(), mk()], CATALOGO))
+      .toEqual([{ name: 'Diseño, depilación y sombreado', count: 2, revenue: 120000 }])
+  })
+
+  it('reparte la cita por igual entre sus servicios', () => {
+    const a = { completed: 'true', serviceIds: 's1,s3',
+                serviceNames: 'Diseño de cejas, Diseño, depilación y sombreado',
+                servicePrice: '410000' }
+    const top = topServicesByDemand([a], CATALOGO)
+    expect(top).toHaveLength(2)
+    expect(top.map(t => t.revenue)).toEqual([205000, 205000])
+  })
+
+  it('cuenta solo las completadas (ni pendientes ni no-show)', () => {
+    const base = { serviceIds: 's1', serviceNames: 'Diseño de cejas', servicePrice: '350000' }
+    expect(topServicesByDemand([
+      { ...base, completed: 'true' },
+      { ...base, completed: 'false' },
+      { ...base, completed: 'noshow' },
+    ], CATALOGO)).toEqual([{ name: 'Diseño de cejas', count: 1, revenue: 350000 }])
+  })
+
+  it('ordena por número de citas y se queda con el top 3', () => {
+    const a = id => ({ completed: 'true', serviceIds: id, serviceNames: 'x', servicePrice: '10000' })
+    const top = topServicesByDemand([a('s3'), a('s3'), a('s1'), a('s1'), a('s1'), a('s9')], CATALOGO)
+    expect(top.map(t => [t.name, t.count])).toEqual([
+      ['Diseño de cejas', 3],
+      ['Diseño, depilación y sombreado', 2],
+      ['x', 1],           // s9 no está en el catálogo → queda el snapshot
+    ])
+  })
+
+  it('entradas vacías no revientan', () => {
+    expect(topServicesByDemand([], CATALOGO)).toEqual([])
+    expect(topServicesByDemand(null, CATALOGO)).toEqual([])
   })
 })
 

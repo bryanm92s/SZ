@@ -12,7 +12,7 @@ import {
   svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, openWhatsApp, PAYMENT_METHODS, payMethodOf,
   apptStatus, canModifyAppt, canRemindAppt, checkSlot, confirmOutcome, projectedIncome, movsRanges,
   serviceDeletionCheck, apptGroup, reportMetrics, isResetOutcome, domBreakdown,
-  reportLines,
+  reportLines, apptServiceRefs, topServicesByDemand,
 } from './helpers.js'
 
 /* ══════════════════════════════════════════════════════════════
@@ -2933,7 +2933,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
       <div className="card" style={{marginBottom:0,cursor:'pointer',textAlign:'center',padding:'16px 12px'}} onClick={()=>setTab('report')}>
         <div style={{fontSize:26,marginBottom:6}}><svg width="26" height="22" viewBox="0 0 26 22" fill="none"><rect x="2" y="2" width="22" height="18" rx="2" stroke="var(--primary)" strokeWidth="2" fill="none"/><path d="M6 8h14M6 12h14M6 16h8" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round"/></svg></div>
         <div style={{fontWeight:700,fontSize:13,color:'var(--t)'}}>Reporte y Excel</div>
-        <div style={{fontSize:11,color:'var(--t2)',marginTop:3}}>Día, mes, año o rango · Excel →</div>
+        <div style={{fontSize:11,color:'var(--t2)',marginTop:3}}>Día, mes, rango o año · Excel →</div>
       </div>
     </div>
 
@@ -3322,13 +3322,16 @@ function TopServices({appts,services,priceHistory,setTab}) {
   }
   const stats = {}
   completedAppts.forEach(a => {
-    const names   = String(a.serviceNames||'').split(',').map(s=>s.trim()).filter(Boolean)
-    const ids     = String(a.serviceIds||'').split(',').map(s=>s.trim()).filter(Boolean)
+    // Servicios resueltos por ID contra el catálogo. OJO: NO se parte
+    // `serviceNames` por la coma —un servicio puede llamarse «Diseño,
+    // depilación y sombreado» y es UNO solo—: eso lo partía en dos
+    // entradas del ranking y además desalineaba los precios, que se
+    // buscaban por id en la MISMA posición del arreglo de nombres.
+    const refs    = apptServiceRefs(a, safeSvcs)
     const prices  = parsePrices(a.servicePrices)
     const created = a.createdAt || a.date || ''
     const apptTotal = toN(a.servicePrice)
-    names.forEach((name,i) => {
-      const id = ids[i] || ''
+    refs.forEach(({ id, name }) => {
       let price = prices[id]
       if (price === undefined || !isFinite(price)) price = priceAt(id, created)
       if (price === null || price === undefined) {
@@ -3338,7 +3341,7 @@ function TopServices({appts,services,priceHistory,setTab}) {
       if (price === null || price === undefined || !isFinite(price)) {
         // Último recurso: repartir el total de la cita entre los servicios
         // (comportamiento anterior). Mejor aproximación que nada.
-        price = names.length ? apptTotal / names.length : apptTotal
+        price = refs.length ? apptTotal / refs.length : apptTotal
       }
       if (!stats[name]) stats[name] = {name, revenue:0, count:0, id}
       stats[name].revenue += price
@@ -3539,17 +3542,11 @@ function ReportTab({appts,expenses,services,setTab}) {
   // citas agendadas o movimientos.
   const hayQueReportar = created > 0 || scheduled > 0 || ledger.rows.length > 0
 
-  // Top servicios del período (por demanda en completadas)
-  const svcStats = {}
-  apptsInPeriod.filter(a => bool(a.completed) && a.completed!=='noshow').forEach(a => {
-    const names = String(a.serviceNames||'').split(',').map(s=>s.trim()).filter(Boolean)
-    names.forEach(n => {
-      if (!svcStats[n]) svcStats[n] = {name:n, count:0, revenue:0}
-      svcStats[n].count += 1
-      svcStats[n].revenue += names.length ? toN(a.servicePrice)/names.length : toN(a.servicePrice)
-    })
-  })
-  const topByDemand = Object.values(svcStats).sort((a,b)=>b.count-a.count).slice(0,3)
+  // Top servicios del período (por demanda en completadas). Se resuelve
+  // contra el catálogo por ID: partir `serviceNames` por la coma partía
+  // también los servicios cuyo nombre traiga coma («Diseño, depilación
+  // y sombreado» es UN servicio) y aparecían dos veces en el ranking.
+  const topByDemand = topServicesByDemand(apptsInPeriod, services)
 
   // ─── Exportar a Excel (.xlsx) ──────────────────────────────────
   const exportExcel = async () => {
@@ -3688,12 +3685,12 @@ function ReportTab({appts,expenses,services,setTab}) {
         <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>📊 Reporte</span>
       </div>
 
-      {/* Modo de filtrado — 4 chips: día / mes / año / rango */}
+      {/* Modo de filtrado — 4 chips: día / mes / rango / año */}
       <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:14}}>
         <button onClick={()=>setMode('day')}   style={chipStyle(mode==='day')}>📅 Por día</button>
         <button onClick={()=>setMode('month')} style={chipStyle(mode==='month')}>🗓️ Por mes</button>
-        <button onClick={()=>setMode('year')}  style={chipStyle(mode==='year')}>🎆 Por año</button>
         <button onClick={()=>setMode('range')} style={chipStyle(mode==='range')}>📆 Por rango</button>
+        <button onClick={()=>setMode('year')}  style={chipStyle(mode==='year')}>📅 Por año</button>
       </div>
 
       {/* Selector de fecha(s) según el modo */}

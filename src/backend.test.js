@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath, URL as NodeURL } from 'node:url'
 import { createContext, runInContext } from 'node:vm'
 import { randomUUID, createHash } from 'node:crypto'
-import { reportMetrics, reportLines } from './helpers.js'
+import { reportMetrics, reportLines, topServicesByDemand } from './helpers.js'
 
 // Nota: bajo jsdom el global `URL` NO es el de Node, por eso se importa
 // `URL as NodeURL` para que fileURLToPath reciba una instancia válida.
@@ -2134,9 +2134,11 @@ describe('REPORTE: el correo del trigger = el WhatsApp del admin', () => {
   // 3 gastos (uno con descripción) y uno fuera del período.
   const seedAppts = [
     appt('a1'),
-    appt('a2', { serviceNames: 'Diseño de cejas, Lifting de pestañas', servicePrice: '180000',
-      domicilio: 'false', domicilioPrice: '0', totalPrice: '180000', time: '11:00',
-      paymentMethod: 'Transferencia' }),
+    // Dos servicios en una sola cita: los IDs (CSV) son los que mandan
+    // y van en paralelo a los nombres, que pueden traer comas propias.
+    appt('a2', { serviceIds: 's1,s2', serviceNames: 'Diseño de cejas, Lifting de pestañas',
+      servicePrice: '180000', domicilio: 'false', domicilioPrice: '0', totalPrice: '180000',
+      time: '11:00', paymentMethod: 'Transferencia' }),
     appt('a3', { completed: 'false', time: '15:00', paymentMethod: '',
       domicilio: 'false', domicilioPrice: '0', totalPrice: '130000' }),
     appt('a4', { completed: 'noshow', time: '17:00', paymentMethod: '',
@@ -2157,24 +2159,13 @@ describe('REPORTE: el correo del trigger = el WhatsApp del admin', () => {
     return runCodeGs(ss)
   }
 
-  // Réplica del cálculo de top servicios del ReportTab (App.jsx).
-  const topByDemandDe = (apptsEnPeriodo) => {
-    const stats = {}
-    apptsEnPeriodo
-      .filter(a => String(a.completed) === 'true')
-      .forEach(a => {
-        const names = String(a.serviceNames || '').split(',').map(s => s.trim()).filter(Boolean)
-        names.forEach(n => {
-          stats[n] = stats[n] || { name: n, count: 0, revenue: 0 }
-          stats[n].count += 1
-          stats[n].revenue += names.length ? Number(a.servicePrice) / names.length : Number(a.servicePrice)
-        })
-      })
-    return Object.values(stats).sort((a, b) => b.count - a.count).slice(0, 3)
-  }
+  // El top de servicios lo arma el MISMO helper que usa App.jsx
+  // (topServicesByDemand). Estaba replicado a mano acá, y esa réplica
+  // escondía el bug de partir el nombre del servicio por la coma.
+  const SVCS = [S1, S2]   // el mismo catálogo que siembra env()
 
-  const frontendLines = (label, exps = seedExps) => {
-    const apptsObj = seedAppts.map(r => Object.fromEntries(
+  const frontendLines = (label, exps = seedExps, appts = seedAppts) => {
+    const apptsObj = appts.map(r => Object.fromEntries(
       JS_KEYS.appointments.map((k, i) => [k, r[i]])))
     const expsObj = exps.map(r => Object.fromEntries(
       JS_KEYS.expenses.map((k, i) => [k, r[i]])))
@@ -2182,7 +2173,9 @@ describe('REPORTE: el correo del trigger = el WhatsApp del admin', () => {
       appts: apptsObj, expenses: expsObj,
       inPeriod: d => d === D, from: D, to: D,
     })
-    return reportLines({ label, m, topByDemand: topByDemandDe(m.apptsInPeriod), stamp: 'X' })
+    return reportLines({
+      label, m, topByDemand: topServicesByDemand(m.apptsInPeriod, SVCS), stamp: 'X',
+    })
   }
 
   it('el cuerpo del correo coincide línea por línea con el WhatsApp', () => {
@@ -2199,6 +2192,45 @@ describe('REPORTE: el correo del trigger = el WhatsApp del admin', () => {
 
     const strip = arr => arr.filter(l => !l.startsWith('_Generado '))
     expect(strip(backend)).toEqual(strip(frontendLines(label)))
+  })
+
+  it('un servicio con coma en el nombre NO se parte en el Top servicios', () => {
+    // Regresión real: «Diseño, depilación y sombreado» es UN solo
+    // servicio, pero el ranking lo partía por la coma y salían dos
+    // entradas («Diseño» y «depilación y sombreado») con el importe
+    // de la cita repartido a medias.
+    const S3 = { id: 's3', name: 'Diseño, depilación y sombreado', price: '60000', duration: '60' }
+    const misAppts = [
+      appt('c1', { serviceIds: 's3', serviceNames: S3.name, servicePrice: '60000',
+        domicilio: 'false', domicilioPrice: '0', totalPrice: '60000', time: '12:00' }),
+      appt('c2', { serviceIds: 's3', serviceNames: S3.name, servicePrice: '60000',
+        domicilio: 'false', domicilioPrice: '0', totalPrice: '60000', time: '14:00' }),
+    ]
+    const g = runCodeGs(makeSpreadsheet({
+      services: [toRow('services', S3)], appointments: misAppts, expenses: [],
+    }))
+    g.call('_sendReportEmail', { type: 'day', day: D }, 'DIARIO')
+    const backend = String(g.store.mail[g.store.mail.length - 1].body).split('\n')
+    const body = backend.join('\n')
+
+    // Sale COMPLETO, y como una sola entrada (2 citas → 2x).
+    expect(body).toContain('✨ *Top servicios*')
+    expect(body).toContain('1. Diseño, depilación y sombreado — 2x ($120.000)')
+    // Aparece UNA sola vez: la línea completa. Con el bug salían dos
+    // servicios distintos («Diseño» y «depilación y sombreado»).
+    expect(body.match(/depilación y sombreado/g)).toHaveLength(1)
+    expect(body).not.toMatch(/— 1x \(\$60\.000\)/)
+
+    // Paridad con el WhatsApp del admin, con el mismo catálogo.
+    expect(backend[1]).toMatch(/^📅 /)
+    const label = backend[1].slice('📅 '.length).trim()
+    const strip = arr => arr.filter(l => !l.startsWith('_Generado '))
+    const apptsObj = misAppts.map(r => Object.fromEntries(
+      JS_KEYS.appointments.map((k, i) => [k, r[i]])))
+    const m = reportMetrics({ appts: apptsObj, expenses: [], inPeriod: d => d === D, from: D, to: D })
+    expect(strip(backend)).toEqual(strip(reportLines({
+      label, m, topByDemand: topServicesByDemand(m.apptsInPeriod, [S3]), stamp: 'X',
+    })))
   })
 
   it('el correo agrupa los gastos por categoría IGUAL que el WhatsApp', () => {
@@ -2763,19 +2795,8 @@ describe('REPORTE ANUAL — del 1 de enero al 31 de diciembre', () => {
       from: '2026-01-01', to: '2026-12-31',
     })
 
-    // Réplica del cálculo de top servicios del ReportTab (App.jsx).
-    const stats = {}
-    m.apptsInPeriod.filter(a => String(a.completed) === 'true').forEach(a => {
-      const names = String(a.serviceNames || '').split(',').map(s => s.trim()).filter(Boolean)
-      names.forEach(n => {
-        stats[n] = stats[n] || { name: n, count: 0, revenue: 0 }
-        stats[n].count += 1
-        stats[n].revenue += names.length
-          ? Number(a.servicePrice) / names.length
-          : Number(a.servicePrice)
-      })
-    })
-    const top = Object.values(stats).sort((a, b) => b.count - a.count).slice(0, 3)
+    // El top de servicios sale del MISMO helper que usa App.jsx.
+    const top = topServicesByDemand(m.apptsInPeriod, [S1, S2])
 
     const strip = arr => arr.filter(l => !l.startsWith('_Generado '))
     expect(strip(backend))

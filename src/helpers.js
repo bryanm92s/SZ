@@ -286,6 +286,78 @@ export const apptServiceIds = a => {
 export const apptServiceNames = a =>
   String((a && a.serviceNames) || '').split(',').map(s => s.trim()).filter(Boolean)
 
+/**
+ * Servicios de una cita YA resueltos contra el catálogo: [{id, name}].
+ *
+ * La relación real son los IDs (CSV). Un ID no lleva comas, pero un
+ * NOMBRE sí puede —«Diseño, depilación y sombreado» es UN solo
+ * servicio—, así que partir `serviceNames` por la coma inventaba
+ * servicios que no existían: el ranking salía con dos entradas y el
+ * importe se repartía a medias. De ahí que el nombre SIEMPRE venga del
+ * catálogo por id, y que el snapshot solo se parta como último recurso.
+ */
+export const apptServiceRefs = (a, services) => {
+  const svcs = Array.isArray(services) ? services : []
+  const ids  = apptServiceIds(a)
+  const snap = apptServiceNames(a)
+  const porId = id => {
+    const s = svcs.find(x => String(x.id) === String(id))
+    return s ? String(s.name || '').trim() : ''
+  }
+
+  if (ids.length === 1) {
+    // Con UN servicio, el snapshot ENTERO es su nombre: no hay manera de
+    // confundirlo con un separador, así que sobrevive aunque el servicio
+    // ya no exista en el catálogo (o este no haya cargado todavía).
+    const name = porId(ids[0]) || snap.join(', ')
+    return name ? [{ id: String(ids[0]), name }] : []
+  }
+
+  if (ids.length > 1) {
+    // Varios servicios: nombre del catálogo, nunca de partir el snapshot.
+    // Si alguno ya no existe, el snapshot de la MISMA posición (el CSV y
+    // el snapshot van en paralelo; es lo único que queda para no perderlo).
+    return ids.map((id, i) => ({ id: String(id), name: porId(id) || (snap[i] || '') }))
+      .filter(r => r.name)
+  }
+
+  // Sin ids: primero el nombre snapshot ENTERO si existe en el catálogo
+  // (así un servicio cuyo nombre lleve coma tampoco se parte).
+  const whole = snap.join(', ')
+  const s = svcs.find(x => normName(x.name) === normName(whole))
+  if (s) return [{ id: String(s.id), name: String(s.name || '').trim() }]
+
+  // Último recurso: partido por comas (citas antiguas sin ids).
+  return snap.map(name => ({ id: '', name }))
+}
+
+/**
+ * Top 3 de servicios por demanda, sobre las citas COMPLETADAS: cuántas
+ * veces se pidió y cuánto facturó cada uno (la facturación de una cita
+ * se reparte por igual entre sus servicios).
+ *
+ * Es el «✨ Top servicios del período» del reporte. `_buildReport` en
+ * Code.gs replica esto línea por línea para que el correo salga igual
+ * que el WhatsApp del admin, y el test de paridad los compara.
+ */
+export const topServicesByDemand = (appts, services) => {
+  const stats = {}
+  ;(Array.isArray(appts) ? appts : [])
+    .filter(a => bool(a.completed) && a.completed !== 'noshow')
+    .forEach(a => {
+      const refs = apptServiceRefs(a, services)
+      refs.forEach(r => {
+        if (!stats[r.name]) stats[r.name] = { name: r.name, count: 0, revenue: 0 }
+        stats[r.name].count += 1
+        stats[r.name].revenue += refs.length ? toN(a.servicePrice) / refs.length : toN(a.servicePrice)
+      })
+    })
+  // Orden estable por demanda: a igual número de citas, manda el orden
+  // de aparición (el mismo en ambos lados, porque salen de la misma
+  // lista), que es lo que ya venía pasando.
+  return Object.values(stats).sort((a, b) => b.count - a.count).slice(0, 3)
+}
+
 // Duración efectiva de una cita en minutos (idéntico a apptDuration).
 const apptMinutes = a => {
   const n = Math.round(toN(a && a.duration))

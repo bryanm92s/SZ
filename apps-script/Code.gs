@@ -514,6 +514,84 @@ function _apptServiceNames(a) {
   return String((a && a.serviceNames) || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
 }
 
+// Utilidades de normalización (réplicas de helpers.js). Están a nivel de
+// archivo para que las funciones de abajo (_apptServiceRefs y
+// _topServicesByDemand) compartan una sola definición con _buildReport.
+function _toN(v) { var n = Number(String(v).replace(/[^0-9.-]/g, '')); return isNaN(n) ? 0 : n; }
+function _boolV(v) { return v === true || v === 'true'; }
+
+/**
+ * Servicios de una cita YA resueltos contra el catálogo: [{id, name}]
+ * (réplica de apptServiceRefs en helpers.js).
+ *
+ * Un NOMBRE puede llevar coma —«Diseño, depilación y sombreado» es UN
+ * solo servicio—, así que el nombre sale SIEMPRE del catálogo por id y
+ * el snapshot `serviceNames` solo se parte como último recurso. Partir
+ * el nombre a ciegas inventaba servicios fantasma y partía el ranking.
+ */
+function _apptServiceRefs(a, services) {
+  var svcs = Array.isArray(services) ? services : [];
+  var ids  = _apptServiceIds(a);
+  var snap = _apptServiceNames(a);
+  var porId = function(id){
+    for (var j = 0; j < svcs.length; j++) {
+      if (String(svcs[j].id) === String(id)) return String(svcs[j].name || '').trim();
+    }
+    return '';
+  };
+
+  if (ids.length === 1) {
+    // Con UN servicio, el snapshot ENTERO es su nombre: no hay manera de
+    // confundirlo con un separador, así que sobrevive aunque el servicio
+    // ya no exista en el catálogo (o este no haya cargado todavía).
+    var unico = porId(ids[0]) || snap.join(', ');
+    return unico ? [{ id: String(ids[0]), name: unico }] : [];
+  }
+
+  if (ids.length > 1) {
+    // Varios servicios: nombre del catálogo, nunca de partir el snapshot.
+    // Si alguno ya no existe, el snapshot de la MISMA posición (el CSV y
+    // el snapshot van en paralelo; es lo único que queda para no perderlo).
+    return ids.map(function(id, i){
+      return { id: String(id), name: porId(id) || (snap[i] || '') };
+    }).filter(function(r){ return r.name; });
+  }
+
+  // Sin ids: primero el nombre snapshot ENTERO si existe en el catálogo.
+  var whole = snap.join(', ');
+  var hitAll = null;
+  for (var k = 0; k < svcs.length; k++) {
+    if (_normName(svcs[k].name) === _normName(whole)) { hitAll = svcs[k]; break; }
+  }
+  if (hitAll) return [{ id: String(hitAll.id), name: String(hitAll.name || '').trim() }];
+
+  // Último recurso: partido por comas (citas antiguas sin ids).
+  return snap.map(function(name){ return { id: '', name: name }; });
+}
+
+/**
+ * Top 3 de servicios por demanda sobre COMPLETADAS (réplica de
+ * topServicesByDemand en helpers.js): cuántas veces se pidió y cuánto
+ * facturó cada uno, repartiendo la cita por igual entre sus servicios.
+ */
+function _topServicesByDemand(appts, services) {
+  var stats = {};
+  (Array.isArray(appts) ? appts : [])
+    .filter(function(a){ return _boolV(a.completed) && a.completed !== 'noshow'; })
+    .forEach(function(a){
+      var refs = _apptServiceRefs(a, services);
+      refs.forEach(function(r){
+        if (!stats[r.name]) stats[r.name] = { name: r.name, count: 0, revenue: 0 };
+        stats[r.name].count += 1;
+        stats[r.name].revenue += refs.length ? _toN(a.servicePrice) / refs.length : _toN(a.servicePrice);
+      });
+    });
+  // Orden estable por demanda: a igual número de citas manda el orden
+  // de aparición (el mismo en ambos lados), igual que en helpers.js.
+  return Object.keys(stats).map(function(k){ return stats[k]; })
+    .sort(function(a, b){ return b.count - a.count; }).slice(0, 3);
+}
+
 // Duración efectiva de una cita en minutos (misma regla que safeDuration:
 // inválida → 60; válida → recortada a [15, 480]).
 function _apptMinutes(a) {
@@ -1029,9 +1107,12 @@ function _buildReport(period) {
   var ss   = SpreadsheetApp.getActiveSpreadsheet();
   var appts = readSheet(ss, 'appointments');
   var exps  = readSheet(ss, 'expenses');
+  // Catálogo: hace falta para resolver los nombres del top de servicios
+  // (un nombre puede llevar coma y no se puede partir el snapshot).
+  var svcs  = readSheet(ss, 'services');
 
-  var toN = function(v){ var n = Number(String(v).replace(/[^0-9.-]/g, '')); return isNaN(n) ? 0 : n; };
-  var boolV = function(v){ return v === true || v === 'true'; };
+  // toN y boolV ahora viven a nivel de archivo (_toN / _boolV), junto a
+  // _apptServiceRefs y _topServicesByDemand, que los comparten.
 
   // Citas agendadas PARA el período (por fecha de la cita)
   var apptsInPeriod = (appts || []).filter(function(a){
@@ -1049,8 +1130,8 @@ function _buildReport(period) {
 
   var created   = createdInPeriod.length;
   var scheduled = apptsInPeriod.length;
-  var completed = apptsInPeriod.filter(function(a){ return boolV(a.completed) && a.completed !== 'noshow'; }).length;
-  var pending   = apptsInPeriod.filter(function(a){ return !boolV(a.completed) && a.completed !== 'noshow'; }).length;
+  var completed = apptsInPeriod.filter(function(a){ return _boolV(a.completed) && a.completed !== 'noshow'; }).length;
+  var pending   = apptsInPeriod.filter(function(a){ return !_boolV(a.completed) && a.completed !== 'noshow'; }).length;
   var noshow    = apptsInPeriod.filter(function(a){ return a.completed === 'noshow'; }).length;
   var completionRate = scheduled > 0 ? Math.round(completed / scheduled * 100) : 0;
 
@@ -1058,12 +1139,12 @@ function _buildReport(period) {
   // Ingreso = cita completada. El domicilio viene sumado dentro del
   // total de la cita, así que aquí se separa. Con esto el correo sale
   // con los MISMOS números que el WhatsApp que se manda a mano.
-  var incomes = apptsInPeriod.filter(function(a){ return boolV(a.completed); });
+  var incomes = apptsInPeriod.filter(function(a){ return _boolV(a.completed); });
   var totalIncome = 0, totalService = 0, totalDelivery = 0, totalCash = 0, totalTransfer = 0;
   incomes.forEach(function(a){
-    var amount   = toN(a.totalPrice || a.servicePrice || 0);
+    var amount   = _toN(a.totalPrice || a.servicePrice || 0);
     var isDom    = a.domicilio === true || a.domicilio === 'true';
-    var delivery = isDom ? Math.min(toN(a.domicilioPrice || 0), amount) : 0;
+    var delivery = isDom ? Math.min(_toN(a.domicilioPrice || 0), amount) : 0;
     totalIncome   += amount;
     totalDelivery += delivery;
     totalService  += amount - delivery;
@@ -1074,7 +1155,7 @@ function _buildReport(period) {
   var revenue      = totalIncome;                      // «Total recibido»
   var totalNoMethod = totalIncome - totalCash - totalTransfer;  // citas de antes del método
   var projected = apptsInPeriod
-    .reduce(function(s,a){ return a.completed === 'noshow' ? s : s + toN(a.totalPrice || a.servicePrice || 0); }, 0);
+    .reduce(function(s,a){ return a.completed === 'noshow' ? s : s + _toN(a.totalPrice || a.servicePrice || 0); }, 0);
 
   // Gastos del período (por range from..to o day)
   var fromStr, toStr;
@@ -1096,9 +1177,9 @@ function _buildReport(period) {
                : (who || detail || 'Gasto');
     // `cat` es la categoría sola: es la que usa la vista «por categoría»
     // del reporte cuando hay muchos gastos (réplica de helpers.js).
-    return { name: name, cat: who, amount: toN(e.amount || 0) };
+    return { name: name, cat: who, amount: _toN(e.amount || 0) };
   });
-  var totalExpenses = expensesInPeriod.reduce(function(s,e){ return s + toN(e.amount||0); }, 0);
+  var totalExpenses = expensesInPeriod.reduce(function(s,e){ return s + _toN(e.amount||0); }, 0);
   var neto = revenue - totalExpenses;
 
   // ── Filas del libro (las que van al Excel adjunto) ────────────
@@ -1107,9 +1188,9 @@ function _buildReport(period) {
   // del mismo momento los ingresos antes que los gastos.
   var movsRows = [];
   incomes.forEach(function(a){
-    var amount   = toN(a.totalPrice || a.servicePrice || 0);
+    var amount   = _toN(a.totalPrice || a.servicePrice || 0);
     var isDom    = a.domicilio === true || a.domicilio === 'true';
-    var delivery = isDom ? Math.min(toN(a.domicilioPrice || 0), amount) : 0;
+    var delivery = isDom ? Math.min(_toN(a.domicilioPrice || 0), amount) : 0;
     var m = String(a.paymentMethod || '').trim();
     movsRows.push({
       kind: 'in', date: _cleanDate(a.date), time: _cleanTime(a.time),
@@ -1122,7 +1203,7 @@ function _buildReport(period) {
     movsRows.push({
       kind: 'out', date: _cleanDate(e.date), time: '',
       who: e.category || '', detail: e.description || '',
-      service: 0, delivery: 0, amount: toN(e.amount || 0), payMethod: ''
+      service: 0, delivery: 0, amount: _toN(e.amount || 0), payMethod: ''
     });
   });
   movsRows.sort(function(a, b){
@@ -1141,10 +1222,10 @@ function _buildReport(period) {
     var key = String(a.id || '');
     if (yaVistas[key]) return;
     yaVistas[key] = true;
-    var tot    = toN(a.totalPrice || a.servicePrice || 0);
+    var tot    = _toN(a.totalPrice || a.servicePrice || 0);
     var isDom  = a.domicilio === true || a.domicilio === 'true';
-    var dv     = isDom ? Math.min(toN(a.domicilioPrice || 0), tot) : 0;
-    var done   = boolV(a.completed);
+    var dv     = isDom ? Math.min(_toN(a.domicilioPrice || 0), tot) : 0;
+    var done   = _boolV(a.completed);
     var falta  = a.completed === 'noshow';
     var m = String(a.paymentMethod || '').trim();
     citasRows.push({
@@ -1164,22 +1245,14 @@ function _buildReport(period) {
   citasRows.sort(function(a, b){ return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
 
   // Domicilios (cantidad de citas + ingresos por domicilio en completadas)
-  var domicilios = apptsInPeriod.filter(function(a){ return boolV(a.domicilio); }).length;
+  var domicilios = apptsInPeriod.filter(function(a){ return _boolV(a.domicilio); }).length;
   var domRevenue = totalDelivery;
 
-  // Top servicios por demanda (sobre completadas)
-  var svcStats = {};
-  apptsInPeriod.filter(function(a){ return boolV(a.completed) && a.completed !== 'noshow'; })
-    .forEach(function(a){
-      var names = String(a.serviceNames || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
-      names.forEach(function(n){
-        if (!svcStats[n]) svcStats[n] = { name: n, count: 0, revenue: 0 };
-        svcStats[n].count += 1;
-        svcStats[n].revenue += names.length ? toN(a.servicePrice) / names.length : toN(a.servicePrice);
-      });
-    });
-  var topByDemand = Object.keys(svcStats).map(function(k){ return svcStats[k]; })
-    .sort(function(a,b){ return b.count - a.count; }).slice(0, 3);
+  // Top servicios por demanda (sobre completadas). Resuelto contra el
+  // catálogo por ID: partir `serviceNames` por la coma partía también
+  // los servicios cuyo nombre traiga coma («Diseño, depilación y
+  // sombreado» es UN servicio) y aparecían dos veces en el ranking.
+  var topByDemand = _topServicesByDemand(apptsInPeriod, svcs);
 
   var label;
   if (period.type === 'day')        label = _fmtDayLabel(period.day);
