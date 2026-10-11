@@ -64,11 +64,13 @@ function makeSheet(name) {
   const rows = []
   const formulas = {}          // 'fila,col' → fórmula escrita (para assertar)
   const widths = []            // anchos aplicados con setColumnWidth
+  const autoResized = []       // ajustes al contenido con autoResizeColumns
   let title = name
   return {
     _rows: () => rows,
     _formulas: () => formulas,
     _widths: () => widths,
+    _autoResize: () => autoResized,
     _title: () => title,
     getName: () => title,
     setName: (n) => { title = n },
@@ -88,6 +90,15 @@ function makeSheet(name) {
         throw new Error('Cannot convert \'' + String(width) + '\' to int.')
       }
       widths.push({ col, width })
+    },
+    // Sheet.autoResizeColumns(posición inicial, nº de columnas): ajusta
+    // el ancho al contenido. Los dos argumentos son enteros (igual que
+    // setColumnWidth, que rechaza cualquier cosa no entera).
+    autoResizeColumns: (startCol, numCols) => {
+      if (!Number.isInteger(startCol) || !Number.isInteger(numCols)) {
+        throw new Error('Cannot convert \'' + String(startCol) + ',' + String(numCols) + '\' to int.')
+      }
+      autoResized.push({ startCol, numCols })
     },
     getRange(r, c, nr, nc) {
       // Apps Script acepta también getRange(fila, col) (1 celda).
@@ -252,9 +263,55 @@ function makeStore() {
        Los tests existentes no lo usan: sus defaults no cambian el
        comportamiento observable. */
     lock: { acquires: 0, releases: 0, blocked: false },
+    /* ── Reloj del sandbox ──
+       `now` es la fecha/hora que ve Code.gs cuando hace `new Date()`.
+       Por defecto queda fija para que los sellos de fecha sean
+       deterministas; las pruebas de guard (fin de mes, 31 de diciembre)
+       la cambian para simular ese día. */
+    now: '2026-01-15T13:00:00',
+    // Triggers instalados (solo registrados; nada se crea de verdad).
+    triggers: [],
   }
   store.cal = makeCalendar(store)
   return store
+}
+
+/* ── Utilities.formatDate fiel ──
+   Réplica de los patrones que usa Code.gs (yyyy, MM, dd, HH, mm, ss,
+   EEE, MMM) con los nombres cortos en español, igual que los ve el
+   usuario en el correo.
+
+   Antes el mock devolvía SIEMPRE '2026-01-15T13:00:00' sin mirar ni la
+   fecha ni el patrón: con eso `hoy` no era una fecha válida y los
+   guards de fin de mes / 31 de diciembre eran intratables (el stub
+   tapaba el hueco en vez de cubrirlo). */
+const MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+const DIAS_CORTOS  = ['dom','lun','mar','mié','jue','vie','sáb']
+const p2 = n => String(n).padStart(2, '0')
+
+function formatearFecha(cuando, fmt) {
+  const d = cuando instanceof Date ? cuando : new Date(cuando)
+  const tokens = {
+    yyyy: () => String(d.getFullYear()),
+    MMM:  () => MESES_CORTOS[d.getMonth()],
+    EEE:  () => DIAS_CORTOS[d.getDay()],
+    dd:   () => p2(d.getDate()),
+    MM:   () => p2(d.getMonth() + 1),
+    HH:   () => p2(d.getHours()),
+    mm:   () => p2(d.getMinutes()),
+    ss:   () => p2(d.getSeconds()),
+    d:    () => String(d.getDate()),
+  }
+  // split con captura: los índices IMPARES son los literales entrecomillados
+  // ('de', 'T'), que van tal cual; los pares son patrón y se sustituyen.
+  // Así el `d` de 'de' no se come como si fuera el día.
+  // Ojo con el orden de la alternancia: MMM antes que MM y dd antes que d.
+  return String(fmt)
+    .split(/'([^']*)'/)
+    .map((parte, i) => (i % 2
+      ? parte
+      : parte.replace(/yyyy|MMM|EEE|dd|MM|HH|mm|ss|d/g, m => tokens[m]())))
+    .join('')
 }
 
 /* ── Sandbox con los servicios de Apps Script simulados ── */
@@ -291,8 +348,23 @@ function runCodeGs(ss, store = makeStore()) {
       createTextOutput: (s) => ({ setMimeType: () => ({ json: s }) }),
     },
     Session: { getScriptTimeZone: () => 'America/Bogota' },
+    /* node:vm crea su PROPIO contexto con su propio Date, así que
+       vi.setSystemTime() no llega desde fuera. Se inyecta uno que lee
+       `store.now`: de ahí salen `new Date()` y `Date.now()` dentro de
+       Code.gs, con lo que los guards de fecha quedan gobernados por la
+       prueba y los sellos quedan deterministas. Los constructores con
+       argumentos (new Date(y, m, 0), new Date('…T00:00:00')) pasan
+       tal cual. */
+    Date: class extends Date {
+      constructor(...args) {
+        super(...(args.length ? args : [store.now]))
+      }
+      static now() { return new globalThis.Date(store.now).getTime() }
+    },
     Utilities: {
-      formatDate: () => '2026-01-15T13:00:00',
+      // Réplica fiel: respeta la fecha recibida y el patrón (ver
+      // formatearFecha). El stub anterior devolvía lo mismo para todo.
+      formatDate: (date, _tz, fmt) => formatearFecha(date, fmt),
       sleep: () => {},   // solo lo usa el reintento del export .xlsx
       // CSPRNG real (node:crypto): igual que Utilities.getUuid() en Apps Script.
       getUuid: () => randomUUID(),
@@ -372,7 +444,32 @@ function runCodeGs(ss, store = makeStore()) {
         }
       },
     },
-    ScriptApp: { getOAuthToken: () => 'token-de-prueba' },
+    /* Triggers: solo se REGISTRAN en store.triggers; no se instala
+       nada real. La cadena de constructores replica la de
+       ScriptApp.newTrigger() para poder assertar los handlers creados
+       (el test de «4 triggers» depende de esto). */
+    ScriptApp: {
+      getOAuthToken: () => 'token-de-prueba',
+      WeekDay: { SUNDAY: 'SUNDAY', MONDAY: 'MONDAY', SATURDAY: 'SATURDAY' },
+      newTrigger: (handler) => {
+        const t = {
+          handler, tipo: null, cada: null, dia: null, hora: null, minuto: null,
+          getHandlerFunction: () => handler,
+          timeBased()   { this.tipo = 'time'; return this },
+          everyDays(n)  { this.cada = n; return this },
+          onWeekDay(d)  { this.dia = d; return this },
+          atHour(h)     { this.hora = h; return this },
+          nearMinute(m) { this.minuto = m; return this },
+          create()      { store.triggers.push(t); return t },
+        }
+        return t
+      },
+      getProjectTriggers: () => store.triggers.slice(),
+      deleteTrigger: (t) => {
+        const i = store.triggers.indexOf(t)
+        if (i >= 0) store.triggers.splice(i, 1)
+      },
+    },
     // Calendar simulado en memoria (ver makeCalendar): crear, buscar,
     // actualizar y borrar quedan registrados sin tocar Calendar real.
     CalendarApp: {
@@ -765,10 +862,13 @@ describe('Code.gs — restablecimiento protegido', () => {
     const code = lastCode(env.store)
     expect(code).toBeTruthy()
 
-    // Simula el paso del tiempo envejeciendo el código en Script Properties.
+    // Simula el paso del tiempo envejeciendo el código en Script
+    // Properties. Ojo: hay que envejecerlo contra el reloj que ve
+    // Code.gs (store.now), no contra el del host, o el código nunca
+    // quedaría "vencido" para quien lo valida.
     const KEY = 'SB_RESET_CODE'
     const st = JSON.parse(env.store.props.get(KEY))
-    st.expiresAt = Date.now() - 1000
+    st.expiresAt = new Date(env.store.now).getTime() - 1000
     env.store.props.set(KEY, JSON.stringify(st))
 
     const v = post(env.g, { action: 'verifyResetCode', code })
@@ -1997,7 +2097,8 @@ describe('correo de restablecimiento · presentación y seguridad', () => {
     const { g } = makeEnv()
     request(g)
     const st = JSON.parse(g.store.props.get('SB_RESET_CODE'))
-    expect(st.expiresAt).toBeGreaterThan(Date.now())
+    // Comparado contra el reloj que usa Code.gs para validar (store.now).
+    expect(st.expiresAt).toBeGreaterThan(new Date(g.store.now).getTime())
   })
 })
 
@@ -2366,7 +2467,7 @@ describe('REPORTE: el correo lleva el Excel adjunto', () => {
     expect(g.store.trashed[0].id).toBe(libro(g).getId())
   })
 
-  it('el nombre del archivo sigue el período: día, mes y semana', () => {
+  it('el nombre del archivo sigue el período: día, mes, año y semana', () => {
     const g = env()
     enviar(g, { type: 'month', ym: '2026-08' }, 'MENSUAL')
     expect(g.store.mail[g.store.mail.length - 1].attachments[0]._nombre)
@@ -2374,6 +2475,9 @@ describe('REPORTE: el correo lleva el Excel adjunto', () => {
     enviar(g, { type: 'week', from: '2026-08-03', to: '2026-08-09' }, 'SEMANAL')
     expect(g.store.mail[g.store.mail.length - 1].attachments[0]._nombre)
       .toBe('reporte_2026-08-03_2026-08-09.xlsx')
+    enviar(g, { type: 'year', y: '2026' }, 'ANUAL')
+    expect(g.store.mail[g.store.mail.length - 1].attachments[0]._nombre)
+      .toBe('reporte_2026.xlsx')
   })
 
   it('sin movimientos no hay adjunto, pero el correo sale igual', () => {
@@ -2422,17 +2526,29 @@ describe('REPORTE: el correo lleva el Excel adjunto', () => {
     hoja(g, 'Resumen')._rows().forEach(f => expect(f).toHaveLength(2))
   })
 
-  it('los anchos de columna se aplican uno por uno (nunca como arreglo)', () => {
-    // Regresión real: Sheet.setColumnWidths(col, numCols, width) recibe
-    // UN ancho; pasarle el arreglo hacía que Apps Script intentara
-    // convertirlo a entero y se perdiera el adjunto entero.
+  it('los anchos se dan en PÍXELES y con ajuste automático al contenido', () => {
+    // Regresión real: Sheet.setColumnWidth(col, ancho) recibe PÍXELES,
+    // pero aquí se pasaban los `wch` del Excel de la app, que son
+    // CARACTERES (11, 7, 9, 22 …). Con 11 px las columnas salían
+    // APRETADAS y había que hacer clic para ajustarlas.
     const g = env()
     enviar(g)
+
+    // Caracteres → píxeles: caracteres * 7 + 5.
     const movs = hoja(g, 'Movimientos')
-    expect(movs._widths().map(w => w.width)).toEqual([11, 7, 9, 22, 40, 13, 13, 18, 13, 16])
+    expect(movs._widths().map(w => w.width))
+      .toEqual([11, 7, 9, 22, 40, 13, 13, 18, 13, 16].map(c => c * 7 + 5))
     expect(movs._widths().map(w => w.col)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-    expect(hoja(g, 'Resumen')._widths().map(w => w.width)).toEqual([52, 18])
+    // Ninguna columna por debajo de lo legible (el bug dejaba 11 px).
+    movs._widths().forEach(w => expect(w.width).toBeGreaterThanOrEqual(50))
+    expect(hoja(g, 'Resumen')._widths().map(w => w.width)).toEqual([52 * 7 + 5, 18 * 7 + 5])
     expect(hoja(g, 'Citas')._widths()).toHaveLength(13)
+
+    // Y encima se pide el ajuste automático al contenido —lo que hacía
+    // el clic—, una vez por hoja y sobre todas sus columnas.
+    expect(movs._autoResize()).toEqual([{ startCol: 1, numCols: 10 }])
+    expect(hoja(g, 'Resumen')._autoResize()).toEqual([{ startCol: 1, numCols: 2 }])
+    expect(hoja(g, 'Citas')._autoResize()).toEqual([{ startCol: 1, numCols: 13 }])
   })
 
   it('reintenta la descarga si el export todavía no está listo', () => {
@@ -2500,5 +2616,204 @@ describe('REPORTE: el correo lleva el Excel adjunto', () => {
     const g2 = env()
     const mail2 = enviar(g2, { type: 'day', day: D }, 'MENSUAL')
     expect(mail2.htmlBody).toContain('Reporte automático mensual')
+  })
+})
+
+
+/* ══════════════════════════════════════════════════════════════
+   REPORTE ANUAL — del 1 de enero al 31 de diciembre
+   ────────────────────────────────────────────────────────────
+   Mismo molde que el mensual: el trigger corre a diario y solo
+   envía el 31 de diciembre con el año completo en curso. El
+   cuerpo tiene que salir IGUAL que el WhatsApp del admin.
+   ══════════════════════════════════════════════════════════════ */
+describe('REPORTE ANUAL — del 1 de enero al 31 de diciembre', () => {
+  const P = { type: 'year', y: '2026' }
+
+  const appt = (id, fecha, over = {}) => toRow('appointments', {
+    id, clientId: 'c1', clientName: 'Ana', clientPhone: '300111222',
+    serviceIds: 's1', serviceNames: 'Diseño de cejas', servicePrice: '100000', servicePrices: '{}',
+    domicilio: 'false', domicilioPrice: '0', totalPrice: '100000', address: 'Calle 1 #2-3',
+    date: fecha, time: '09:00', createdAt: fecha + 'T08:00:00',
+    calendarCreated: 'false', calendarEventId: '', completed: 'true',
+    duration: '30', paymentMethod: 'Efectivo', ...over,
+  })
+
+  const gasto = (id, fecha, over = {}) => toRow('expenses', {
+    id, description: '', amount: '10000', category: 'Gasolina', date: fecha, ...over,
+  })
+
+  // 4 citas dentro de 2026 (dos justo en los extremos del año) y 2
+  // fuera; 2 gastos dentro y 2 fuera. Lo de fuera NO debe sumar.
+  const appts = [
+    appt('a1', '2026-01-01'),                                  // primer día
+    appt('a2', '2026-06-15'),
+    appt('a3', '2026-12-31'),                                  // último día
+    appt('a4', '2026-03-10', { completed: 'false', paymentMethod: '' }),
+    appt('x1', '2025-12-31'),                                  // año anterior
+    appt('x2', '2027-01-01'),                                  // año siguiente
+  ]
+  const exps = [
+    gasto('e1', '2026-01-01', { amount: '10000' }),
+    gasto('e2', '2026-12-31', { amount: '20000' }),
+    gasto('x3', '2025-12-31', { amount: '40000' }),
+    gasto('x4', '2027-01-01', { amount: '80000' }),
+  ]
+
+  const env = () => runCodeGs(makeSpreadsheet({
+    services:     [toRow('services', S1), toRow('services', S2)],
+    appointments: appts,
+    expenses:     exps,
+  }))
+
+  const enviar = (g) => {
+    g.call('_sendReportEmail', P, 'ANUAL')
+    return g.store.mail[g.store.mail.length - 1]
+  }
+
+  const libro = (g) => g.store.books[0]
+  const hoja  = (g, nombre) => libro(g)._sheets.find(s => s._title() === nombre)
+
+  it('cubre exactamente el año: 1 de enero a 31 de diciembre', () => {
+    const body = String(enviar(env()).body)
+    expect(body).toContain('📅 Año 2026')
+    // 4 creadas (las 2 de fuera no entran).
+    expect(body).toContain('• Creadas (registradas): *4*')
+    expect(body).toContain('• Agendadas para el período: *4*')
+    expect(body).toContain('• Completadas: *3* · Pendientes: 1')
+    expect(body).not.toContain('No asistió')
+    // 3 completadas × $100.000.
+    expect(body).toContain('• Total recibido: *$300.000*')
+    expect(body).toContain('   - Efectivo: *$300.000*')
+    expect(body).toContain('• Proyectado: *$400.000*')   // las 4, menos el no-show
+    // Solo los 2 gastos de 2026 (10.000 + 20.000): ni 40.000 ni 80.000.
+    expect(body).toContain('• Total gastos: *$30.000*')
+    expect(body).toContain('💳 *Neto*: *$270.000*')      // 300.000 − 30.000
+  })
+
+  it('las fechas de los extremos cuentan y las de fuera no', () => {
+    const g = env()
+    enviar(g)
+    const fechas = hoja(g, 'Movimientos')._rows().slice(1).map(f => f[0]).filter(Boolean)
+    expect(fechas).toContain('2026-01-01')
+    expect(fechas).toContain('2026-12-31')
+    expect(fechas).not.toContain('2025-12-31')
+    expect(fechas).not.toContain('2027-01-01')
+  })
+
+  it('el asunto, el pie y el archivo del Excel son de año', () => {
+    const mail = enviar(env())
+    expect(mail.subject).toContain('[REPORTE ANUAL]')
+    expect(mail.subject).toContain('Año 2026')
+    expect(mail.htmlBody).toContain('Reporte automático anual')
+    expect(mail.attachments).toHaveLength(1)
+    expect(mail.attachments[0]._nombre).toBe('reporte_2026.xlsx')
+  })
+
+  it('el trigger anual solo dispara el 31 de diciembre', () => {
+    const g = env()
+    g.store.now = '2026-12-31T12:00:00'
+    g.call('sendYearlyReportEmail')
+    expect(g.store.mail).toHaveLength(1)
+    expect(g.store.logs.join(' ')).toMatch(/OK Reporte ANUAL/)
+    expect(g.store.mail[0].body).toContain('📅 Año 2026')
+
+    // Cualquier otro día del año: sale sin enviar.
+    const otro = env()
+    otro.store.now = '2026-10-11T12:00:00'
+    otro.call('sendYearlyReportEmail')
+    expect(otro.store.mail).toEqual([])
+    expect(otro.store.logs.join(' ')).toMatch(/SKIP reporte anual/)
+  })
+
+  it('setupAllReportTriggers instala los 4, con el anual incluido', () => {
+    const g = env()
+    g.call('setupAllReportTriggers')
+    expect(g.store.triggers.map(t => t.getHandlerFunction()).sort()).toEqual([
+      'sendDailyReportEmail', 'sendMonthlyReportEmail',
+      'sendWeeklyReportEmail', 'sendYearlyReportEmail',
+    ])
+    expect(g.store.logs.join(' ')).toContain('4 triggers')
+    g.store.triggers.forEach(t => expect(t.hora).toBe(12))
+
+    // El anual va como el mensual: dispara a diario y el guard decide.
+    const anual = g.store.triggers.find(t => t.getHandlerFunction() === 'sendYearlyReportEmail')
+    expect(anual.tipo).toBe('time')
+    expect(anual.cada).toBe(1)
+
+    g.call('removeAllReportTriggers')
+    expect(g.store.triggers).toEqual([])
+    expect(g.store.logs.join(' ')).toContain('4 trigger(s) de reporte eliminados')
+  })
+
+  it('el cuerpo anual coincide línea por línea con el WhatsApp del admin', () => {
+    const g = env()
+    const backend = String(enviar(g).body).split('\n')
+    expect(backend[1]).toMatch(/^📅 /)
+    const label = backend[1].slice('📅 '.length).trim()
+    expect(label).toBe('Año 2026')
+
+    const apptsObj = appts.map(r => Object.fromEntries(
+      JS_KEYS.appointments.map((k, i) => [k, r[i]])))
+    const expsObj = exps.map(r => Object.fromEntries(
+      JS_KEYS.expenses.map((k, i) => [k, r[i]])))
+    const m = reportMetrics({
+      appts: apptsObj, expenses: expsObj,
+      inPeriod: d => d.slice(0, 4) === '2026',
+      from: '2026-01-01', to: '2026-12-31',
+    })
+
+    // Réplica del cálculo de top servicios del ReportTab (App.jsx).
+    const stats = {}
+    m.apptsInPeriod.filter(a => String(a.completed) === 'true').forEach(a => {
+      const names = String(a.serviceNames || '').split(',').map(s => s.trim()).filter(Boolean)
+      names.forEach(n => {
+        stats[n] = stats[n] || { name: n, count: 0, revenue: 0 }
+        stats[n].count += 1
+        stats[n].revenue += names.length
+          ? Number(a.servicePrice) / names.length
+          : Number(a.servicePrice)
+      })
+    })
+    const top = Object.values(stats).sort((a, b) => b.count - a.count).slice(0, 3)
+
+    const strip = arr => arr.filter(l => !l.startsWith('_Generado '))
+    expect(strip(backend))
+      .toEqual(strip(reportLines({ label, m, topByDemand: top, stamp: 'X' })))
+  })
+})
+
+
+/* ══════════════════════════════════════════════════════════════
+   Utilities.formatDate (réplica fiel dentro del sandbox)
+   ────────────────────────────────────────────────────────────
+   Formatea lo que se le pasa según el patrón, con los nombres en
+   español igual que los ve el usuario en el correo. Está probado
+   aparte porque de él dependen el sello del reporte y todos los
+   guards de fecha (hoy / domingo / fin de mes / 31 de diciembre).
+   ══════════════════════════════════════════════════════════════ */
+describe('Utilities.formatDate del sandbox', () => {
+  const d = new Date(2026, 0, 5, 9, 7, 3)   // lunes 5 de enero de 2026, 09:07:03
+
+  it('respeta cada patrón que usa Code.gs', () => {
+    expect(formatearFecha(d, 'yyyy-MM-dd')).toBe('2026-01-05')
+    expect(formatearFecha(d, 'yyyy-MM')).toBe('2026-01')
+    expect(formatearFecha(d, 'yyyy')).toBe('2026')
+    expect(formatearFecha(d, 'dd/MM/yyyy')).toBe('05/01/2026')
+    expect(formatearFecha(d, 'yyyy-MM-dd HH:mm:ss')).toBe('2026-01-05 09:07:03')
+    expect(formatearFecha(d, 'yyyy-MM-dd HH:mm')).toBe('2026-01-05 09:07')
+    expect(formatearFecha(d, "yyyy-MM-dd'T'HH:mm:ss")).toBe('2026-01-05T09:07:03')
+  })
+
+  it('los literales entrecomillados quedan intactos', () => {
+    // Es el patrón de _fmtDayLabel: el `d` de «de» NO es el día.
+    expect(formatearFecha(d, "EEE, d 'de' MMM yyyy")).toBe('lun, 5 de ene 2026')
+  })
+
+  it('distingue MMM de MM y dd de d', () => {
+    expect(formatearFecha(d, 'MM')).toBe('01')
+    expect(formatearFecha(d, 'MMM')).toBe('ene')
+    expect(formatearFecha(d, 'dd')).toBe('05')
+    expect(formatearFecha(d, 'd')).toBe('5')
   })
 })

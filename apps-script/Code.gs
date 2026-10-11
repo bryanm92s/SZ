@@ -972,6 +972,7 @@ function _inPeriod(d, period) {
   var x = _cleanDate(d); if (!x) return false;
   if (period.type === 'day')   return x === period.day;
   if (period.type === 'month') return x.slice(0,7) === period.ym;
+  if (period.type === 'year')  return x.slice(0,4) === period.y;
   // week (range Lun-Dom ISO)
   return x >= period.from && x <= period.to;
 }
@@ -1079,6 +1080,7 @@ function _buildReport(period) {
   var fromStr, toStr;
   if (period.type === 'day')   { fromStr = period.day; toStr = period.day; }
   else if (period.type === 'month') { fromStr = period.ym + '-01'; toStr = _lastDayOfMonth(Number(period.ym.slice(0,4)), Number(period.ym.slice(5,7))); }
+  else if (period.type === 'year')  { fromStr = period.y + '-01-01'; toStr = period.y + '-12-31'; }   // 1 de enero a 31 de diciembre
   else                          { fromStr = period.from; toStr = period.to; }
   var expensesInPeriod = (exps || []).filter(function(e){
     var x = _cleanDate(e.date);
@@ -1182,6 +1184,7 @@ function _buildReport(period) {
   var label;
   if (period.type === 'day')        label = _fmtDayLabel(period.day);
   else if (period.type === 'week')  label = _fmtRangeLabel(period.from, period.to);
+  else if (period.type === 'year')  label = 'Año ' + period.y;
   else                              label = _monthLabel(period.ym);
 
   return {
@@ -1231,12 +1234,20 @@ function _buildReportXlsx(period, r) {
     // Anchos de columna: puramente COSMÉTICO, y van en su propio
     // try/catch para que un detalle de formato nunca vuelva a hacer
     // perder el adjunto entero.
-    // Ojo: en un Sheet, setColumnWidths(col, numCols, width) recibe UN
-    // ancho (número); el que recibe un arreglo es el de Range. Acá se
-    // usa setColumnWidth() una columna por una.
+    //
+    // OJO con las unidades: Sheet.setColumnWidth(col, ancho) recibe
+    // PÍXELOS, pero los números de siempre (11, 7, 9, 22 …) venían
+    // copiados de los `wch` del Excel de la app, que son CARACTERES.
+    // Pasados como píxeles dejaban las columnas APRETADAS (11 px ≈ 2
+    // letras) y había que hacer clic para ajustarlas. Ahora se
+    // convierten a píxeles y encima se pide el ajuste automático al
+    // contenido —justo lo que hacía ese clic—, que es el que manda.
     var anchosDe = function(ws, anchos){
       try {
-        anchos.forEach(function(px, i){ ws.setColumnWidth(i + 1, px); });
+        anchos.forEach(function(caracteres, i){
+          ws.setColumnWidth(i + 1, caracteres * 7 + 5);
+        });
+        ws.autoResizeColumns(1, anchos.length);
       } catch (ign) { /* cosmético: se ignora */ }
     };
 
@@ -1405,10 +1416,11 @@ function _buildReportXlsx(period, r) {
 }
 
 // Nombre del archivo: igual que el del botón de la app
-// (reporte_<día> / reporte_<mes> / reporte_<desde>_<hasta>.xlsx).
+// (reporte_<día> / reporte_<mes> / reporte_<año> / reporte_<desde>_<hasta>.xlsx).
 function _xlsxName(period) {
   if (period.type === 'day')   return 'reporte_' + period.day + '.xlsx';
   if (period.type === 'month') return 'reporte_' + period.ym + '.xlsx';
+  if (period.type === 'year')  return 'reporte_' + period.y + '.xlsx';
   return 'reporte_' + period.from + '_' + period.to + '.xlsx';
 }
 
@@ -1675,8 +1687,32 @@ function sendMonthlyReportEmail() {
 }
 
 /**
- * Instala los 3 triggers: diario (everyDays 12:00), semanal (domingo 12:00),
- * mensual (everyDays 12:00 + guard de fin-de-mes). Idempotente.
+ * REPORTE ANUAL (31 de diciembre a las 12 p.m.) — año completo en curso,
+ * del 1 de enero al 31 de diciembre. Igual guarda que el mensual: Apps
+ * Script no tiene trigger "último día del año", así que el trigger
+ * dispara todos los días y esta función sale sin enviar salvo que hoy
+ * sea el 31 de diciembre.
+ */
+function sendYearlyReportEmail() {
+  try {
+    var tz = Session.getScriptTimeZone();
+    var now = new Date();
+    var today = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
+    if (today.slice(5) !== '12-31') {   // 'MM-DD'
+      console.log('SKIP reporte anual: hoy (' + today + ') no es 31 de diciembre');
+      return;
+    }
+    var y = Utilities.formatDate(now, tz, 'yyyy');
+    _sendReportEmail({ type: 'year', y: y }, 'ANUAL');
+  } catch(ex) {
+    console.error('ERROR al enviar reporte anual: ' + ex.message);
+  }
+}
+
+/**
+ * Instala los 4 triggers: diario (everyDays 12:00), semanal (domingo 12:00),
+ * mensual (everyDays 12:00 + guard de fin-de-mes) y anual (everyDays
+ * 12:00 + guard de 31 de diciembre). Idempotente.
  */
 function setupAllReportTriggers() {
   removeAllReportTriggers();
@@ -1686,14 +1722,16 @@ function setupAllReportTriggers() {
     .timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(12).nearMinute(0).create();
   ScriptApp.newTrigger('sendMonthlyReportEmail')
     .timeBased().everyDays(1).atHour(12).nearMinute(0).create();
-  console.log('OK 3 triggers (daily / weekly-sun / monthly-lastDay) a las 12:00 p.m.');
+  ScriptApp.newTrigger('sendYearlyReportEmail')
+    .timeBased().everyDays(1).atHour(12).nearMinute(0).create();
+  console.log('OK 4 triggers (daily / weekly-sun / monthly-lastDay / yearly-dec31) a las 12:00 p.m.');
 }
 
 /**
- * Elimina los 3 triggers de reporte (o los que existan). Idempotente.
+ * Elimina los 4 triggers de reporte (o los que existan). Idempotente.
  */
 function removeAllReportTriggers() {
-  var names = ['sendDailyReportEmail','sendWeeklyReportEmail','sendMonthlyReportEmail'];
+  var names = ['sendDailyReportEmail','sendWeeklyReportEmail','sendMonthlyReportEmail','sendYearlyReportEmail'];
   var removed = 0;
   ScriptApp.getProjectTriggers().forEach(function(t){
     if (names.indexOf(t.getHandlerFunction()) >= 0) {

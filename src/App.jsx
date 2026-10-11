@@ -2933,7 +2933,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
       <div className="card" style={{marginBottom:0,cursor:'pointer',textAlign:'center',padding:'16px 12px'}} onClick={()=>setTab('report')}>
         <div style={{fontSize:26,marginBottom:6}}><svg width="26" height="22" viewBox="0 0 26 22" fill="none"><rect x="2" y="2" width="22" height="18" rx="2" stroke="var(--primary)" strokeWidth="2" fill="none"/><path d="M6 8h14M6 12h14M6 16h8" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round"/></svg></div>
         <div style={{fontWeight:700,fontSize:13,color:'var(--t)'}}>Reporte y Excel</div>
-        <div style={{fontSize:11,color:'var(--t2)',marginTop:3}}>Día, mes o rango · Excel →</div>
+        <div style={{fontSize:11,color:'var(--t2)',marginTop:3}}>Día, mes, año o rango · Excel →</div>
       </div>
     </div>
 
@@ -3449,6 +3449,7 @@ function ReportTab({appts,expenses,services,setTab}) {
   const today = todayStr()
   const [day,   setDay]   = useState(today)
   const [month, setMonth] = useState(monthStr())
+  const [year,  setYear]  = useState(today.slice(0, 4))   // modo «Año»
   const [from,  setFrom]  = useState(today)
   const [to,    setTo]    = useState(today)
   // Rango siempre válido: Hasta nunca puede ser menor que Desde, y ninguna
@@ -3474,10 +3475,12 @@ function ReportTab({appts,expenses,services,setTab}) {
     if (!x) return false
     if (mode === 'day')   return x === day
     if (mode === 'month') return x.slice(0,7) === month
+    if (mode === 'year')  return x.slice(0,4) === year   // 1 ene – 31 dic
     return x >= from && x <= to
   }
   // Rango from..to para filtrar gastos (range Inclusivo, en otros modos del día/mes)
-  const fromVal = () => mode==='day' ? day : mode==='month' ? month + '-01' : from
+  const fromVal = () => mode==='day' ? day : mode==='month' ? month + '-01'
+    : mode==='year' ? year + '-01-01' : from
   const toVal   = () => {
     if (mode === 'day')   return day
     if (mode === 'month') {
@@ -3485,6 +3488,7 @@ function ReportTab({appts,expenses,services,setTab}) {
       const d = new Date(y, m, 0)  // día 0 del mes siguiente = último día
       return `${y}-${String(m).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
     }
+    if (mode === 'year')  return year + '-12-31'          // 31 de diciembre
     return to
   }
   const inRange = (d, a, b) => { const x = cleanDate(d); return x && x >= a && x <= b }
@@ -3496,7 +3500,11 @@ function ReportTab({appts,expenses,services,setTab}) {
   const periodLabel = () =>
     mode==='day'   ? fmtDate(day)
   : mode==='month' ? monthLabel(month)
+  : mode==='year'  ? `Año ${year}`
   : (from===to ? fmtDate(from) : `${fmtDate(from)} — ${fmtDate(to)}`)
+
+  // Años que ofrece el modo «Año»: los últimos 6, con el actual arriba.
+  const anios = Array.from({ length: 6 }, (_, i) => String(Number(today.slice(0, 4)) - i))
 
   // Citas agendadas PARA el período (por fecha de la cita)
   const apptsInPeriod = safeA.filter(a => inPeriod(a.date))
@@ -3635,7 +3643,7 @@ function ReportTab({appts,expenses,services,setTab}) {
     XLSX.utils.book_append_sheet(wb, wsR, 'Resumen')
     XLSX.utils.book_append_sheet(wb, wsM, 'Movimientos')
     XLSX.utils.book_append_sheet(wb, wsC, 'Citas')
-    const name = `reporte_${mode==='day'?day:mode==='month'?month:`${from}_${to}`}.xlsx`
+    const name = `reporte_${mode==='day'?day:mode==='month'?month:mode==='year'?year:`${from}_${to}`}.xlsx`
     XLSX.writeFile(wb, name)
   }
 
@@ -3680,10 +3688,11 @@ function ReportTab({appts,expenses,services,setTab}) {
         <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>📊 Reporte</span>
       </div>
 
-      {/* Modo de filtrado — 3 chips: día / mes / rango */}
-      <div style={{display:'flex',gap:8,marginBottom:14}}>
+      {/* Modo de filtrado — 4 chips: día / mes / año / rango */}
+      <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:14}}>
         <button onClick={()=>setMode('day')}   style={chipStyle(mode==='day')}>📅 Por día</button>
         <button onClick={()=>setMode('month')} style={chipStyle(mode==='month')}>🗓️ Por mes</button>
+        <button onClick={()=>setMode('year')}  style={chipStyle(mode==='year')}>🎆 Por año</button>
         <button onClick={()=>setMode('range')} style={chipStyle(mode==='range')}>📆 Por rango</button>
       </div>
 
@@ -3692,6 +3701,12 @@ function ReportTab({appts,expenses,services,setTab}) {
         ? <div style={{marginBottom:14}}><label className="lbl">Día</label><input type="date" className="inp" value={day} max={today} onChange={e=>setDay(e.target.value)}/></div>
         : mode==='month'
         ? <div style={{marginBottom:14}}><label className="lbl">Mes</label><input type="month" className="inp" value={month} max={monthStr()} onChange={e=>setMonth(e.target.value)}/></div>
+        : mode==='year'
+        ? <div style={{marginBottom:14}}><label className="lbl">Año</label>
+            <select className="inp" value={year} onChange={e=>setYear(e.target.value)}>
+              {anios.map(a=><option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
         : <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
             <div><label className="lbl">Desde</label><input type="date" className="inp" value={from} max={to < today ? to : today} onChange={e=>onFrom(e.target.value)}/></div>
             <div><label className="lbl">Hasta</label><input type="date" className="inp" value={to} min={from} max={today} onChange={e=>onTo(e.target.value)}/></div>
