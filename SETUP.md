@@ -23,17 +23,24 @@ Vercel (React App)  ←→  Google Apps Script  ←→  Google Sheets + Google C
 
 1. Ve a **script.google.com**
 2. Crea un proyecto nuevo → nómbralo **"SZ API"**
-3. Pega todo el contenido del archivo `apps-script/Code.gs`
-4. **Guarda el token en Propiedades del proyecto** (engranaje ⚙️ →
-   *Propiedades del proyecto* → *Propiedades de script*). **No lo escribas
-   en el código**: el repositorio es público.
-   - **Clave:** `SB_SYNC_TOKEN`
-   - **Valor:** `TuTokenSuperSecreto2024`  ← cámbialo por algo único y largo
-5. Vincula el script a tu spreadsheet:
-   - Menú → **Recursos** → **Proyecto de Google Cloud Platform** → Sigue las instrucciones
-   - O más fácil: desde el Spreadsheet, ve a **Extensiones → Apps Script** y pega el código ahí
-
-   > 💡 **Recomendado**: Desde el Spreadsheet > Extensiones > Apps Script. Así el script tiene acceso automático a ese spreadsheet.
+3. **Pega el manifiesto.** En ⚙️ → **Mostrar archivo de manifiesto** y
+   reemplaza todo su contenido por el de `apps-script/appsscript.json`.
+   > ⚠️ No lo omitas: sin el bloque `"webapp"` con
+   > `"access": "ANYONE_ANONYMOUS"` la app de Vercel **no podrá** llamar al
+   > script y se quedará en «Modo sin conexión».
+4. Pega todo el contenido del archivo `apps-script/Code.gs`
+5. **Guarda las propiedades** (engranaje ⚙️ → *Propiedades del proyecto* →
+   *Propiedades de script*). **No las escribas en el código**: el repositorio
+   es público.
+   - **`SB_SYNC_TOKEN`** → un texto **único y largo** (también lo usarás en
+     `VITE_TOKEN`).
+   - **`SB_AUTHORIZED_EMAIL`** → tu correo.
+     > ⚠️ **Obligatoria.** Sin ella **no se envía nada**: ni el código de
+     > restablecimiento, ni los reportes automáticos, ni el respaldo semanal.
+6. Vincula el script a tu spreadsheet:
+   - **Opción recomendada:** desde el Spreadsheet, ve a **Extensiones → Apps
+     Script** y pega el código ahí. Así el script tiene acceso automático a
+     ese spreadsheet.
 
 ---
 
@@ -79,7 +86,12 @@ git push -u origin main
    | Variable | Valor |
    |---|---|
    | `VITE_SCRIPT_URL` | La URL del Apps Script del Paso 3 |
-   | `VITE_TOKEN` | El mismo token que pusiste en `Code.gs` |
+   | `VITE_TOKEN` | El mismo valor de la propiedad `SB_SYNC_TOKEN` |
+   | `VITE_ADMIN_WHATSAPP` | Tu número con prefijo de país (p. ej. `573001234567`) |
+
+   > 🔑 **Nunca** escribas el token en `Code.gs`: el repositorio es público.
+   > `VITE_ADMIN_WHATSAPP` habilita el botón «💬 WhatsApp admin» del reporte
+   > y también vive **solo** en Vercel.
 
 3. Clic en **Deploy** ✅
 
@@ -102,6 +114,20 @@ Cada vez que modifiques el `Code.gs`:
 
 ---
 
+## ⚡ Funcionalidades opcionales
+
+Con los pasos anteriores la app ya funciona. Estas funciones se activan
+aparte y están explicadas en detalle en
+[`docs/MANUAL_USUARIO.md`](docs/MANUAL_USUARIO.md):
+
+- **Reportes automáticos** (diario, semanal, mensual y anual por correo) y
+  **respaldos automáticos** en Drive. Se instalan ejecutando
+  `setupAllReportTriggers()` **una sola vez** desde el editor de Apps Script.
+- **Recuperación de acceso por código** — funciona sola, pero depende de que
+  exista la propiedad `SB_AUTHORIZED_EMAIL`.
+
+---
+
 ## ❓ Solución de problemas
 
 **"Sin conexión" en la app**
@@ -116,3 +142,10 @@ Cada vez que modifiques el `Code.gs`:
 **Datos no aparecen entre dispositivos**
 - Verifica que ambos dispositivos apuntan a la misma URL de Vercel
 - Los datos viven en Google Sheets, no en el navegador
+
+**No llegan los reportes ni el respaldo semanal**
+- Revisa que existe la propiedad `SB_AUTHORIZED_EMAIL` (engranaje ⚙️ →
+  *Propiedades del proyecto* → *Propiedades de script*)
+- Abre **Registro de ejecución** en el editor de Apps Script: si falta la
+  propiedad, ahí aparece el aviso «falta la propiedad SB_AUTHORIZED_EMAIL»
+- Verifica que ejecutaste `setupAllReportTriggers()` una vez

@@ -245,10 +245,11 @@ function makeCalendar(store) {
 
 function makeStore() {
   const store = {
-    // Token de sincronización: en producción vive en Script Properties
-    // (clave SB_SYNC_TOKEN), nunca dentro de Code.gs. El harness lo siembra
-    // aquí para que el resto de tests no tenga que pensarlo.
-    props: new Map([['SB_SYNC_TOKEN', TOKEN]]), mail: [], logs: [],
+    // Token de sincronización y correo autorizado: en producción viven
+    // en Script Properties (SB_SYNC_TOKEN / SB_AUTHORIZED_EMAIL), nunca
+    // dentro de Code.gs. El harness los siembra aquí para que el resto
+    // de tests no tenga que pensarlo.
+    props: new Map([['SB_SYNC_TOKEN', TOKEN], ['SB_AUTHORIZED_EMAIL', AUTHORIZED_EMAIL]]), mail: [], logs: [],
     calLookups: [], calDeleted: [], calCreated: [],
     // Libros temporales del Excel adjunto, descargas y papelera.
     books: [], fetched: [], trashed: [],
@@ -497,6 +498,12 @@ function runCodeGs(ss, store = makeStore()) {
 
 const TOKEN = 'CAMBIA_TU_TOKEN'
 
+// Correo de pruebas: sintético a propósito. El repositorio es público,
+// así que aquí NUNCA puede ir un correo real. Lo que se prueba es el
+// cableado —que el destinatario sale de SB_AUTHORIZED_EMAIL—, no la
+// dirección en sí.
+const AUTHORIZED_EMAIL = 'propietario@sz.test'
+
 function post(g, payload) {
   const res = g.doPost({ postData: { contents: JSON.stringify({ token: TOKEN, ...payload }) } })
   return JSON.parse(res.json)
@@ -528,7 +535,6 @@ function makeEnv({ appts = [], store = makeStore() } = {}) {
 const svcRows = (ss) => ss._sheets.services._rows().slice(1).map(r => r[0])
 
 /* ── Utilidades del flujo de recuperación del propietario ── */
-const AUTHORIZED_EMAIL = 'bryanmorales8240@gmail.com'
 
 // El código de recuperación aparece ÚNICAMENTE en el correo simulado.
 // El texto plano lo deja en una línea propia (8 caracteres), y el HTML
@@ -948,8 +954,29 @@ describe('Code.gs — restablecimiento protegido', () => {
     expect(env.store.mail.length).toBe(1)
     expect(env.store.mail[0].to).toBe(AUTHORIZED_EMAIL)
     expect(env.g.call('_authorizedEmail')).toBe(AUTHORIZED_EMAIL)
-    // Ninguna petición pública escribió la propiedad del correo.
-    expect(env.store.props.has('SB_AUTHORIZED_EMAIL')).toBe(false)
+    // Ninguna petición pública alteró la propiedad del correo: sigue
+    // exactamente como la dejó la configuración del proyecto. (Antes de
+    // siembrarla en el harness se comprobaba que no existiera; lo que se
+    // protege es que nadie la cambie, no su ausencia.)
+    expect(env.store.props.get('SB_AUTHORIZED_EMAIL')).toBe(AUTHORIZED_EMAIL)
+  })
+
+  it('7b) sin SB_AUTHORIZED_EMAIL no se envía nada ni se consume el cupo', () => {
+    // La propiedad es la ÚNICA fuente del correo. Sin ella el código se
+    // descarta en silencio —la respuesta no puede revelar si hay correo
+    // configurado— y, sobre todo, NO se gasta el cupo de solicitudes: así
+    // el propietario puede configurarla y volver a intentar.
+    env.store.props.delete('SB_AUTHORIZED_EMAIL')
+
+    const r = rawPost({ token: TOKEN, action: 'requestResetCode' })
+
+    // Misma respuesta que siempre: no revela el estado de la configuración.
+    expect(r.ok).toBe(true)
+    expect(Object.keys(r.data)).toEqual(['sent'])
+
+    expect(env.store.mail.length).toBe(0)                    // nada salió
+    expect(env.store.props.has('SB_RESET_CODE')).toBe(false)    // sin código
+    expect(env.store.props.has('SB_RESET_LIMITS')).toBe(false)  // sin gastar cupo
   })
 
   it('8) una autorización temporal válida permite completar únicamente la operación autorizada', () => {
@@ -2397,6 +2424,18 @@ describe('REPORTE: el correo lleva el Excel adjunto', () => {
     const mail = enviar(g)
     expect(mail.attachments.length).toBe(1)
     expect(mail.attachments[0]._nombre).toBe('reporte_2026-08-04.xlsx')
+  })
+
+  it('sin SB_AUTHORIZED_EMAIL el reporte se omite y queda aviso en el log', () => {
+    const g = env()
+    g.store.props.delete('SB_AUTHORIZED_EMAIL')
+
+    // El trigger NO debe reventar: se omite y se deja constancia en el
+    // registro de ejecución, que solo lee el propietario del proyecto.
+    g.call('_sendReportEmail', { type: 'day', day: D }, 'DIARIO')
+
+    expect(g.store.mail.length).toBe(0)
+    expect(JSON.stringify(g.store.logs)).toContain('SB_AUTHORIZED_EMAIL')
   })
 
   it('el libro trae las tres hojas: Resumen, Movimientos y Citas', () => {

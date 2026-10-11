@@ -239,7 +239,7 @@ Ninguna se escribe dentro del código (el repo es público).
 | Nombre exacto | Clave en el código | Uso | Obligatoria | Sensibilidad | Verificación |
 |---|---|---|---|---|---|
 | `SB_SYNC_TOKEN` | `TOKEN_PROP_KEY` (`Code.gs` 15) | Autentica GET y POST. **Si falta, no se autoriza nada** («fail closed») y el servidor responde «Token de sincronización no configurado: añade la propiedad SB_SYNC_TOKEN…» (`Code.gs` 244–245). | **Sí** | **Secreto** | Sin ella, cualquier petición es rechazada. Con ella y el token correcto, la app muestra «✓ Sincronizado». |
-| `SB_AUTHORIZED_EMAIL` | `PROP_KEY.email` (`Code.gs` 164) | Correo al que se envía el código de restablecimiento. | No — si falta, cae a `DEFAULT_AUTHORIZED_EMAIL` (`Code.gs` 161). | **Secreto / personal** | El correo llega al indicado al pedir el código. |
+| `SB_AUTHORIZED_EMAIL` | `PROP_KEY.email` (`Code.gs` ~164) | **ÚNICA** fuente del correo: código de restablecimiento, los 4 reportes automáticos y el respaldo semanal. | **Sí** — sin ella no se envía nada. | **Secreto / personal** | Con ella: el correo llega al indicado al pedir el código. Sin ella: no sale nada y el log de ejecución avisa (el reset responde igual para no revelar la configuración, pero no gasta el cupo de solicitudes). |
 | `SB_RESET_CODE` | `PROP_KEY.code` (`Code.gs` 165) | JSON `{hash, expiresAt, tries}` del código vigente. **La gestiona el propio sistema.** | Automática | Interna | No se toca a mano. |
 | `SB_RESET_GRANTS` | `PROP_KEY.grants` (`Code.gs` 166) | JSON `{grantId: {hash, expiresAt, usedAt}}`. **La gestiona el propio sistema.** | Automática | Interna | No se toca a mano. |
 | `SB_RESET_LIMITS` | `PROP_KEY.limits` (`Code.gs` 167) | JSON `{sends:[ms], lockedUntil:ms}` de rate-limiting. **La gestiona el propio sistema.** | Automática | Interna | No se toca a mano. |
@@ -255,11 +255,14 @@ saberlo al instalar en otro negocio:
 
 | Valor | Ubicación | Uso | Configurable |
 |---|---|---|---|
-| *(una dirección de correo)* | `Code.gs` **1540** (`_sendReportEmail`) | Destinatario de los **4 reportes automáticos** | ❌ **Hardcodeado** — hay que editar la línea |
-| *(la misma dirección)* | `Code.gs` **908** (`sendWeeklyBackupEmail`) | Destinatario del **respaldo semanal** | ❌ **Hardcodeado** |
-| *(la misma dirección)* | `Code.gs` **161** (`DEFAULT_AUTHORIZED_EMAIL`) | Respaldo del correo de restablecimiento | ✅ Sí, vía `SB_AUTHORIZED_EMAIL` |
 | `'America/Bogota'` | `appsscript.json` | Zona horaria del script | ✅ Sí, editando el manifiesto |
-| `'BACKUP-PROYECTO'` y `'Backups'` | `Code.gs` 811, 815 | Carpetas de Drive para los respaldos | ❌ Hardcodeado |
+| `'BACKUP-PROYECTO'` y `'Backups'` | `Code.gs` (buscador de carpetas de Drive) | Carpetas de Drive para los respaldos | ❌ Hardcodeado |
+
+> ✅ **El correo ya NO está escrito en el código.** Antes aparecía en tres
+> sitios (`_sendReportEmail`, `sendWeeklyBackupEmail` y como respaldo del
+> correo de restablecimiento); ahora los tres leen `_authorizedEmail()`,
+> que únicamente consulta la propiedad de script `SB_AUTHORIZED_EMAIL`.
+> Ni `Code.gs` ni el repositorio contienen ninguna dirección de correo.
 
 > 📌 **La dirección de correo no se reproduce aquí** por ser dato personal; ya
 > está escrita en el propio `Code.gs` (que es código fuente). Búscala en esas
@@ -319,7 +322,8 @@ hoja automáticamente:
 
 ### D.3 Manifiesto y permisos
 
-`apps-script.json` (el archivo **activo** del repo):
+`apps-script/appsscript.json` — **idéntico al manifiesto desplegado en
+producción**:
 
 ```json
 {
@@ -330,11 +334,17 @@ hoja automáticamente:
   "oauthScopes": [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/calendar",
-    "https://www.googleapis.com/auth/script.mail",
-    "https://www.googleapis.com/auth/script.scriptapp",
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/script.external_request"
-  ]
+    "https://www.googleapis.com/auth/script.scriptapp"
+  ],
+  "webapp": {
+    "executeAs": "USER_DEPLOYING",
+    "access": "ANYONE_ANONYMOUS"
+  }
 }
 ```
 
@@ -344,21 +354,27 @@ hoja automáticamente:
 |---|---|
 | `spreadsheets` | Leer y escribir las 5 hojas |
 | `calendar` | Crear, actualizar y borrar eventos de cita |
-| `script.mail` | `GmailApp.sendEmail` (reportes, respaldo semanal, código de reset) |
+| `gmail.send` | `GmailApp.sendEmail` (reportes, respaldo semanal, código de reset) |
 | `script.scriptapp` | `ScriptApp.newTrigger` / `deleteTrigger` (triggers automáticos) |
 | `drive` | `DriveApp` para los respaldos diarios |
 | `script.external_request` | `UrlFetchApp.fetch` (exportar la hoja a `.xlsx` para el adjunto) |
+| `userinfo.email` / `userinfo.profile` | ⚠️ **No los usa `Code.gs`.** Viven en el manifiesto activo; quitarlos obligaría a reautorizar el script sin ningún beneficio, así que se dejan tal cual. |
 
-> ⚠️ **Discrepancia detectada (no corregida).** Existe también
-> `apps-script/appsscript.json.txt`, que **no** es el manifiesto activo y
-> declara **scopes distintos**: `gmail.send`, `userinfo.email` y
-> `userinfo.profile` (que el activo no usa), y **no** incluye
-> `script.scriptapp` ni `script.mail`. Además trae un bloque `webapp`:
-> `"executeAs": "USER_DEPLOYING"`, `"access": "ANYONE_ANONYMOUS"`.
+> 🔑 **El bloque `webapp` es imprescindible.** `"access": "ANYONE_ANONYMOUS"`
+> es lo que permite que la app de Vercel llame al script **sin sesión de
+> Google**; sin él, la app se quedaría en «Modo sin conexión» para siempre.
+> `"executeAs": "USER_DEPLOYING"` hace que el script corra con **tus**
+> permisos, no con los del visitante.
+
+> ✅ **Discrepancia corregida.** Existía un duplicado `appsscript.json.txt`
+> con scopes distintos y **sin bloque `webapp`**. Se comparó contra el
+> manifiesto realmente desplegado en producción y resultó ser **ese** el
+> correcto: el duplicado se eliminó y `appsscript.json` se reescribió para
+> que sea el archivo único y fiel a producción.
 >
-> **Usa `appsscript.json`.** `appsscript.json.txt` parece una versión anterior
-> conservada como referencia. Si copiaras ese a Apps Script, el script podría
-> fallar al instalar triggers (le faltaría `script.scriptapp`).
+> ⚠️ **Por qué importaba:** `appsscript.json` declaraba `script.mail` en vez
+> de `gmail.send` y carecía del bloque `webapp`. Copiar **ese** al editor de
+> Apps Script habría dejado la app sin poder ser llamada desde Vercel.
 
 ### D.4 Zona horaria
 
@@ -373,7 +389,7 @@ En **⚙️ → Propiedades del proyecto → Propiedades de script**, agrega:
 | Clave | Valor |
 |---|---|
 | `SB_SYNC_TOKEN` | Un texto **único y largo** (p. ej. 32+ caracteres aleatorios). El mismo que usarás en `VITE_TOKEN`. |
-| `SB_AUTHORIZED_EMAIL` | *(opcional)* Tu correo. Si lo omites, se usa el respaldo escrito en `Code.gs` línea 161. |
+| `SB_AUTHORIZED_EMAIL` | **Obligatoria.** Tu correo. Sin ella no se envía el código de restablecimiento, ni los reportes automáticos, ni el respaldo semanal. |
 
 > 🔑 **Nunca** escribas el token dentro de `Code.gs`: el repositorio es público.
 
@@ -596,7 +612,7 @@ así:
 | Función | Frecuencia | Qué hace |
 |---|---|---|
 | `createDailyBackup` (`Code.gs` 802) | Diario, 23:00 | Copia la hoja a `BACKUP-PROYECTO/Backups/<nombre de la hoja>/` como `<nombre> — Backup yyyy-MM-dd`. **No duplica** si ya existe hoy. Elimina los mayores de **30 días**. |
-| `sendWeeklyBackupEmail` (`Code.gs` 904) | Sábados, 9:00 | Busca el respaldo más reciente, lo exporta a `.xlsx` y lo envía por correo. ⚠️ Destinatario hardcodeado. |
+| `sendWeeklyBackupEmail` (`Code.gs` 904) | Sábados, 9:00 | Busca el respaldo más reciente, lo exporta a `.xlsx` y lo envía por correo. Destinatario desde `SB_AUTHORIZED_EMAIL`; si falta, se omite y queda aviso en el log. |
 
 **Instalación (una sola vez):**
 

@@ -434,8 +434,11 @@ Confirmadas en el código, no corregidas:
   Calendar falla, la app avisa y ofrece reintento, pero **no se puede hacer
   rollback** de la cita ya borrada. La app muestra el ID del evento para borrarlo
   a mano.
-- **Destinatario del reporte por correo hardcodeado** en `_sendReportEmail` y
-  `sendWeeklyBackupEmail`. Para otro negocio hay que editar `Code.gs`.
+- **El correo del destinatario vive solo en Script Properties.** Ni el
+  reporte, ni el respaldo semanal, ni el código de restablecimiento tienen
+  una dirección escrita en el código: los tres leen `SB_AUTHORIZED_EMAIL`.
+  **Si falta esa propiedad no se envía nada** (el reset no gasta su cupo de
+  solicitudes y los reportes/backups se omiten avisando en el log).
 - **El restablecimiento borra todo** (clientes, citas, gastos y eventos de
   Calendar) y **no se puede deshacer**.
 - **`writeSheet` reescribe la hoja completa** en cada guardado: cualquier fila

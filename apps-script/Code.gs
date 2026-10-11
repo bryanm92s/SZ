@@ -150,18 +150,20 @@ function doPost(e) {
    `resetPriceHistory:true` o más de una colección definida.
 
    ── Configuración ──
-   El correo se toma de la propiedad de script `AUTHORIZED_EMAIL`
-   (Editor → Propiedades del proyecto) y solo cae al único constante
-   de abajo si esa propiedad no existe. Cambiar el correo NO exige
-   tocar código ni el frontend. No existe ninguna acción pública que
-   lo modifique.
+   El correo vive ÚNICAMENTE en la propiedad de script
+   `SB_AUTHORIZED_EMAIL` (Editor → Propiedades del proyecto). No hay
+   ningún correo escrito en este archivo ni en el repositorio, que es
+   público. No existe ninguna acción pública que lo modifique.
+
+   Si la propiedad falta, NO se envía nada: el código de
+   restablecimiento se descarta sin consumir intentos (ver
+   _requestResetCode) y el reporte/backups se omiten avisando en el
+   registro de ejecución. Cambiar el correo NO exige tocar código ni
+   el frontend.
 ══════════════════════════════════════════════════════════════ */
 
-// ÚNICO lugar del código con el correo autorizado (respaldo).
-const DEFAULT_AUTHORIZED_EMAIL = 'bryanmorales8240@gmail.com';
-
 const PROP_KEY = {
-  email:  'SB_AUTHORIZED_EMAIL', // propiedad de script que respalda/cede al constante
+  email:  'SB_AUTHORIZED_EMAIL', // ÚNICA fuente del correo autorizado
   code:   'SB_RESET_CODE',        // JSON {hash, expiresAt, tries}
   grants: 'SB_RESET_GRANTS',      // JSON {grantId: {hash, expiresAt, usedAt}}
   limits: 'SB_RESET_LIMITS'       // JSON {sends:[ms], lockedUntil:ms}
@@ -178,10 +180,11 @@ function _props() {
   return PropertiesService.getScriptProperties();
 }
 
+// Vacío si la propiedad no está configurada. Quien llame debe decidir
+// qué hacer en ese caso (no enviar y avisar), nunca inventar un destino.
 function _authorizedEmail() {
-  let v = '';
-  try { v = String(_props().getProperty(PROP_KEY.email) || '').trim(); } catch(_) { v = ''; }
-  return v || DEFAULT_AUTHORIZED_EMAIL;
+  try { return String(_props().getProperty(PROP_KEY.email) || '').trim(); }
+  catch(_) { return ''; }
 }
 
 function _readProp(key, fallback) {
@@ -292,6 +295,18 @@ function _consumeGrant(b) {
 // si es distinto del registrado, si se está rate-limited ni nada más.
 function _requestResetCode() {
   const now = Date.now();
+
+  // Sin correo configurado no se genera código ni se consume un intento,
+  // así el propietario puede configurarlo y volver a intentar sin gastar
+  // su cupo. La respuesta es idéntica a la normal para no revelar si hay
+  // un correo configurado (ver cabecera de esta sección); el diagnóstico
+  // va al registro de ejecución, que solo lee el propietario del proyecto.
+  if (!_authorizedEmail()) {
+    console.error('SZ: falta la propiedad SB_AUTHORIZED_EMAIL; ' +
+                  'no se envió código de restablecimiento.');
+    return { sent: true };
+  }
+
   const lim = _readProp(PROP_KEY.limits, { sends: [], lockedUntil: 0 });
   lim.sends = (Array.isArray(lim.sends) ? lim.sends : []).filter(t => now - t < SEND_WINDOW_MS);
 
@@ -905,7 +920,11 @@ function sendWeeklyBackupEmail() {
   try {
     const ss         = SpreadsheetApp.getActiveSpreadsheet();
     const ssName     = ss.getName();
-    const recipient  = 'bryanmorales8240@gmail.com';
+    // Destinatario desde SB_AUTHORIZED_EMAIL. El catch de esta función
+    // lo deja registrado en el log de ejecución sin tumbar el trigger.
+    const recipient  = _authorizedEmail();
+    if (!recipient) throw new Error(
+      'Falta la propiedad SB_AUTHORIZED_EMAIL: no hay destinatario para el backup.');
 
     // ── Localizar la carpeta de backups ──────────────────────
     const proyectosIt = DriveApp.getFoldersByName('BACKUP-PROYECTO');
@@ -1537,7 +1556,13 @@ function _groupExpenses(items) {
 function _sendReportEmail(period, kind) {
   var tz = Session.getScriptTimeZone();
   var now = new Date();
-  var recipient = 'bryanmorales8240@gmail.com';
+  // Destinatario desde SB_AUTHORIZED_EMAIL: si falta, se omite el
+  // reporte avisando en el log en vez de fallar el trigger.
+  var recipient = _authorizedEmail();
+  if (!recipient) {
+    console.warn('SZ: falta la propiedad SB_AUTHORIZED_EMAIL; se omite el reporte ' + kind + '.');
+    return;
+  }
 
   initSheets(SpreadsheetApp.getActiveSpreadsheet());
   var r = _buildReport(period);

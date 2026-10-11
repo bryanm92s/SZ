@@ -53,21 +53,49 @@ documentación. Se conservan por su valor histórico:
 
 Durante el análisis del código real aparecieron puntos que **no se corrigieron**
 (por instrucción expresa de documentar, no modificar). Quedan anotados aquí y en
-[`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) sección G.
+[`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) sección G. Los **tres primeros fueron
+corregidos** después, el **4.º** ya estaba resuelto, y el **5.º** es en realidad
+una **restricción de diseño**, no un defecto.
 
-1. **Destinatario del reporte por correo hardcodeado.** `_sendReportEmail`
-   (`apps-script/Code.gs` línea 1540) y `sendWeeklyBackupEmail` (línea 908)
-   usan una dirección de correo escrita **dentro del código**, mientras que el
-   correo del restablecimiento **sí** es configurable vía la propiedad de
-   script `SB_AUTHORIZED_EMAIL`. Para instalar SZ "desde cero" en otro negocio
-   hay que editar esas dos líneas.
-2. **Dos manifiestos de Apps Script distintos.** Existen `appsscript.json`
-   (el activo) y `appsscript.json.txt` (parece una versión anterior) con
-   **scopes diferentes**. Ver detalle en `MANUAL_TECNICO.md` sección D.
-3. **`SETUP.md` parcialmente desactualizada.** No menciona los reportes
-   automáticos por correo, los respaldos automáticos, `VITE_ADMIN_WHATSAPP`
-   ni la recuperación de acceso por código.
-4. **`README.md` anterior desactualizado.** Decía que los tests cubrían solo
-   `helpers.js` y que el reporte era "por día, mes o rango". Ambas cosas
-   cambiaron (hay tests del backend y reporte anual). Fue corregido en este
-   documento.
+1. ~~**Destinatario del reporte por correo hardcodeado.**~~ ✅ **CORREGIDO.**
+   `_sendReportEmail` y `sendWeeklyBackupEmail` usaban una dirección de correo
+   escrita **dentro del código**. Ahora los tres puntos (reporte, respaldo
+   semanal y restablecimiento) leen `_authorizedEmail()`, que únicamente
+   consulta la propiedad de script `SB_AUTHORIZED_EMAIL`. **Ninguna dirección
+   de correo queda en el repositorio**, ni siquiera en los tests (usan un
+   valor sintético).
+   > ⚠️ **Exige acción al desplegar:** crea la propiedad
+   > `SB_AUTHORIZED_EMAIL` en el editor de Apps Script **antes** de pegar el
+   > `Code.gs` nuevo. Si falta, no se envía nada: el código de
+   > restablecimiento se descarta sin gastar el cupo de solicitudes y los
+   > reportes/backups se omiten dejando aviso en el log de ejecución.
+2. ~~**Dos manifiestos de Apps Script distintos.**~~ ✅ **CORREGIDO.**
+   Existían `appsscript.json` y `appsscript.json.txt` con **scopes
+   diferentes** y con solo uno trayendo el bloque `webapp`. Se comparó
+   contra el manifiesto **realmente desplegado** en producción y resultó
+   ser el `.txt` el correcto: se eliminó el duplicado y `appsscript.json`
+   se reescribió para que sea el archivo único y fiel a producción.
+   > 🔑 **Por qué importaba:** `appsscript.json` carecía de
+   > `"access": "ANYONE_ANONYMOUS"`. Copiar **ese** al editor habría
+   > dejado la app de Vercel sin poder llamar al script.
+3. ~~**`SETUP.md` parcialmente desactualizada.**~~ ✅ **CORREGIDO.**
+   Ahora incluye el paso de pegar el **manifiesto**, las **dos** propiedades
+   obligatorias (`SB_SYNC_TOKEN` y `SB_AUTHORIZED_EMAIL`), la variable
+   `VITE_ADMIN_WHATSAPP`, una sección de **funcionalidades opcionales**
+   (reportes y respaldos automáticos) y el diagnóstico de «no llegan los
+   reportes». También se corrigió un consejo peligroso que sugería escribir
+   el token en `Code.gs`.
+4. ~~**`README.md` anterior desactualizado.**~~ ✅ Ya resuelto en esta misma
+   documentación: decía que los tests cubrían solo `helpers.js` y que el
+   reporte era "por día, mes o rango"; hoy hay tests del backend y reporte
+   anual.
+5. **Lógica de reporte duplicada (frontend y backend). 🔒 Restricción de
+   diseño, NO un defecto.** `reportLines` (`src/helpers.js`) y
+   `_sendReportEmail` (`apps-script/Code.gs`) producen el **mismo texto**,
+   línea por línea. **No se puede eliminar**: Apps Script y el frontend
+   corren en runtimes distintos y el flujo de despliegue es «pegar `Code.gs`
+   en el editor de Apps Script», sin ningún paso de build intermedio que
+   permita compartir el módulo.
+   > ✅ **Mitigación vigente:** el test de paridad en `src/backend.test.js`
+   > compara ambos textos y **falla** si se desalinean. No intentar
+   > «unificarlos» a mano: rompería el despliegue.
