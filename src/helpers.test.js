@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptGroup, reportMetrics, periodLedger } from './helpers.js'
+import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptGroup, reportMetrics, periodLedger, isResetOutcome } from './helpers.js'
 
 // phoneMatch/getSlots depend on todayStr() (local today). Freeze the clock
 // so the tests are deterministic.
@@ -809,5 +809,67 @@ describe('REGLA ÚNICA · editar/eliminar citas en todas las vistas', () => {
     expect(checkSlot(day, '09:00', appts, 60, 'self')).toBe(null)
     // …pero una hora ocupada por otra sí se rechaza.
     expect(checkSlot(day, '11:00', appts, 60, 'self')).toMatch(/no están disponibles/)
+  })
+})
+
+/* -- isResetOutcome ----------------------------------------------
+   El transporte del reset puede fallar DESPUÉS de que el servidor lo
+   ejecutara: aquí se decide si el estado leído de la hoja es el
+   resultado de un restablecimiento, para no decirle a la dueña que
+   falló cuando en realidad sí se hizo.                              */
+describe('isResetOutcome', () => {
+  const DEF = [
+    { id: 'def-1', name: 'Micropigmentación cejas', price: 350000, duration: 90 },
+    { id: 'def-2', name: 'Lifting de pestañas',     price: 130000, duration: 60 },
+  ]
+
+  // Así responde el servidor DESPUÉS de un reset: colecciones vacías y
+  // catálogo re-sembrado con los IDs y tipos regenerados en esa sesión.
+  const vaciado = (extra = {}) => ({
+    clients: [], appointments: [], expenses: [],
+    services: [
+      { id: 'nuevo-a', name: 'Micropigmentación cejas', price: '350000', duration: '90' },
+      { id: 'nuevo-b', name: 'Lifting de pestañas',     price: '130000', duration: '60' },
+    ],
+    priceHistory: [],
+    ...extra,
+  })
+
+  it('true: 3 colecciones vacías y catálogo = servicios por defecto', () => {
+    expect(isResetOutcome(vaciado(), DEF)).toBe(true)
+  })
+
+  it('ignora los IDs: el reset los regenera en cada sesión', () => {
+    const idsDistintos = { ...vaciado() }
+    idsDistintos.services = idsDistintos.services.map((s, i) => ({ ...s, id: `otro-${i}`, duration: 45 }))
+    expect(isResetOutcome(idsDistintos, DEF)).toBe(true)
+  })
+
+  it('false si queda algún cliente, cita o gasto', () => {
+    expect(isResetOutcome(vaciado({ clients: [{ id: 'c1', name: 'Ana' }] }), DEF)).toBe(false)
+    expect(isResetOutcome(vaciado({ appointments: [{ id: 'a1' }] }), DEF)).toBe(false)
+    expect(isResetOutcome(vaciado({ expenses: [{ id: 'e1' }] }), DEF)).toBe(false)
+  })
+
+  it('false si el catálogo NO es el por defecto (servicios propios)', () => {
+    const conPropios = vaciado({
+      services: [{ id: 'p1', name: 'Servicio mío', price: '99000', duration: '30' }],
+    })
+    expect(isResetOutcome(conPropios, DEF)).toBe(false)
+
+    // Mismo nombre pero otro precio → no es el catálogo por defecto.
+    const precioDistinto = vaciado()
+    precioDistinto.services[0].price = '999999'
+    expect(isResetOutcome(precioDistinto, DEF)).toBe(false)
+  })
+
+  it('false si faltan colecciones, servicios o defaults', () => {
+    expect(isResetOutcome({ clients: [], appointments: [], expenses: [] }, DEF)).toBe(false)
+    expect(isResetOutcome(vaciado({ services: [] }), DEF)).toBe(false)
+    expect(isResetOutcome(vaciado(), [])).toBe(false)
+    expect(isResetOutcome(vaciado(), null)).toBe(false)
+    expect(isResetOutcome(null, DEF)).toBe(false)
+    expect(isResetOutcome(undefined, DEF)).toBe(false)
+    expect(isResetOutcome('no-es-datos', DEF)).toBe(false)
   })
 })

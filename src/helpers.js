@@ -541,3 +541,29 @@ export const openWhatsApp = (phone, msg) => {
   if (ios) window.location.href = url
   else window.open(url, '_blank')
 }
+
+/* ── Restablecimiento: comprobación contra el servidor ────────────
+   El transporte NO es una prueba: el POST del reset puede perderse
+   por el camino DESPUÉS de que el servidor lo ejecutara (pasó en
+   producción: la app mostró "Load failed" y la hoja ya estaba vacía).
+   Antes de decirle a la dueña que falló, se lee la hoja y se compara
+   el resultado con lo que se pidió borrar:
+     · clientes, citas y gastos vacíos, y
+     · el catálogo otra vez en los servicios por defecto
+       (nombre + precio; los IDs se regeneran en cada sesión, por eso
+       NO se comparan).
+   `false` no prueba que el reset fallara — podría ser una cuenta ya
+   vacía con servicios a medida — por eso quien lo llama lo usa como
+   sospecha, no como veredicto.                                     */
+export const isResetOutcome = (data, defaults) => {
+  if (!data || typeof data !== 'object') return false
+  const vacio = k => Array.isArray(data[k]) && data[k].length === 0
+  if (!vacio('clients') || !vacio('appointments') || !vacio('expenses')) return false
+
+  const svc  = Array.isArray(data.services) ? data.services : []
+  const def  = Array.isArray(defaults) ? defaults : []
+  if (svc.length !== def.length || def.length === 0) return false
+  const clave = s => `${String((s && s.name) || '')}|${toN((s && s.price) || 0)}`
+  const reales = new Set(svc.map(clave))
+  return def.every(d => reales.has(clave(d)))
+}

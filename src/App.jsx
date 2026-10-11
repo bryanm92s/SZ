@@ -11,7 +11,7 @@ import {
   bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots, monthLedger,
   svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, openWhatsApp, PAYMENT_METHODS, payMethodOf,
   apptStatus, canModifyAppt, checkSlot, confirmOutcome, projectedIncome, movsRanges,
-  serviceDeletionCheck, apptGroup, reportMetrics,
+  serviceDeletionCheck, apptGroup, reportMetrics, isResetOutcome,
 } from './helpers.js'
 
 /* ══════════════════════════════════════════════════════════════
@@ -406,15 +406,37 @@ export default function App() {
     catch(e) { return { ok:false, error:e.message } }
 
     setSt('saving')
-    try {
-      const r = await apiResetData(grant, DEFAULT_SERVICES)
+
+    // Estado local coherente con lo que el servidor ya no tiene.
+    const aplicarLocal = () => {
       setC([]); setA([]); setE([]); setS(DEFAULT_SERVICES); setPH([])
       try { ['sb_c','sb_a','sb_e','sb_s'].forEach(k=>localStorage.removeItem(k)) } catch {}
+    }
+
+    try {
+      const r = await apiResetData(grant, DEFAULT_SERVICES)
+      aplicarLocal()
       setSt('ok'); setLS(new Date())
       return { ok:true, data:r }
     } catch(e) {
-      setEM(e.message); setSt('error'); setTimeout(()=>setSt('ok'),5000)
-      return { ok:false, error:e.message }
+      // Un fallo de transporte NO demuestra que el servidor no lo haya
+      // ejecutado: pudo hacerlo y perderse la respuesta (así pasó: la
+      // app dijo error y la hoja ya estaba vacía). Antes de avisar, se
+      // lee la hoja y se compara con lo que se pidió borrar.
+      let verificado = null   // null = no se pudo comprobar
+      try { verificado = isResetOutcome(await loadData(), DEFAULT_SERVICES) } catch(_) {}
+
+      if (verificado === true) {          // el servidor SÍ lo ejecutó
+        aplicarLocal()
+        setSt('ok'); setLS(new Date())
+        return { ok:true, confirmado:true }
+      }
+
+      const msg = e.message + (verificado === false
+        ? ' El servidor NO ejecutó el restablecimiento: pide un código nuevo e inténtalo otra vez.'
+        : ' No se pudo comprobar el estado del servidor; revisa la hoja antes de reintentar.')
+      setEM(msg); setSt('error'); setTimeout(()=>setSt('ok'),5000)
+      return { ok:false, error:msg }
     }
   }, [])
 
@@ -3885,6 +3907,9 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  // true → el servidor no respondió pero se comprobó leyendo la hoja
+  // que el reset sí se ejecutó (el error de transporte era falso).
+  const [confirmado, setConfirmado] = useState(false)
 
   const totalClients  = Array.isArray(clients) ? clients.length : 0
   const totalAppts    = Array.isArray(appts)   ? appts.length   : 0
@@ -3903,14 +3928,14 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
   // Ejecuta el reset solo si el backend valida el código y emite el grant.
   const handleReset = async () => {
     if (!code.trim() || busy) return
-    setBusy(true); setErr('')
+    setBusy(true); setErr(''); setConfirmado(false)
     const r = await resetAll(code)
     setBusy(false)
-    if (r.ok) { setStep(3); setConfirmWord(''); setPhase('word'); setCode('') }
+    if (r.ok) { setConfirmado(!!r.confirmado); setStep(3); setConfirmWord(''); setPhase('word'); setCode('') }
     else setErr(r.error)
   }
 
-  const back = () => { setStep(0); setPhase('word'); setConfirmWord(''); setCode(''); setErr('') }
+  const back = () => { setStep(0); setPhase('word'); setConfirmWord(''); setCode(''); setErr(''); setConfirmado(false) }
 
   if (step===1) return (
     <div>
@@ -4045,7 +4070,14 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
       <div style={{fontSize:52,marginBottom:16}}>✅</div>
       <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:700,marginBottom:10}}>Datos eliminados</div>
       <div style={{fontSize:14,color:'var(--t2)',marginBottom:24}}>El programa ha sido restablecido.<br/>Puedes empezar desde cero.</div>
-      <button className="btn" onClick={()=>setStep(0)} style={{width:'100%',maxWidth:280}}>Entendido</button>
+      {confirmado && (
+        <div style={{fontSize:12,color:'var(--t2)',lineHeight:1.7,textAlign:'left',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'12px 16px',marginBottom:24}}>
+          ℹ️ La respuesta del servidor se perdió por la conexión, así que el
+          resultado se <strong>comprobó leyendo la hoja directamente</strong>:
+          el restablecimiento sí se ejecutó.
+        </div>
+      )}
+      <button className="btn" onClick={()=>{setConfirmado(false);setStep(0)}} style={{width:'100%',maxWidth:280}}>Entendido</button>
     </div>
   )
   return (
