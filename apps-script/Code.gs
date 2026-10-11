@@ -2,7 +2,17 @@
 // ║  Salome Zuluaga | SZ  ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-const SECRET_TOKEN = 'CAMBIA_TU_TOKEN';
+/* ── Token de sincronización ────────────────────────────────────
+   El repo es PÚBLICO, así que el token nunca puede vivir aquí ni
+   en el frontend como secreto fijo: va en Script Properties
+   (Editor → Propiedades del proyecto → Script properties), clave
+   TOKEN_PROP_KEY, y su gemelo del lado del cliente es VITE_TOKEN
+   (.env en local y Variables de entorno en Vercel).
+
+   Si la propiedad no existe, NO se autoriza nada (fail closed) y se
+   avisa con un mensaje propio, para que un fallo de configuración
+   no se confunda con un token malo.                                */
+const TOKEN_PROP_KEY = 'SB_SYNC_TOKEN';
 
 const SHEETS = { clients:'Clientes', services:'Servicios', appointments:'Citas', expenses:'Gastos', priceHistory:'HistorialPrecios' };
 
@@ -30,7 +40,8 @@ const HEADERS_ES = {
 
 function doGet(e) {
   try {
-    if (e.parameter.token !== SECRET_TOKEN) return err('No autorizado');
+    const tok = _checkToken(e.parameter.token);
+    if (!tok.ok) return err(tok.error);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     initSheets(ss);
     return ok({
@@ -49,7 +60,8 @@ function doPost(e) {
   try { lock.waitLock(10000); } catch(ex) { return err('Servidor ocupado, reintenta'); }
   try {
     const b = JSON.parse(e.postData.contents);
-    if (b.token !== SECRET_TOKEN) { lock.releaseLock(); return err('No autorizado'); }
+    const tok = _checkToken(b.token);
+    if (!tok.ok) { lock.releaseLock(); return err(tok.error); }
 
     // ── Recuperación de acceso (solo el propietario) ──
     // No escriben nada y responden siempre igual, para no filtrar
@@ -110,10 +122,11 @@ function doPost(e) {
 /* ══════════════════════════════════════════════════════════════
    RESTABLECIMIENTO PROTEGIDO — autorización SOLO del lado servidor
 
-   Problema: el token de sincronización (SECRET_TOKEN / VITE_TOKEN)
-   viaja dentro del bundle JS público, así que no puede considerarse
-   un secreto. Cualquiera con la URL podía reproducir el payload de
-   restablecimiento y borrarlo todo.
+   Problema: el token de sincronización (VITE_TOKEN, que viaja
+   dentro del bundle JS público; su gemelo SB_SYNC_TOKEN vive en
+   Script Properties) no puede considerarse un secreto. Cualquiera
+   con la URL podía reproducir el payload de restablecimiento y
+   borrarlo todo.
 
    Por eso el restablecimiento es ahora una operación EXPLÍCITA
    (`action:'resetData'`) que exige una autorización temporal y de
@@ -221,6 +234,18 @@ function _secureEqual(a, b) {
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
+}
+
+// Valida el token de sincronización contra Script Properties.
+// Compara en tiempo lineal igual que el código de recuperación.
+function _checkToken(given) {
+  let secret = '';
+  try { secret = String(_props().getProperty(TOKEN_PROP_KEY) || '').trim(); } catch(_) { secret = ''; }
+  if (!secret) return { ok: false,
+    error: 'Token de sincronización no configurado: añade la propiedad ' + TOKEN_PROP_KEY + ' en Propiedades del proyecto.' };
+  if (!_secureEqual(String(given === null || given === undefined ? '' : given), secret))
+    return { ok: false, error: 'No autorizado' };
+  return { ok: true };
 }
 
 // ── ¿Es una operación destructiva? ──

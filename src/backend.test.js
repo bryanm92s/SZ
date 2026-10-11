@@ -167,7 +167,10 @@ function makeCalendar(store) {
 
 function makeStore() {
   const store = {
-    props: new Map(), mail: [], logs: [],
+    // Token de sincronización: en producción vive en Script Properties
+    // (clave SB_SYNC_TOKEN), nunca dentro de Code.gs. El harness lo siembra
+    // aquí para que el resto de tests no tenga que pensarlo.
+    props: new Map([['SB_SYNC_TOKEN', TOKEN]]), mail: [], logs: [],
     calLookups: [], calDeleted: [], calCreated: [],
     /* ── Control del LockService ──
        `acquires`/`releases` cuentan las llamadas reales a waitLock y
@@ -1431,6 +1434,41 @@ describe('TEST-01 — doPost: validaciones y operaciones', () => {
   it('doGet con token incorrecto o ausente → "No autorizado"', () => {
     expect(rawGet(env.g, 'OTRO')).toEqual({ ok: false, error: 'No autorizado' })
     expect(rawGet(env.g, undefined)).toEqual({ ok: false, error: 'No autorizado' })
+  })
+
+  it('el token vive en Script Properties: Code.gs no lo trae hardcodeado', () => {
+    // El repositorio es PÚBLICO: si el token está en Code.gs cualquiera lo
+    // copia desde GitHub. Su gemelo del cliente es VITE_TOKEN (.env/Vercel).
+    expect(CODE_GS).not.toContain('SECRET_TOKEN')
+    expect(CODE_GS).not.toContain('CAMBIA_TU_TOKEN')
+    expect(env.store.props.get('SB_SYNC_TOKEN')).toBe(TOKEN)
+    expect(post(env.g, { action: 'accionInventada' }).ok).toBe(true)
+  })
+
+  it('sin la propiedad SB_SYNC_TOKEN no se autoriza nada y se avisa', () => {
+    // Fail closed + mensaje propio: un fallo de configuración no debe
+    // parecer un token malo ni dejar la API abierta.
+    const before = sheetSnapshot(env.ss)
+    env.store.props.delete('SB_SYNC_TOKEN')
+    const msg = 'Token de sincronización no configurado: añade la propiedad SB_SYNC_TOKEN en Propiedades del proyecto.'
+
+    expect(rawPost(env.g, { appointments: [] })).toEqual({ ok: false, error: msg })
+    expect(rawGet(env.g, TOKEN)).toEqual({ ok: false, error: msg })
+    expect(sheetSnapshot(env.ss)).toBe(before)             // nada escrito
+    expect(env.store.lock.releases).toBe(env.store.lock.acquires)
+  })
+
+  it('rotar el token es cambiar la propiedad: el viejo deja de servir', () => {
+    env.store.props.set('SB_SYNC_TOKEN', 'token-nuevo-2026')
+
+    expect(rawPost(env.g, { token: TOKEN, appointments: [] }))
+      .toEqual({ ok: false, error: 'No autorizado' })
+    expect(rawGet(env.g, TOKEN)).toEqual({ ok: false, error: 'No autorizado' })
+    expect(rawPost(env.g, { token: TOKEN, appointments: [] }).ok).toBe(false)
+
+    // El token nuevo sí entra (acción desconocida: no escribe nada).
+    expect(rawPost(env.g, { token: 'token-nuevo-2026', action: 'accionInventada' }))
+      .toEqual({ ok: true, data: { saved: true, calResult: null } })
   })
 
   it('sanitizePayload sanea el evento de Calendar (importes y duración)', () => {

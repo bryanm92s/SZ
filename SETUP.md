@@ -24,10 +24,11 @@ Vercel (React App)  ←→  Google Apps Script  ←→  Google Sheets + Google C
 1. Ve a **script.google.com**
 2. Crea un proyecto nuevo → nómbralo **"SZ API"**
 3. Pega todo el contenido del archivo `apps-script/Code.gs`
-4. **Cambia el token** en la línea 7:
-   ```javascript
-   const SECRET_TOKEN = 'TuTokenSuperSecreto2024';  // ← pon algo único
-   ```
+4. **Guarda el token en Propiedades del proyecto** (engranaje ⚙️ →
+   *Propiedades del proyecto* → *Propiedades de script*). **No lo escribas
+   en el código**: el repositorio es público.
+   - **Clave:** `SB_SYNC_TOKEN`
+   - **Valor:** `TuTokenSuperSecreto2024`  ← cámbialo por algo único y largo
 5. Vincula el script a tu spreadsheet:
    - Menú → **Recursos** → **Proyecto de Google Cloud Platform** → Sigue las instrucciones
    - O más fácil: desde el Spreadsheet, ve a **Extensiones → Apps Script** y pega el código ahí
@@ -106,7 +107,7 @@ Cada vez que modifiques el `Code.gs`:
 **"Sin conexión" en la app**
 - Verifica que `VITE_SCRIPT_URL` y `VITE_TOKEN` están bien en Vercel
 - Asegúrate que el Apps Script está desplegado como "Cualquier usuario"
-- El token en Vercel debe ser idéntico al `SECRET_TOKEN` en Code.gs
+- El token en Vercel debe ser idéntico a la propiedad `SB_SYNC_TOKEN` (Script Properties)
 
 **El evento de Calendar no se crea**
 - Verifica que autorizaste permisos de Calendar al desplegar el script

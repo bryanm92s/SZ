@@ -232,10 +232,12 @@ Sigue `SETUP.md` para el detalle; aquí el resumen:
 2. **Abre Apps Script** desde el menú **Extensiones → Apps Script** del Spreadsheet
    (así queda vinculado automáticamente).
 
-3. **Pega el contenido de `apps-script/Code.gs`** y cambia el token:
-   ```js
-   const SECRET_TOKEN = 'TuTokenSuperSecreto2024';   // ← pon algo único
-   ```
+3. **Pega el contenido de `apps-script/Code.gs`** y guarda el token en
+   **Propiedades del proyecto** (engranaje ⚙️ → *Propiedades del proyecto* →
+   *Propiedades de script*), **nunca dentro del código** — el repositorio
+   es público:
+   - **Clave:** `SB_SYNC_TOKEN`
+   - **Valor:** algo único y largo, el mismo que usarás en `VITE_TOKEN`
 
 4. **Despliega como Web App** (*Implementar → Nueva implementación → Aplicación web*):
    - **Ejecutar como:** Yo
@@ -256,7 +258,7 @@ Copia `.env.example` a `.env` (local) o configúralas en
 | Variable            | Obligatoria | Descripción                                                          |
 |---------------------|:-----------:|----------------------------------------------------------------------|
 | `VITE_SCRIPT_URL`   |     ✅      | URL del Web App de Apps Script (`…/exec`)                            |
-| `VITE_TOKEN`        |     ✅      | Debe coincidir exactamente con `SECRET_TOKEN` en `Code.gs`          |
+| `VITE_TOKEN`        |     ✅      | Debe coincidir exactamente con la propiedad `SB_SYNC_TOKEN` (Script Properties) |
 | `VITE_BIZ_NAME`     |     —       | Nombre del negocio (header + `<title>`)                              |
 | `VITE_BIZ_SUBTITLE` |     —       | Subtítulo corto del header                                           |
 | `VITE_BIZ_EMOJI`    |     —       | Emoji del favicon (se inyecta en runtime, p. ej. `🌸`)              |
@@ -320,7 +322,7 @@ npm run test:watch   # en watch
 
 | Síntoma | Solución |
 |---|---|
-| **“Sin conexión”** en la app | Revisa `VITE_SCRIPT_URL` y `VITE_TOKEN` en Vercel. El Apps Script debe estar desplegado como *Cualquier usuario*. El token debe ser **idéntico** al `SECRET_TOKEN` de `Code.gs`. |
+| **“Sin conexión”** en la app | Revisa `VITE_SCRIPT_URL` y `VITE_TOKEN` en Vercel. El Apps Script debe estar desplegado como *Cualquier usuario*. El token debe ser **idéntico** a la propiedad `SB_SYNC_TOKEN` de Script Properties (si falta, el servidor responde *«Token de sincronización no configurado»*). |
 | El evento de Calendar no se crea | Autoriza permisos de Calendar: *Implementar → Gestionar → volver a implementar* y aceptar los permisos. |
 | Los datos no aparecen en otro dispositivo | Confirma que ambos apuntan a la **misma URL de Vercel**. Los datos viven en Sheets, no en el navegador. |
 | Horas desplazadas | El backend usa la zona `America/Bogota` (UTC-5) y `localNowISO` evita el desfase de `toISOString()`. No cambies la zona del script ni del navegador. |
