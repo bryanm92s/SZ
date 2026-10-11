@@ -239,13 +239,13 @@ const DURATION_OPTIONS = [30, 60, 90, 120, 150, 180]
 const openWA = (phone, name, time, date, serviceNames, total, isDom) => {
   const p     = ('57' + phone.replace(/\D/g, '')).replace(/^5757/, '57')
   // ASCII-safe JS unicode escapes — works regardless of file encoding
-  const NAIL  = '\uD83D\uDC85'  // 💅
+  const CLOCK = '\u23F0'         // ⏰
   const BLOOM = '\uD83C\uDF38'  // 🌸
   const MOTO  = '\uD83D\uDEF5'  // 🛵
   const SPARK = '\u2728'         // ✨
   const CAL   = '\uD83D\uDCC5'  // 📅
   const CARD  = '\uD83D\uDCB3'  // 💳
-  const end   = isDom ? 'Nos vemos pronto ' + NAIL : '\u00A1Te esperamos! ' + BLOOM
+  const end   = isDom ? 'Nos vemos pronto ' + CLOCK : '\u00A1Te esperamos! ' + BLOOM
   const dom   = isDom ? '\n' + MOTO + ' *A domicilio*' : ''
   const lines = [
     'Hola ' + name + '! ' + SPARK + ' Te recordamos tu cita:',
