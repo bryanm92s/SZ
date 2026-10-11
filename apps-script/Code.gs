@@ -1364,7 +1364,7 @@ function _buildReportXlsx(period, r) {
     SpreadsheetApp.flush();
     Utilities.sleep(1500);
 
-    var resp = null, bytes = null;
+    var resp = null, bytes = null, blob = null;
     // Hasta 3 intentos. Cada uno se descarta si el export falla
     // (código != 200) o si no devuelve un .xlsx de verdad.
     for (var intento = 1; intento <= 3; intento++) {
@@ -1372,23 +1372,29 @@ function _buildReportXlsx(period, r) {
         headers: { Authorization: token }, muteHttpExceptions: true
       });
       if (resp.getResponseCode() === 200) {
-        bytes = resp.getBytes();
+        // Ojo: HTTPResponse NO tiene getBytes(); el binario sale del
+        // blob (Blob.getBytes() sí existe en Apps Script).
+        blob = resp.getBlob();
+        bytes = blob.getBytes();
         // Un .xlsx es un ZIP: tiene que empezar por 'PK'. Si no, Google
         // devolvió una página HTML de error con código 200: eso era lo
-        // que producía el adjunto «vacío».
+        // que producía el adjunto «vacío». (0x50 y 0x4B son los bytes
+        // de «PK», que además son positivos: sirven igual si Apps
+        // Script devuelve los bytes con signo.)
         if (bytes && bytes.length > 4 && bytes[0] === 0x50 && bytes[1] === 0x4B) break;
         bytes = null;
+        blob = null;
       }
       Utilities.sleep(900);
     }
-    if (!bytes) {
+    if (!blob) {
       var codigo = resp ? resp.getResponseCode() : 0;
       throw new Error(codigo === 200
         ? 'El export .xlsx no devolvi\u00f3 un archivo v\u00e1lido'
         : 'El export .xlsx respondi\u00f3 ' + codigo);
     }
 
-    return resp.getBlob().setName(_xlsxName(period));
+    return blob.setName(_xlsxName(period));
   } catch (ex) {
     console.error('ERROR generando el Excel del reporte: ' + ex.message);
     return null;

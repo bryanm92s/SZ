@@ -339,6 +339,11 @@ function runCodeGs(ss, store = makeStore()) {
     // != 200; `fetchFails` cuenta cuántas primeras descargas fallan. Con
     // `fetchHtml` se simula una página HTML de error con código 200 (eso
     // es lo que producía el adjunto «vacío»).
+    // Descarga del libro temporal como .xlsx (export de Drive).
+    // OJO, réplica de la API real: HTTPResponse en Apps Script NO tiene
+    // getBytes(); los bytes salen del blob (Blob.getBytes() sí existe).
+    // El mock tenía ese método inventado y dejó pasar un uso equivocado
+    // de la API que después reventó en producción.
     UrlFetchApp: {
       fetch: (url, opts) => {
         store.fetched.push({ url, opts })
@@ -348,17 +353,17 @@ function runCodeGs(ss, store = makeStore()) {
             if (store.fetchFails > 0) { store.fetchFails -= 1; return 503 }
             return 200
           },
-          // Un .xlsx es un ZIP: empieza por 'PK' (0x50 0x4B). Con
-          // `fetchHtmlFails` se simulan páginas HTML de error con código
-          // 200: eso es lo que producía el adjunto «vacío».
-          getBytes: () => {
-            if (store.fetchHtmlFails > 0) {
-              store.fetchHtmlFails -= 1
-              return [0x3C, 0x68, 0x74, 0x6D, 0x6C]        // "<html"
-            }
-            return [0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00]
-          },
           getBlob: () => ({
+            // Un .xlsx es un ZIP: empieza por 'PK' (0x50 0x4B). Con
+            // `fetchHtmlFails` se simulan páginas HTML de error con
+            // código 200: eso es lo que producía el adjunto «vacío».
+            getBytes: () => {
+              if (store.fetchHtmlFails > 0) {
+                store.fetchHtmlFails -= 1
+                return [0x3C, 0x68, 0x74, 0x6D, 0x6C]      // "<html"
+              }
+              return [0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00]
+            },
             _nombre: null,
             setName: function (n) { this._nombre = n; return this },
             getName: () => null,
