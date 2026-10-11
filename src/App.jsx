@@ -11,7 +11,7 @@ import {
   bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots, monthLedger,
   svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, openWhatsApp, PAYMENT_METHODS, payMethodOf,
   apptStatus, canModifyAppt, checkSlot, confirmOutcome, projectedIncome, movsRanges,
-  serviceDeletionCheck, apptGroup, reportMetrics, isResetOutcome,
+  serviceDeletionCheck, apptGroup, reportMetrics, isResetOutcome, domBreakdown,
 } from './helpers.js'
 
 /* ══════════════════════════════════════════════════════════════
@@ -236,7 +236,10 @@ const DEFAULT_SERVICES = [
 const DURATION_OPTIONS = [30, 60, 90, 120, 150, 180]
 
 // WhatsApp with proper emoji encoding
-const openWA = (phone, name, time, date, serviceNames, total, isDom) => {
+// `domPrice` es el valor del domicilio YA incluido en `total` (así se
+// guarda la cita: totalPrice = servicePrice + domicilioPrice). Se pasa
+// aparte solo para poder desglosarlo en el mensaje.
+const openWA = (phone, name, time, date, serviceNames, total, isDom, domPrice = 0) => {
   const p     = ('57' + phone.replace(/\D/g, '')).replace(/^5757/, '57')
   // ASCII-safe JS unicode escapes — works regardless of file encoding
   const CLOCK = '\u23F0'         // ⏰
@@ -245,13 +248,19 @@ const openWA = (phone, name, time, date, serviceNames, total, isDom) => {
   const SPARK = '\u2728'         // ✨
   const CAL   = '\uD83D\uDCC5'  // 📅
   const CARD  = '\uD83D\uDCB3'  // 💳
+  const MONEY = '\uD83D\uDCB0'  // 💰
   const end   = isDom ? 'Nos vemos pronto ' + CLOCK : '\u00A1Te esperamos! ' + BLOOM
-  const dom   = isDom ? '\n' + MOTO + ' *A domicilio*' : ''
+  // Desglose: los servicios valen el total MENOS el domicilio (la
+  // aritmética vive en domBreakdown, con sus tests).
+  const { services: svcFee, delivery: domFee, total: totN } = domBreakdown(total, isDom, domPrice)
   const lines = [
     'Hola ' + name + '! ' + SPARK + ' Te recordamos tu cita:',
-    SPARK + ' *' + serviceNames + '*' + dom,
+    SPARK + ' *' + serviceNames + '*',
     CAL + ' *' + fmtDate(date) + '* a las *' + fmtTime(time) + '*',
-    CARD + ' Total: *' + fmtM(total) + '*',
+    '',
+    MONEY + ' Servicios: *' + fmtM(svcFee) + '*',
+    ...(isDom ? [MOTO + ' Domicilio: *' + fmtM(domFee) + '*'] : []),
+    CARD + ' Total: *' + fmtM(totN) + '*',
     '',
     end,
   ]
@@ -1417,7 +1426,7 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab}) 
                 <div style={{fontWeight:600,fontSize:13}}>{a.clientName} · <span style={{color:'var(--t2)'}}>{fmtTime(a.time)}</span></div>
                 <div style={{fontSize:11,color:'var(--t2)'}}>✨ {a.serviceNames}</div>
               </div>
-              <button className="btn-wa" onClick={()=>openWA(a.clientPhone,a.clientName,a.time,a.date,a.serviceNames,a.totalPrice||a.servicePrice,isDom)}>
+              <button className="btn-wa" onClick={()=>openWA(a.clientPhone,a.clientName,a.time,a.date,a.serviceNames,a.totalPrice||a.servicePrice,isDom,a.domicilioPrice)}>
                 💬 Recordar
               </button>
             </div>
@@ -2023,7 +2032,7 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
           style={{background:status==='noshow'?'var(--red)':'#FFF4F0',color:status==='noshow'?'white':'var(--red)',border:`1.5px solid ${status==='noshow'?'var(--red)':'#F5C0B0'}`,borderRadius:8,padding:'6px 10px',fontSize:12,fontWeight:600,cursor:isFuture?'not-allowed':'pointer',fontFamily:'inherit',transition:'all .15s',opacity: status==='done'?.5:1}}>
           ✗ No asistió
         </button>
-        {status==='pending' && <button className="btn-wa" onClick={()=>openWA(appt.clientPhone,appt.clientName,appt.time,appt.date,appt.serviceNames,appt.totalPrice||appt.servicePrice,dom)}>💬 Recordatorio</button>}
+        {status==='pending' && <button className="btn-wa" onClick={()=>openWA(appt.clientPhone,appt.clientName,appt.time,appt.date,appt.serviceNames,appt.totalPrice||appt.servicePrice,dom,appt.domicilioPrice)}>💬 Recordatorio</button>}
         {/* Editar/Eliminar: única decisión canModifyAppt (solo pendientes),
             la misma que aplican el Calendario y el detalle. Una cita pasada
             PENDIENTE también se puede editar o eliminar desde aquí. */}
@@ -2643,7 +2652,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
       <div style={{background:'var(--green-bg)',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:12,color:'var(--green)',textAlign:'left'}}>
         <strong>💬 Sobre el recordatorio automático:</strong> WhatsApp no permite envíos automáticos desde web. Al dar clic en el botón se abre WhatsApp con el mensaje listo — solo tienes que presionar enviar.
       </div>
-      <button className="btn-wa" style={{width:'100%',marginBottom:10}} onClick={()=>openWA(fc?.phone,fc?.name,time,date,selSvcs.map(s=>s.name).join(', '),grand,dom)}>
+      <button className="btn-wa" style={{width:'100%',marginBottom:10}} onClick={()=>openWA(fc?.phone,fc?.name,time,date,selSvcs.map(s=>s.name).join(', '),grand,dom,domP)}>
         💬 Abrir WhatsApp con mensaje listo
       </button>
       <button className="btn" style={{width:'100%'}} onClick={onClose}>Finalizar</button>
@@ -4442,7 +4451,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
             <button className="btn-sm" style={{ flex: 1 }}
               onClick={() => {
                 const phone = clients.find(c => c.id === a.clientId)?.phone || ''
-                if (phone) openWA(phone, a.clientName, a.time, a.date, a.serviceNames, a.totalPrice || a.servicePrice, bool(a.domicilio))
+                if (phone) openWA(phone, a.clientName, a.time, a.date, a.serviceNames, a.totalPrice || a.servicePrice, bool(a.domicilio), a.domicilioPrice)
               }}>
               💬 WhatsApp
             </button>

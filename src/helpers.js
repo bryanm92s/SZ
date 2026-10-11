@@ -567,3 +567,16 @@ export const isResetOutcome = (data, defaults) => {
   const reales = new Set(svc.map(clave))
   return def.every(d => reales.has(clave(d)))
 }
+
+/* ── Desglose de precios para los mensajes ──────────────────────
+   El domicilio viene SUMADO dentro del total de la cita (totalPrice =
+   servicePrice + domicilioPrice). Para mostrarlo por aparte se resta,
+   acotando el domicilio al total: así la suma servicios + domicilio
+   siempre cuadra con el total y los servicios no pueden quedar en
+   negativo aunque los datos vengan incompletos (citas antiguas sin
+   totalPrice, o un domicilio mayor que el total).               */
+export const domBreakdown = (total, isDom, domPrice = 0) => {
+  const tot  = Math.max(0, toN(total || 0))
+  const fee  = bool(isDom) ? Math.max(0, Math.min(toN(domPrice || 0), tot)) : 0
+  return { services: Math.max(0, tot - fee), delivery: fee, total: tot }
+}

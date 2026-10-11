@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptGroup, reportMetrics, periodLedger, isResetOutcome } from './helpers.js'
+import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptGroup, reportMetrics, periodLedger, isResetOutcome, domBreakdown } from './helpers.js'
 
 // phoneMatch/getSlots depend on todayStr() (local today). Freeze the clock
 // so the tests are deterministic.
@@ -871,5 +871,42 @@ describe('isResetOutcome', () => {
     expect(isResetOutcome(null, DEF)).toBe(false)
     expect(isResetOutcome(undefined, DEF)).toBe(false)
     expect(isResetOutcome('no-es-datos', DEF)).toBe(false)
+  })
+})
+
+/* -- domBreakdown ------------------------------------------------
+   El domicilio viene SUMADO dentro del total de la cita; aquí se
+   separa para el mensaje de WhatsApp (Servicios / Domicilio / Total). */
+describe('domBreakdown', () => {
+  it('sin domicilio: el total entero es de servicios', () => {
+    expect(domBreakdown(350000, false, 10000)).toEqual({ services: 350000, delivery: 0, total: 350000 })
+    expect(domBreakdown(350000, null, 10000)).toEqual({ services: 350000, delivery: 0, total: 350000 })
+  })
+
+  it('con domicilio: separa el valor y la suma cuadra con el total', () => {
+    const d = domBreakdown(360000, true, 10000)
+    expect(d).toEqual({ services: 350000, delivery: 10000, total: 360000 })
+    expect(d.services + d.delivery).toBe(d.total)
+  })
+
+  it('acepta strings, como vienen de la hoja ("360000", "true")', () => {
+    expect(domBreakdown('360000', 'true', '10000')).toEqual({ services: 350000, delivery: 10000, total: 360000 })
+    expect(domBreakdown('360000', 'false', '10000')).toEqual({ services: 360000, delivery: 0, total: 360000 })
+  })
+
+  it('acota el domicilio al total: nunca deja servicios en negativo', () => {
+    expect(domBreakdown(5000, true, 10000)).toEqual({ services: 0, delivery: 5000, total: 5000 })
+  })
+
+  it('datos faltantes o inválidos dan ceros, no NaN', () => {
+    expect(domBreakdown(undefined, true, 10000)).toEqual({ services: 0, delivery: 0, total: 0 })
+    expect(domBreakdown(null, true, 10000)).toEqual({ services: 0, delivery: 0, total: 0 })
+    expect(domBreakdown('', true, 10000)).toEqual({ services: 0, delivery: 0, total: 0 })
+    expect(domBreakdown(-100, true, 50)).toEqual({ services: 0, delivery: 0, total: 0 })
+    expect(domBreakdown('abc', true, 50)).toEqual({ services: 0, delivery: 0, total: 0 })
+  })
+
+  it('cita a domicilio sin recargo: solo el indicador, todo en servicios', () => {
+    expect(domBreakdown(350000, true, 0)).toEqual({ services: 350000, delivery: 0, total: 350000 })
   })
 })
