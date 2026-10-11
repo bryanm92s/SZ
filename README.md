@@ -91,9 +91,9 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
   personalizables.
 - **Comparación mes a mes** y **Top servicios** (por ingresos y por demanda).
 - **Detalle de ingresos** y **detalle de gastos** con filtros.
-- **Paginación** en *Gastos del mes* y en los *Movimientos del período*
-  cuando hay **más de 10 registros** (los totales siguen sumando el
-  período completo).
+- **Paginación** en *Gastos del mes*, *Detalle de ingresos* y los
+  *Movimientos del período* cuando hay **más de 10 registros** (los totales
+  siguen sumando el período completo).
 - Desglose de **domicilios** (cantidad e ingreso).
 
 ### 📊 Reportes

@@ -266,7 +266,23 @@ Haz esta lista **antes** de cada publicación importante. Usa un
 - [ ] Con un período de **10 movimientos o menos**, la paginación **no debe
       aparecer**.
 
-### 5.6 Calendar (caso crítico)
+### 5.6 Detalle de ingresos (paginación de días)
+
+- [ ] Entrar a **Finanzas → Recibido (Ver →)** en un mes con **más de 10 días**
+      con citas.
+- [ ] Debe aparecer la paginación: `1–10 de N días · pág. 1 de X`.
+- [ ] ⭐ **Invariante:** los montos y contadores de las 4 tarjetas
+      (**Todo / Recibido / Pendiente / No asistió**) deben ser **idénticos**
+      en todas las páginas y tras cambiar de filtro (salen del mes completo,
+      no de la página visible).
+- [ ] Cambiar de **filtro** estando en una página > 1 → debe **volver a la
+      página 1**.
+- [ ] Cambiar de **mes** → debe **volver a la página 1**.
+- [ ] Con **10 días o menos** (en el filtro seleccionado), la paginación
+      **no debe aparecer**. Nota: un filtro puede tener ≤10 días aunque
+      «Todo» tenga más, y en ese filtro **no** debe verse paginador.
+
+### 5.7 Calendar (caso crítico)
 
 - [ ] Crear cita → evento existe con título `✨ servicio — clienta`.
 - [ ] Editar hora → evento **se mueve**.
@@ -274,7 +290,7 @@ Haz esta lista **antes** de cada publicación importante. Usa un
 - [ ] Simular un fallo de borrado → la app debe **avisar y ofrecer
       reintento** con el ID del evento.
 
-### 5.7 Reportes automáticos (si están activos)
+### 5.8 Reportes automáticos (si están activos)
 
 - [ ] Ejecutar `sendDailyReportEmail()` **a mano** desde el editor de Apps
       Script.
@@ -287,7 +303,7 @@ Haz esta lista **antes** de cada publicación importante. Usa un
 > ⚠️ Ver `SKIP reporte mensual: hoy no es el último día del mes` **es
 > normal**: esos triggers corren a diario y deciden no enviar.
 
-### 5.8 Restablecimiento (SOLO en entorno de prueba)
+### 5.9 Restablecimiento (SOLO en entorno de prueba)
 
 > 🚨 **Nunca pruebes esto con datos reales.** Borra **todo**, incluidos los
 > eventos de Calendar, y **no se puede deshacer**.

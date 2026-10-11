@@ -458,7 +458,19 @@ administrador**.
 
 ### Secciones de Finanzas
 
-- **Detalle de ingresos** — lista las citas cobradas, con filtros.
+- **Detalle de ingresos** — lista las citas del mes, agrupadas por día, con
+  los filtros **Todo · Recibido · Pendiente · No asistió**.
+  - Si hay **más de 10 días** con citas, aparece una **paginación**:
+    **‹ Ant. · 1–10 de 16 días · pág. 1 de 2 · Sig. ›**
+  - Con **10 días o menos no aparece nada**: la lista sale completa.
+  - Cada tarjeta de día muestra sus citas con la hora, la clienta y el
+    monto recibido o pendiente.
+  - Si **cambias de mes o de filtro**, la paginación **vuelve a la
+    página 1**.
+  - ⚠️ Los montos y los contadores de las 4 tarjetas de arriba
+    (Todo / Recibido / Pendiente / No asistió) **siempre** corresponden al
+    **mes completo**, no a la página que estás mirando. Pasa por todas las
+    páginas y verás que no cambian.
 - **Detalle de gastos** — lista los gastos.
   - Si hay **8 gastos o menos**, se listan **uno por uno**.
   - Si hay **más de 8**, se muestran **una línea por categoría**

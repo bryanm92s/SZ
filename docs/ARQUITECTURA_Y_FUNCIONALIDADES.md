@@ -670,15 +670,21 @@ duración, para que la app no arranque vacía.
 `splitPaid(appts)` (`helpers.js`): separa lo cobrado en **Efectivo** y
 **Transferencia** según `paymentMethod`. 🧪
 
-### 12.5 Paginación de las dos listas largas
+### 12.5 Paginación de las tres listas largas
 
-Dos listas pueden crecer sin control y saturaban la pantalla del celular, así
-que se paginan con **10 registros por página** (`PAGE_SIZE = 10`, `App.jsx`):
+Tres listas pueden crecer sin control y saturaban la pantalla del celular,
+así que se paginan con **10 registros por página** (`PAGE_SIZE = 10`,
+`App.jsx`):
 
 | Lista | Componente | Se reinicia al… |
 |---|---|---|
 | **📋 Gastos del mes** | `FinancesTab` | cambiar de **mes** |
 | **🧾 Movimientos del período** | `ReportTab` | cambiar de **período** (`mode`, `day`, `month`, `year`, `from`, `to`) o de **filtro** (`mvFilter`) |
+| **💚 Detalle Ingresos** (lista de **días**) | `IncomeDetail` | cambiar de **mes** o de **filtro** (`filter`: Todo / Recibido / Pendiente / No asistió) |
+
+> 📌 En `IncomeDetail` se pagina la lista de **tarjetas de día** (el bloque
+> `byDay`), no cada cita: es la unidad que se lista bajo cada filtro. Cada
+> tarjeta de día conserva **todas** sus citas visibles.
 
 **Reglas del control `Pager` (`App.jsx`, tras `SyncBadge`):**
 
@@ -696,9 +702,14 @@ que se paginan con **10 registros por página** (`PAGE_SIZE = 10`, `App.jsx`):
 >   que recibe **todos** los gastos del mes.
 > - En `ReportTab`, el **Neto del período** sale de `M.neto` (`reportMetrics`
 >   sobre el `ledger` completo), **no** de `mvShown`.
+> - En `IncomeDetail`, los montos y contadores de las 4 tarjetas salen de
+>   `ma` / `done` / `pend` / `noshow` **completos**, **no** de `dayShown`.
 >
 > Verificado en el navegador: el neto se mantiene **idéntico** al paginar
-> entre las 4 páginas de un período de 37 movimientos.
+> entre las 4 páginas de un período de 37 movimientos, y en Detalle Ingresos
+> las 4 tarjetas se mantienen iguales al pasar de página y al cambiar de
+> filtro (Todo $10.150.000 / 29 citas en todas las páginas y filtros de un
+> mes de prueba).
 
 > 📌 **Limpieza incidental:** al paginar, el filtro de movimientos se refactorizó
 > para calcularse **una sola vez** (`mvRows`); antes `ledger.rows.filter(…)`
@@ -974,6 +985,7 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 37 | Comparación mes a mes | `ComparisonTab` (4188) | ✅ | 🧪 |
 | 38 | Top servicios (ingresos y demanda) | `helpers.js` `topServicesByDemand`, `TopServices` (4272) | ✅ | 🧪 |
 | 38b | **Paginación en «Gastos del mes»** (>10) | `App.jsx` `Pager`, `FinancesTab` | ✅ | — |
+| 38c | **Paginación en «Detalle Ingresos»** (>10 días) | `App.jsx` `Pager`, `IncomeDetail` | ✅ | — |
 | **REPORTES** | | | | |
 | 39 | Períodos día / mes / rango / **año** | `helpers.js` `periodLedger` | ✅ | 🧪 |
 | 40 | Excel con 3 hojas (app) | `App.jsx` `exportExcel` (3542), SheetJS | ✅ | — |

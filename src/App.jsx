@@ -713,9 +713,10 @@ function SyncBadge({status,lastSync}) {
 }
 
 /* ── Paginación de listas largas ─────────────────────────────────
-   Las dos listas que pueden crecer sin control — «Gastos del mes»
-   (Finanzas) y «Movimientos del período» (Reportes) — se muestran
-   de PAGE_SIZE en PAGE_SIZE para no saturar la pantalla del celular.
+   Las tres listas que pueden crecer sin control — «Gastos del mes»
+   (Finanzas), «Movimientos del período» (Reportes) y la lista de
+   «Detalle Ingresos» (agrupada por día) — se muestran de PAGE_SIZE en
+   PAGE_SIZE para no saturar la pantalla del celular.
 
    Reglas del control:
    • NO aparece si la lista cabe entera: la paginación es un añadido,
@@ -724,6 +725,8 @@ function SyncBadge({status,lastSync}) {
      cambia la fuente de datos (ver useEffect en cada uso).
    • El rango se recorta SIEMPRE dentro de [1, pages], así una lista
      que encoge (p. ej. se borra un gasto) nunca deja la vista vacía.
+   • Nunca pagina montos: los totales salen siempre de la lista
+     COMPLETA, no de la página visible.
    ──────────────────────────────────────────────────────────────── */
 const PAGE_SIZE = 10
 
@@ -3923,6 +3926,12 @@ function IncomeDetail({appts,setTab,tabExtra}) {
   const initFilter = tabExtra?.filter || 'all'
   const [month,setM] = useState(tabExtra?.month || monthStr())
   const [filter,setF]= useState(initFilter) // 'all'|'completed'|'pending'
+  // Paginación de la lista de días (ver Pager). Se reinicia al cambiar de
+  // mes o de filtro, para no quedar mirando una página que ya no existe.
+  // IMPORTANTE: los montos y contadores de las 4 tarjetas de arriba salen
+  // de `ma`/`done`/`pend`/`noshow` COMPLETOS, nunca de la página visible.
+  const [incPage,setIncPage]=useState(1)
+  useEffect(()=>{ setIncPage(1) },[filter,month])
   const safe   = Array.isArray(appts)?appts:[]
   const months = [...new Set([...safe.map(a=>cleanDate(a.date).slice(0,7)),monthStr()].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
   const ma     = [...safe].filter(a=>cleanDate(a.date).slice(0,7)===month).sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date)))
@@ -3937,6 +3946,14 @@ function IncomeDetail({appts,setTab,tabExtra}) {
 
   const byDay={}
   display.forEach(a=>{const d=cleanDate(a.date);if(!byDay[d])byDay[d]=[];byDay[d].push(a)})
+
+  // Días ordenados de más reciente a más antiguo (el orden que ya se
+  // mostraba) y cortados por página. Es la ÚNICA lista que se pagina:
+  // los totales de arriba no se tocan.
+  const dayEntries=Object.entries(byDay).sort(([a],[b])=>b.localeCompare(a))
+  const dayPages  =Math.max(1,Math.ceil(dayEntries.length/PAGE_SIZE))
+  const dayCur    =Math.min(Math.max(1,incPage),dayPages)   // recorte defensivo
+  const dayShown  =dayEntries.slice((dayCur-1)*PAGE_SIZE, dayCur*PAGE_SIZE)
 
   return <>
     <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
@@ -3970,7 +3987,8 @@ function IncomeDetail({appts,setTab,tabExtra}) {
 
     {Object.keys(byDay).length===0
       ?<div className="card" style={{textAlign:'center',padding:30,color:'var(--t2)'}}>{filter==='pending'?'No hay citas pendientes 🎉':'Sin citas este mes'}</div>
-      :Object.entries(byDay).sort(([a],[b])=>b.localeCompare(a)).map(([day,items])=>{
+      :<>
+        {dayShown.map(([day,items])=>{
         const dayTot=items.reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
         const dayDone=items.filter(a=>bool(a.completed)).reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
         return <div className="card" key={day} style={{marginBottom:10}}>
@@ -3993,7 +4011,16 @@ function IncomeDetail({appts,setTab,tabExtra}) {
             </div>
           </div>)}
         </div>
-      })
+        })}
+        {/* Paginación de los días. Los montos y contadores de las 4 tarjetas
+            de arriba siguen siendo los del mes COMPLETO (salen de ma/done/
+            pend/noshow), no solo los de la página visible. */}
+        {dayEntries.length>PAGE_SIZE&&(
+          <div className="card" style={{padding:'2px 14px 6px'}}>
+            <Pager page={dayCur} total={dayEntries.length} onPage={setIncPage} label="días" />
+          </div>
+        )}
+      </>
     }
   </>
 }
