@@ -12,6 +12,7 @@ import {
   svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, openWhatsApp, PAYMENT_METHODS, payMethodOf,
   apptStatus, canModifyAppt, canRemindAppt, checkSlot, confirmOutcome, projectedIncome, movsRanges,
   serviceDeletionCheck, apptGroup, reportMetrics, isResetOutcome, domBreakdown,
+  reportLines,
 } from './helpers.js'
 
 /* ══════════════════════════════════════════════════════════════
@@ -3644,43 +3645,20 @@ function ReportTab({appts,expenses,services,setTab}) {
   // prefijo internacional 57 (Colombia), evitando duplicarlo si el
   // número ya lo trae. Sin número configurado no se hace nada (el
   // botón sale deshabilitado, esto es red de seguridad).
+  //
+  // El TEXTO lo arma `reportLines` (helpers.js): es la fuente única del
+  // formato, y el correo automático del trigger (`_sendReportEmail` en
+  // Code.gs) replica ese mismo orden, así los dos reportes salen iguales.
+  // El reporte incluye el detalle de CADA gasto del período (categoría y
+  // descripción con su monto) y cierra con el total de gastos.
   const sendWA = () => {
     const digits = ADMIN_WA_DIGITS
     if (!digits) return
     const p = (digits.startsWith('57') ? digits : '57' + digits).replace(/^5757/, '57')
-    const SPARK = '\u2728'        // ✨
-    const MONEY = '\uD83D\uDCB0'  // 💰
-    const CAL   = '\uD83D\uDCC5'  // 📅
-    const CHART = '\uD83D\uDCCA'  // 📊
-    const MOTO  = '\uD83D\uDEF5'  // 🛵
-    const lines = [
-      `${SPARK} *Reporte de actividad*`,
-      `${CAL} ${periodLabel()}`,
-      '',
-      `${CHART} *Citas*`,
-      `• Creadas (registradas): *${created}*`,
-      `• Agendadas para el período: *${scheduled}*`,
-      `• Completadas: *${completed}*${pending?` · Pendientes: ${pending}`:''}`,
-      ...(noshow>0 ? [`• No asistió: *${noshow}*`] : []),
-      '',
-      `${MONEY} *Ingresos*`,
-      `• Servicio(s): *${fmtM(ledger.totalService)}*`,
-      `• Domicilios: *${fmtM(ledger.totalDelivery)}*`,
-      `• Total recibido: *${fmtM(revenue)}*`,
-      `   - Efectivo: *${fmtM(ledger.totalCash)}*`,
-      `   - Transferencia: *${fmtM(ledger.totalTransfer)}*`,
-      ...(ledger.totalNoMethod>0 ? [`   - Sin método registrado: *${fmtM(ledger.totalNoMethod)}*`] : []),
-      `• Proyectado: *${fmtM(projected)}*`,
-      `• Gastos: *${fmtM(totalExpenses)}*`,
-      `• Neto: *${fmtM(neto)}*`,
-    ]
-    if (domicilios>0) lines.push('', `${MOTO} *Domicilios*: ${domicilios} citas · ${fmtM(domRevenue)}`)
-    if (topByDemand.length>0) {
-      lines.push('', `${SPARK} *Top servicios*`)
-      topByDemand.slice(0,3).forEach((s,i) => lines.push(`${['1.','2.','3.'][i]} ${s.name} — ${s.count}x (${fmtM(Math.round(s.revenue))})`))
-    }
-    lines.push('', `_Generado ${new Date().toLocaleString('es-CO')}_`)
-    const msg = lines.join('\n')
+    const msg = reportLines({
+      label: periodLabel(), m: M, topByDemand,
+      stamp: new Date().toLocaleString('es-CO'),
+    }).join('\n')
     openWhatsApp(p, msg)
   }
 

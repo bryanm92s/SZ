@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath, URL as NodeURL } from 'node:url'
 import { createContext, runInContext } from 'node:vm'
 import { randomUUID, createHash } from 'node:crypto'
+import { reportMetrics, reportLines } from './helpers.js'
 
 // Nota: bajo jsdom el global `URL` NO es el de Node, por eso se importa
 // `URL as NodeURL` para que fileURLToPath reciba una instancia válida.
@@ -1860,5 +1861,184 @@ describe('correo de restablecimiento · presentación y seguridad', () => {
     request(g)
     const st = JSON.parse(g.store.props.get('SB_RESET_CODE'))
     expect(st.expiresAt).toBeGreaterThan(Date.now())
+  })
+})
+
+
+/* ══════════════════════════════════════════════════════════════
+   EL CORREO PROGRAMADO ES EL MISMO REPORTE QUE EL WHATSAPP
+   ────────────────────────────────────────────────────────────
+   El trigger (_sendReportEmail) debe mandar LÍNEA POR LÍNEA el
+   mismo texto que arma reportLines() (helpers.js) para el botón
+   «💬 WhatsApp admin» de Reportes. Este test corre ambos lados
+   sobre los MISMOS datos y los compara: si alguien cambia el
+   formato de uno solo, aquí falla.
+   ══════════════════════════════════════════════════════════════ */
+describe('REPORTE: el correo del trigger = el WhatsApp del admin', () => {
+  const D = '2026-08-04'   // martes
+
+  // Cita completada a domicilio con efectivo, pendiente con transferencia,
+  // y una que no asistió: cubre todos los renglones del reporte.
+  const appt = (id, over = {}) => toRow('appointments', {
+    id, clientId: 'c1', clientName: 'Ana', clientPhone: '300111222',
+    serviceIds: 's1', serviceNames: 'Diseño de cejas', servicePrice: '350000', servicePrices: '{}',
+    domicilio: 'true', domicilioPrice: '10000', totalPrice: '360000', address: 'Calle 1 #2-3',
+    date: D, time: '09:00', createdAt: '2026-08-01T09:00:00',
+    calendarCreated: 'false', calendarEventId: '', completed: 'true',
+    duration: '30', paymentMethod: 'Efectivo', ...over,
+  })
+
+  const gasto = (id, over = {}) => toRow('expenses', {
+    id, description: '', amount: '10000', category: 'Gasolina', date: D, ...over,
+  })
+
+  // Semilla: 2 completadas (una con dos servicios), 1 pendiente, 1 noshow,
+  // 3 gastos (uno con descripción) y uno fuera del período.
+  const seedAppts = [
+    appt('a1'),
+    appt('a2', { serviceNames: 'Diseño de cejas, Lifting de pestañas', servicePrice: '180000',
+      domicilio: 'false', domicilioPrice: '0', totalPrice: '180000', time: '11:00',
+      paymentMethod: 'Transferencia' }),
+    appt('a3', { completed: 'false', time: '15:00', paymentMethod: '',
+      domicilio: 'false', domicilioPrice: '0', totalPrice: '130000' }),
+    appt('a4', { completed: 'noshow', time: '17:00', paymentMethod: '',
+      domicilio: 'false', domicilioPrice: '0', totalPrice: '80000' }),
+  ]
+  const seedExps = [
+    gasto('e1'),
+    gasto('e2', { category: 'Insumos', description: 'Cera', amount: '20000' }),
+    gasto('e3', { category: 'Papelería', amount: '5000', date: '2026-08-09' }),  // fuera
+  ]
+
+  const env = () => {
+    const ss = makeSpreadsheet({
+      services:     [toRow('services', S1), toRow('services', S2)],
+      appointments: seedAppts,
+      expenses:     seedExps,
+    })
+    return runCodeGs(ss)
+  }
+
+  // Réplica del cálculo de top servicios del ReportTab (App.jsx).
+  const topByDemandDe = (apptsEnPeriodo) => {
+    const stats = {}
+    apptsEnPeriodo
+      .filter(a => String(a.completed) === 'true')
+      .forEach(a => {
+        const names = String(a.serviceNames || '').split(',').map(s => s.trim()).filter(Boolean)
+        names.forEach(n => {
+          stats[n] = stats[n] || { name: n, count: 0, revenue: 0 }
+          stats[n].count += 1
+          stats[n].revenue += names.length ? Number(a.servicePrice) / names.length : Number(a.servicePrice)
+        })
+      })
+    return Object.values(stats).sort((a, b) => b.count - a.count).slice(0, 3)
+  }
+
+  const frontendLines = (label) => {
+    const apptsObj = seedAppts.map(r => Object.fromEntries(
+      JS_KEYS.appointments.map((k, i) => [k, r[i]])))
+    const expsObj = seedExps.map(r => Object.fromEntries(
+      JS_KEYS.expenses.map((k, i) => [k, r[i]])))
+    const m = reportMetrics({
+      appts: apptsObj, expenses: expsObj,
+      inPeriod: d => d === D, from: D, to: D,
+    })
+    return reportLines({ label, m, topByDemand: topByDemandDe(m.apptsInPeriod), stamp: 'X' })
+  }
+
+  it('el cuerpo del correo coincide línea por línea con el WhatsApp', () => {
+    const g = env()
+    g.call('_sendReportEmail', { type: 'day', day: D }, 'DIARIO')
+    const mail = g.store.mail[g.store.mail.length - 1]
+    expect(mail).toBeTruthy()
+
+    const backend = String(mail.body).split('\n')
+    // La línea 2 es la etiqueta del período («📅 <label>»); se le pasa al
+    // frontend para comparar el resto sin depender del formato de fecha.
+    expect(backend[1]).toMatch(/^📅 /)
+    const label = backend[1].slice('📅 '.length).trim()
+
+    const strip = arr => arr.filter(l => !l.startsWith('_Generado '))
+    expect(strip(backend)).toEqual(strip(frontendLines(label)))
+  })
+
+  it('el correo lista cada gasto con su monto y el total', () => {
+    const g = env()
+    g.call('_sendReportEmail', { type: 'day', day: D }, 'DIARIO')
+    const body = String(g.store.mail[g.store.mail.length - 1].body)
+    expect(body).toContain('💸 *Gastos*')
+    expect(body).toContain('   - Gasolina: *$10.000*')
+    expect(body).toContain('   - Insumos — Cera: *$20.000*')
+    expect(body).toContain('• Total gastos: *$30.000*')
+    // El gasto del 9 de agosto no pertenece al día 4.
+    expect(body).not.toContain('Papelería')
+  })
+
+  it('el correo trae el desglose de ingresos (servicios, domicilio y método)', () => {
+    const g = env()
+    g.call('_sendReportEmail', { type: 'day', day: D }, 'DIARIO')
+    const body = String(g.store.mail[g.store.mail.length - 1].body)
+    // a1: $360.000 totales = $350.000 servicios + $10.000 domicilio (efectivo)
+    // a2: $180.000 de servicios, sin domicilio (transferencia, 2 servicios)
+    expect(body).toContain('• Servicio(s): *$530.000*')
+    expect(body).toContain('• Domicilios: *$10.000*')
+    expect(body).toContain('• Total recibido: *$540.000*')
+    expect(body).toContain('   - Efectivo: *$360.000*')
+    expect(body).toContain('   - Transferencia: *$180.000*')
+    // Proyectado = completadas + pendiente ($130.000); la no asistida no suma.
+    expect(body).toContain('• Proyectado: *$670.000*')
+    expect(body).toContain('💳 *Neto*: *$510.000*')    // 540.000 − 30.000
+  })
+
+  it('el correo no trae la tasa de completado, pero sí «No asistió»', () => {
+    const g = env()
+    g.call('_sendReportEmail', { type: 'day', day: D }, 'DIARIO')
+    const body = String(g.store.mail[g.store.mail.length - 1].body)
+    expect(body).not.toMatch(/Tasa completado/i)
+    expect(body).toContain('• No asistió: *1*')
+  })
+
+  it('el HTML del correo replica las mismas secciones y cifras', () => {
+    const g = env()
+    g.call('_sendReportEmail', { type: 'day', day: D }, 'DIARIO')
+    const h = String(g.store.mail[g.store.mail.length - 1].htmlBody)
+    expect(h).toContain('&#x1F4B8; <b>Gastos</b>')
+    expect(h).toContain('   - Gasolina: <b>$10.000</b>')
+    expect(h).toContain('   - Insumos — Cera: <b>$20.000</b>')
+    expect(h).toContain('Total gastos: <b>$30.000</b>')
+    expect(h).toContain('Servicio(s): <b>$530.000</b>')
+    expect(h).toContain('&#x1F4B3; <b>Neto</b>: <b>$510.000</b>')
+    expect(h).not.toMatch(/Tasa completado/i)
+  })
+
+  it('sin gastos el correo sale con el total en cero y sin detalle', () => {
+    const ss = makeSpreadsheet({
+      services:     [toRow('services', S1), toRow('services', S2)],
+      appointments: seedAppts,
+      expenses:     [],
+    })
+    const g = runCodeGs(ss)
+    g.call('_sendReportEmail', { type: 'day', day: D }, 'DIARIO')
+    const body = String(g.store.mail[g.store.mail.length - 1].body)
+    expect(body).toContain('• Total gastos: *$0*')
+    expect(body).not.toContain('   - Gasolina')
+  })
+
+  it('el detalle de gastos del correo respeta el tope y el total suma todo', () => {
+    // 25 gastos de $1.000: solo entran 20 renglones, pero el total es $25.000.
+    const ss = makeSpreadsheet({
+      services:     [toRow('services', S1), toRow('services', S2)],
+      appointments: seedAppts,
+      expenses:     Array.from({ length: 25 }, (_, i) =>
+        gasto('g' + i, { category: 'Gasto ' + i, amount: '1000' })),
+    })
+    const g = runCodeGs(ss)
+    g.call('_sendReportEmail', { type: 'day', day: D }, 'DIARIO')
+    const body = String(g.store.mail[g.store.mail.length - 1].body)
+    const tramo = body.split('💸 *Gastos*')[1].split('• Total gastos:')[0]
+    expect(tramo.split('\n').filter(l => l.startsWith('   - ')).length).toBe(20)
+    expect(body).toContain('   … y 5 gasto(s) más')
+    expect(body).toContain('• Total gastos: *$25.000*')
   })
 })

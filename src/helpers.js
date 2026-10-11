@@ -540,6 +540,70 @@ export const movsRanges = rowCount => {
   return { first: 2, last: n + 1, tRow: n + 3 }
 }
 
+/**
+ * TEXTO DEL REPORTE DE ACTIVIDAD (fuente única del formato en el frontend).
+ *
+ * Lo usa el botón «💬 WhatsApp admin» de Reportes, y el correo automático
+ * del trigger (`_sendReportEmail` en Code.gs) replica línea por línea el
+ * mismo orden: el reporte programado por correo DEBE ser el mismo que el
+ * que se manda a mano. El test de paridad en backend.test.js los compara.
+ *
+ * `m`      → el objeto de `reportMetrics` (trae `ledger` adentro).
+ * `stamp`  → texto del pie «_Generado …_» (cada lado pone el suyo).
+ */
+export const reportLines = ({ label, m, topByDemand, stamp }) => {
+  const L = m.ledger
+  const money = n => `$${(Number(n) || 0).toLocaleString('es-CO')}`
+  const lines = [
+    `✨ *Reporte de actividad*`,
+    `📅 ${label}`,
+    '',
+    `📊 *Citas*`,
+    `• Creadas (registradas): *${m.created}*`,
+    `• Agendadas para el período: *${m.scheduled}*`,
+    `• Completadas: *${m.completed}*${m.pending ? ` · Pendientes: ${m.pending}` : ''}`,
+    ...(m.noshow > 0 ? [`• No asistió: *${m.noshow}*`] : []),
+    '',
+    `💰 *Ingresos*`,
+    `• Servicio(s): *${money(L.totalService)}*`,
+    `• Domicilios: *${money(L.totalDelivery)}*`,
+    `• Total recibido: *${money(L.totalIncome)}*`,
+    `   - Efectivo: *${money(L.totalCash)}*`,
+    `   - Transferencia: *${money(L.totalTransfer)}*`,
+    ...(L.totalNoMethod > 0 ? [`   - Sin método registrado: *${money(L.totalNoMethod)}*`] : []),
+    `• Proyectado: *${money(m.projected)}*`,
+    '',
+    `💸 *Gastos*`,
+  ]
+  // Detalle de gastos: uno por movimiento del período, en el mismo orden
+  // del libro. El tope evita pasarse del límite de texto de WhatsApp
+  // (~2.048 caracteres) en meses cargados; el total de abajo SIEMPRE
+  // suma todos los gastos del período, aunque se corten renglones.
+  L.outs.slice(0, MAX_REPORT_EXPENSES).forEach(r =>
+    lines.push(`   - ${expenseLabel(r)}: *${money(r.amount)}*`))
+  if (L.outs.length > MAX_REPORT_EXPENSES)
+    lines.push(`   … y ${L.outs.length - MAX_REPORT_EXPENSES} gasto(s) más`)
+  lines.push(`• Total gastos: *${money(L.totalExpenses)}*`)
+  lines.push('')
+  lines.push(`💳 *Neto*: *${money(m.neto)}*`)
+  if (m.domicilios > 0) lines.push('', `🛵 *Domicilios*: ${m.domicilios} citas · ${money(m.domRevenue)}`)
+  const top = (topByDemand || []).slice(0, 3)
+  if (top.length > 0) {
+    lines.push('', `✨ *Top servicios*`)
+    top.forEach((s, i) => lines.push(`${['1.', '2.', '3.'][i]} ${s.name} — ${s.count}x (${money(Math.round(s.revenue))})`))
+  }
+  lines.push('', `_Generado ${stamp}_`)
+  return lines
+}
+
+// Renglones de detalle de gastos que caben en el mensaje (ver arriba).
+export const MAX_REPORT_EXPENSES = 20
+
+// Nombre de un gasto para el reporte: «Categoría — Descripción», sin
+// repetir si las dos son iguales y sin dejarlo vacío.
+export const expenseLabel = r =>
+  [r.who, r.detail].filter((s, i, a) => s && a.indexOf(s) === i).join(' — ') || 'Gasto'
+
 // ¿iPhone/iPad? (incluye iPadOS, que se reporta como Mac con pantalla táctil)
 export const isIOS = () => {
   if (typeof navigator === 'undefined') return false

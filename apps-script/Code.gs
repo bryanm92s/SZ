@@ -1043,9 +1043,25 @@ function _buildReport(period) {
   var noshow    = apptsInPeriod.filter(function(a){ return a.completed === 'noshow'; }).length;
   var completionRate = scheduled > 0 ? Math.round(completed / scheduled * 100) : 0;
 
-  var revenue   = apptsInPeriod
-    .filter(function(a){ return boolV(a.completed) && a.completed !== 'noshow'; })
-    .reduce(function(s,a){ return s + toN(a.totalPrice || a.servicePrice || 0); }, 0);
+  // ── LIBRO ÚNICO (réplica de periodLedger del frontend) ────────
+  // Ingreso = cita completada. El domicilio viene sumado dentro del
+  // total de la cita, así que aquí se separa. Con esto el correo sale
+  // con los MISMOS números que el WhatsApp que se manda a mano.
+  var incomes = apptsInPeriod.filter(function(a){ return boolV(a.completed); });
+  var totalIncome = 0, totalService = 0, totalDelivery = 0, totalCash = 0, totalTransfer = 0;
+  incomes.forEach(function(a){
+    var amount   = toN(a.totalPrice || a.servicePrice || 0);
+    var isDom    = a.domicilio === true || a.domicilio === 'true';
+    var delivery = isDom ? Math.min(toN(a.domicilioPrice || 0), amount) : 0;
+    totalIncome   += amount;
+    totalDelivery += delivery;
+    totalService  += amount - delivery;
+    var m = String(a.paymentMethod || '').trim();
+    if (m === 'Efectivo') totalCash += amount;
+    else if (m === 'Transferencia') totalTransfer += amount;
+  });
+  var revenue      = totalIncome;                      // «Total recibido»
+  var totalNoMethod = totalIncome - totalCash - totalTransfer;  // citas de antes del método
   var projected = apptsInPeriod
     .reduce(function(s,a){ return a.completed === 'noshow' ? s : s + toN(a.totalPrice || a.servicePrice || 0); }, 0);
 
@@ -1059,14 +1075,21 @@ function _buildReport(period) {
     if (!x) return false;
     return x >= fromStr && x <= toStr;
   });
+  // Detalle de CADA gasto del período (lo que pide el reporte: gasolina,
+  // cera, … con su monto) en el MISMO orden de la hoja Gastos.
+  var expenseItems = expensesInPeriod.map(function(e){
+    var who    = String(e.category || '').trim();
+    var detail = String(e.description || '').trim();
+    var name   = (who && detail && who !== detail) ? who + ' \u2014 ' + detail
+               : (who || detail || 'Gasto');
+    return { name: name, amount: toN(e.amount || 0) };
+  });
   var totalExpenses = expensesInPeriod.reduce(function(s,e){ return s + toN(e.amount||0); }, 0);
   var neto = revenue - totalExpenses;
 
   // Domicilios (cantidad de citas + ingresos por domicilio en completadas)
   var domicilios = apptsInPeriod.filter(function(a){ return boolV(a.domicilio); }).length;
-  var domRevenue = apptsInPeriod
-    .filter(function(a){ return boolV(a.completed) && a.completed !== 'noshow' && boolV(a.domicilio); })
-    .reduce(function(s,a){ return s + toN(a.domicilioPrice||0); }, 0);
+  var domRevenue = totalDelivery;
 
   // Top servicios por demanda (sobre completadas)
   var svcStats = {};
@@ -1091,6 +1114,9 @@ function _buildReport(period) {
     created: created, scheduled: scheduled, completed: completed,
     pending: pending, noshow: noshow, completionRate: completionRate,
     revenue: revenue, projected: projected,
+    totalService: totalService, totalDelivery: totalDelivery,
+    totalCash: totalCash, totalTransfer: totalTransfer, totalNoMethod: totalNoMethod,
+    expenseItems: expenseItems,
     totalExpenses: totalExpenses, neto: neto,
     domicilios: domicilios, domRevenue: domRevenue,
     topByDemand: topByDemand,
@@ -1099,8 +1125,12 @@ function _buildReport(period) {
 }
 
 // ── Núcleo: arma el mensaje (plain + HTML) y lo envía ─────────
-// period + kind ('DIARIO'|'SEMANAL'|'MENSUAL'). Réplica del sendWA
-// del ReportTab de App.jsx acá, adaptada a correo.
+// period + kind ('DIARIO'|'SEMANAL'|'MENSUAL').
+// IMPORTANTE: el cuerpo replica LÍNEA POR LÍNEA el texto de
+// `reportLines` (helpers.js) que usa el botón «💬 WhatsApp admin» del
+// ReportTab. Si cambia el formato de uno, hay que cambiar el otro:
+// el test de paridad en backend.test.js los compara y falla si se
+// desalinean.
 function _sendReportEmail(period, kind) {
   var tz = Session.getScriptTimeZone();
   var now = new Date();
@@ -1109,6 +1139,9 @@ function _sendReportEmail(period, kind) {
   initSheets(SpreadsheetApp.getActiveSpreadsheet());
   var r = _buildReport(period);
 
+  // Renglones de detalle de gastos visibles (mismo tope que en el frontend)
+  var MAX_EXP = 20;
+
   // ── Emojis (plain text via String.fromCharCode)
   var SPARK  = String.fromCharCode(0x2728);                   // ✨
   var CAL    = String.fromCharCode(0xD83D, 0xDCC5);             // 📅
@@ -1116,10 +1149,13 @@ function _sendReportEmail(period, kind) {
   var MONEY  = String.fromCharCode(0xD83D, 0xDCB0);             // 💰
   var MOTO   = String.fromCharCode(0xD83D, 0xDEF5);             // 🛵
   var BULLET = String.fromCharCode(0x2022);                     // •
+  var EXPENSE = String.fromCharCode(0xD83D, 0xDCB8);            // 💸
+  var CARD   = String.fromCharCode(0xD83D, 0xDCB3);             // 💳
 
   // ── Emojis (HTML hex entities para htmlBody — immune a charset)
   var hSPARK = '&#x2728;', hCAL = '&#x1F4C5;', hCHART = '&#x1F4CA;',
-      hMONEY = '&#x1F4B0;', hMOTO = '&#x1F6F5;', hBULLET = '&#x2022;';
+      hMONEY = '&#x1F4B0;', hMOTO = '&#x1F6F5;', hBULLET = '&#x2022;',
+      hEXPENSE = '&#x1F4B8;', hCARD = '&#x1F4B3;';
 
   function fmtM(n){ n = Number(n) || 0; return '$' + n.toLocaleString('es-CO'); }
 
@@ -1132,15 +1168,31 @@ function _sendReportEmail(period, kind) {
   lines.push(BULLET + ' Creadas (registradas): *' + r.created + '*');
   lines.push(BULLET + ' Agendadas para el per\u00edodo: *' + r.scheduled + '*');
   lines.push(BULLET + ' Completadas: *' + r.completed + '*' + (r.pending ? ' \u00b7 Pendientes: ' + r.pending : ''));
-  lines.push(BULLET + ' Tasa completado: *' + r.completionRate + '%*');
+  if (r.noshow > 0) lines.push(BULLET + ' No asisti\u00f3: *' + r.noshow + '*');
   lines.push('');
   lines.push(MONEY + ' *Ingresos*');
-  lines.push(BULLET + ' Recibido: *' + fmtM(r.revenue) + '*');
+  lines.push(BULLET + ' Servicio(s): *' + fmtM(r.totalService) + '*');
+  lines.push(BULLET + ' Domicilios: *' + fmtM(r.totalDelivery) + '*');
+  lines.push(BULLET + ' Total recibido: *' + fmtM(r.revenue) + '*');
+  lines.push('   - Efectivo: *' + fmtM(r.totalCash) + '*');
+  lines.push('   - Transferencia: *' + fmtM(r.totalTransfer) + '*');
+  if (r.totalNoMethod > 0) lines.push('   - Sin m\u00e9todo registrado: *' + fmtM(r.totalNoMethod) + '*');
   lines.push(BULLET + ' Proyectado: *' + fmtM(r.projected) + '*');
-  lines.push(BULLET + ' Gastos: *' + fmtM(r.totalExpenses) + '*');
-  lines.push(BULLET + ' Neto: *' + fmtM(r.neto) + '*');
+  lines.push('');
+  lines.push(EXPENSE + ' *Gastos*');
+  // Detalle de CADA gasto (gasolina, cera, …). El tope evita pasarse del
+  // límite de caracteres de WhatsApp/correo; el total de abajo SIEMPRE
+  // suma todos los gastos del período, aunque se corten renglones.
+  r.expenseItems.slice(0, MAX_EXP).forEach(function(e){
+    lines.push('   - ' + e.name + ': *' + fmtM(e.amount) + '*');
+  });
+  if (r.expenseItems.length > MAX_EXP)
+    lines.push('   \u2026 y ' + (r.expenseItems.length - MAX_EXP) + ' gasto(s) m\u00e1s');
+  lines.push(BULLET + ' Total gastos: *' + fmtM(r.totalExpenses) + '*');
+  lines.push('');
+  lines.push(CARD + ' *Neto*: *' + fmtM(r.neto) + '*');
   if (r.domicilios > 0) {
-    lines.push('', MOTO + ' *Domicilios*: ' + r.domicilios + ' \u00b7 ' + fmtM(r.domRevenue));
+    lines.push('', MOTO + ' *Domicilios*: ' + r.domicilios + ' citas \u00b7 ' + fmtM(r.domRevenue));
   }
   if (r.topByDemand.length > 0) {
     lines.push('', SPARK + ' *Top servicios*');
@@ -1170,15 +1222,28 @@ function _sendReportEmail(period, kind) {
   hlines.push(hBULLET + ' Creadas (registradas): <b>' + r.created + '</b>');
   hlines.push(hBULLET + ' Agendadas para el per&#x00ed;odo: <b>' + r.scheduled + '</b>');
   hlines.push(hBULLET + ' Completadas: <b>' + r.completed + '</b>' + (r.pending ? ' \u00b7 Pendientes: ' + r.pending : ''));
-  hlines.push(hBULLET + ' Tasa completado: <b>' + r.completionRate + '%</b>');
+  if (r.noshow > 0) hlines.push(hBULLET + ' No asisti\u00f3: <b>' + r.noshow + '</b>');
   hlines.push('');
   hlines.push(hMONEY + ' <b>Ingresos</b>');
-  hlines.push(hBULLET + ' Recibido: <b>' + esc(fmtM(r.revenue)) + '</b>');
+  hlines.push(hBULLET + ' Servicio(s): <b>' + esc(fmtM(r.totalService)) + '</b>');
+  hlines.push(hBULLET + ' Domicilios: <b>' + esc(fmtM(r.totalDelivery)) + '</b>');
+  hlines.push(hBULLET + ' Total recibido: <b>' + esc(fmtM(r.revenue)) + '</b>');
+  hlines.push('   - Efectivo: <b>' + esc(fmtM(r.totalCash)) + '</b>');
+  hlines.push('   - Transferencia: <b>' + esc(fmtM(r.totalTransfer)) + '</b>');
+  if (r.totalNoMethod > 0) hlines.push('   - Sin m\u00e9todo registrado: <b>' + esc(fmtM(r.totalNoMethod)) + '</b>');
   hlines.push(hBULLET + ' Proyectado: <b>' + esc(fmtM(r.projected)) + '</b>');
-  hlines.push(hBULLET + ' Gastos: <b>' + esc(fmtM(r.totalExpenses)) + '</b>');
-  hlines.push(hBULLET + ' Neto: <b>' + esc(fmtM(r.neto)) + '</b>');
+  hlines.push('');
+  hlines.push(hEXPENSE + ' <b>Gastos</b>');
+  r.expenseItems.slice(0, MAX_EXP).forEach(function(e){
+    hlines.push('   - ' + esc(e.name) + ': <b>' + esc(fmtM(e.amount)) + '</b>');
+  });
+  if (r.expenseItems.length > MAX_EXP)
+    hlines.push('   \u2026 y ' + (r.expenseItems.length - MAX_EXP) + ' gasto(s) m\u00e1s');
+  hlines.push(hBULLET + ' Total gastos: <b>' + esc(fmtM(r.totalExpenses)) + '</b>');
+  hlines.push('');
+  hlines.push(hCARD + ' <b>Neto</b>: <b>' + esc(fmtM(r.neto)) + '</b>');
   if (r.domicilios > 0) {
-    hlines.push('', hMOTO + ' <b>Domicilios</b>: ' + r.domicilios + ' \u00b7 ' + esc(fmtM(r.domRevenue)));
+    hlines.push('', hMOTO + ' <b>Domicilios</b>: ' + r.domicilios + ' citas \u00b7 ' + esc(fmtM(r.domRevenue)));
   }
   if (r.topByDemand.length > 0) {
     hlines.push('', hSPARK + ' <b>Top servicios</b>');

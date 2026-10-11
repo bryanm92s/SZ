@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, canRemindAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptGroup, reportMetrics, periodLedger, isResetOutcome, domBreakdown } from './helpers.js'
+import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, canRemindAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptGroup, reportMetrics, periodLedger, isResetOutcome, domBreakdown, reportLines, expenseLabel,
+MAX_REPORT_EXPENSES } from './helpers.js'
 
 // phoneMatch/getSlots depend on todayStr() (local today). Freeze the clock
 // so the tests are deterministic.
@@ -974,5 +975,164 @@ describe('canRemindAppt', () => {
   it('la ventana de gracia es configurable', () => {
     expect(canRemindAppt({ ...base, date: hoy, time: '12:49' }, undefined, 30)).toBe(true)
     expect(canRemindAppt({ ...base, date: hoy, time: '12:59' }, undefined, 0)).toBe(false)
+  })
+})
+
+
+/* ══════════════════════════════════════════════════════════════
+   reportLines — el TEXTO del reporte de actividad.
+   Es la fuente única del formato: la usa el botón «💬 WhatsApp
+   admin» de Reportes, y el correo automático del trigger replica
+   ese mismo orden (ver test de paridad en backend.test.js).
+   ══════════════════════════════════════════════════════════════ */
+describe('reportLines — reporte de actividad', () => {
+  const D = '2026-08-04'
+
+  // Una cita completada a domicilio (efectivo), otra pendiente
+  // (transferencia), y dos gastos: Gasolina $10.000 e Insumos/Cera $20.000.
+  const appts = [
+    { id: 'a1', date: D, time: '09:00', completed: 'true', domicilio: 'true',
+      servicePrice: '350000', domicilioPrice: '10000', totalPrice: '360000',
+      paymentMethod: 'Efectivo', serviceNames: 'Diseño de cejas' },
+    { id: 'a2', date: D, time: '11:00', completed: 'false', domicilio: 'false',
+      servicePrice: '130000', totalPrice: '130000',
+      paymentMethod: 'Transferencia', serviceNames: 'Lifting de pestañas' },
+  ]
+  const expenses = [
+    { id: 'e1', date: D, category: 'Gasolina', description: '', amount: '10000' },
+    { id: 'e2', date: D, category: 'Insumos',  description: 'Cera', amount: '20000' },
+  ]
+
+  const M = () => reportMetrics({ appts, expenses, inPeriod: d => d === D, from: D, to: D })
+  const lines = (m = M()) => reportLines({ label: 'martes, 4 de agosto de 2026', m, topByDemand: [], stamp: 'PRUEBA' })
+  const idx = (arr, sub) => arr.findIndex(l => l.includes(sub))
+  // Tramo de la sección 💸 Gastos: desde su cabecera hasta el total.
+  const gastoTramo = out => out.slice(idx(out, '💸 *Gastos*'), idx(out, '• Total gastos:'))
+
+  it('lista CADA gasto del período con su monto, y cierra con el total', () => {
+    const out = lines()
+    const iGastos = idx(out, '💸 *Gastos*')
+    const iTotal  = idx(out, '• Total gastos:')
+    expect(iGastos).toBeGreaterThan(-1)
+    expect(iTotal).toBeGreaterThan(iGastos)
+    // Cada gasto aparece con su renglón y su monto.
+    expect(out).toContain('   - Gasolina: *$10.000*')
+    expect(out).toContain('   - Insumos — Cera: *$20.000*')
+    // El total suma los dos.
+    expect(out[iTotal]).toBe('• Total gastos: *$30.000*')
+  })
+
+  it('el detalle de gastos va ANTES del total de gastos y del neto', () => {
+    const out = lines()
+    const iGas  = idx(out, '   - Gasolina')
+    const iTot  = idx(out, '• Total gastos:')
+    const iNeto = idx(out, '💳 *Neto*')
+    expect(iGas).toBeGreaterThan(-1)
+    expect(iGas).toBeLessThan(iTot)
+    expect(iTot).toBeLessThan(iNeto)
+  })
+
+  it('sin gastos sale solo el total en cero (nunca el tramo vacío)', () => {
+    const m = reportMetrics({ appts, expenses: [], inPeriod: d => d === D, from: D, to: D })
+    const out = lines(m)
+    expect(out).toContain('• Total gastos: *$0*')
+    // En el tramo de 💸 Gastos no queda ningún renglón de detalle.
+    expect(gastoTramo(out)).toEqual(['💸 *Gastos*'])
+  })
+
+  it('el total de gastos SIEMPRE cuadra con el libro, aunque se corte el detalle', () => {
+    // 25 gastos de $1.000 → solo entran MAX_REPORT_EXPENSES renglones,
+    // pero el total debe seguir sumando los 25 ($25.000).
+    const muchos = Array.from({ length: 25 }, (_, i) => ({
+      id: 'g' + i, date: D, category: 'Gasto ' + i, description: '', amount: '1000',
+    }))
+    const m = reportMetrics({ appts, expenses: muchos, inPeriod: d => d === D, from: D, to: D })
+    const out = lines(m)
+    const tramo = gastoTramo(out)
+    expect(tramo.filter(l => l.startsWith('   - ')).length).toBe(MAX_REPORT_EXPENSES)
+    expect(out).toContain('   … y 5 gasto(s) más')
+    expect(out).toContain('• Total gastos: *$25.000*')
+    expect(m.ledger.totalExpenses).toBe(25000)
+  })
+
+  it('las cifras salen del reportMetrics: ingresos por método y domicilio', () => {
+    const out = lines()
+    // Completada $360.000 (servicios $350.000 + domicilio $10.000) en efectivo.
+    // La pendiente $130.000 en transferencia NO es ingreso: cuenta en el
+    // proyectado, y el neto sale del libro único (solo lo completado).
+    expect(out).toContain('• Servicio(s): *$350.000*')
+    expect(out).toContain('• Domicilios: *$10.000*')
+    expect(out).toContain('• Total recibido: *$360.000*')
+    expect(out).toContain('   - Efectivo: *$360.000*')
+    expect(out).toContain('   - Transferencia: *$0*')
+    expect(out).toContain('• Proyectado: *$490.000*')
+    expect(out).toContain('💳 *Neto*: *$330.000*')   // 360.000 − 30.000
+  })
+
+  it('«Sin método registrado» solo aparece si hay ingresos sin método', () => {
+    expect(lines().some(l => l.includes('Sin método registrado'))).toBe(false)
+    const m = reportMetrics({
+      appts: [...appts, { id: 'a3', date: D, time: '15:00', completed: 'true',
+        domicilio: 'false', servicePrice: '50000', totalPrice: '50000',
+        paymentMethod: '', serviceNames: 'Esmalte' }],
+      expenses, inPeriod: d => d === D, from: D, to: D,
+    })
+    expect(lines(m)).toContain('   - Sin método registrado: *$50.000*')
+  })
+
+  it('el detalle de gastos conserva el orden de la hoja Gastos', () => {
+    const out = lines()
+    expect(idx(out, '   - Gasolina')).toBeLessThan(idx(out, '   - Insumos'))
+  })
+
+  it('«No asistió» solo sale si hay alguna, y nunca la tasa de completado', () => {
+    expect(lines().some(l => l.includes('No asistió'))).toBe(false)
+    const m = reportMetrics({
+      appts: [...appts, { id: 'a4', date: D, time: '17:00', completed: 'noshow',
+        domicilio: 'false', servicePrice: '80000', totalPrice: '80000',
+        paymentMethod: '', serviceNames: 'Masilla' }],
+      expenses, inPeriod: d => d === D, from: D, to: D,
+    })
+    expect(lines(m)).toContain('• No asistió: *1*')
+    // La tasa de completado se quitó del reporte (pantalla, correo y WA).
+    expect(lines().some(l => l.toLowerCase().includes('tasa completado'))).toBe(false)
+    expect(lines().some(l => l.toLowerCase().includes('porcentaje completado'))).toBe(false)
+  })
+
+  it('los servicios y domicilios solo agregan su sección cuando hay datos', () => {
+    // Domicilios: solo la sección extra, la línea de ingresos ya la trae.
+    expect(lines().some(l => l.includes('Top servicios'))).toBe(false)
+    const out = reportLines({
+      label: 'x', m: M(), stamp: 'X',
+      topByDemand: [{ name: 'Diseño de cejas', count: 3, revenue: 150000 }],
+    })
+    expect(out).toContain('🛵 *Domicilios*: 1 citas · $10.000')
+    expect(out).toContain('1. Diseño de cejas — 3x ($150.000)')
+
+    // Sin citas a domicilio no aparece la sección.
+    const sinDom = reportMetrics({
+      appts: [appts[1]], expenses, inPeriod: d => d === D, from: D, to: D,
+    })
+    expect(lines(sinDom).some(l => l.includes('🛵'))).toBe(false)
+  })
+
+  it('el pie lleva el sello de generado que pase el llamador', () => {
+    expect(lines().at(-2)).toBe('')
+    expect(lines().at(-1)).toBe('_Generado PRUEBA_')
+  })
+})
+
+describe('expenseLabel — nombre de un gasto en el reporte', () => {
+  it('categoría sola cuando no hay descripción', () => {
+    expect(expenseLabel({ who: 'Gasolina', detail: '' })).toBe('Gasolina')
+  })
+  it('categoría y descripción unidas con em dash', () => {
+    expect(expenseLabel({ who: 'Insumos', detail: 'Cera' })).toBe('Insumos — Cera')
+  })
+  it('no repite si las dos dicen lo mismo', () => {
+    expect(expenseLabel({ who: 'Cera', detail: 'Cera' })).toBe('Cera')
+  })
+  it('vacío total cae en «Gasto», nunca deja el renglón sin nombre', () => {
+    expect(expenseLabel({ who: '', detail: '' })).toBe('Gasto')
   })
 })
