@@ -3661,7 +3661,7 @@ function ReportTab({appts,expenses,services,setTab}) {
       ...(noshow>0 ? [`• No asistió: *${noshow}*`] : []),
       '',
       `${MONEY} *Ingresos*`,
-      `• Servicios: *${fmtM(ledger.totalService)}*`,
+      `• Servicio(s): *${fmtM(ledger.totalService)}*`,
       `• Domicilios: *${fmtM(ledger.totalDelivery)}*`,
       `• Total recibido: *${fmtM(revenue)}*`,
       `   - Efectivo: *${fmtM(ledger.totalCash)}*`,
