@@ -3007,9 +3007,13 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
   }
   const ma=safeA.filter(a=>cleanDate(a.date).slice(0,7)===month)
   const me=safe.filter(e=>cleanDate(e.date).slice(0,7)===month)
-  // «Gastos del mes»: se ordena UNA sola vez y luego se corta por página,
+  // «Gastos del mes»: de la fecha MÁS RECIENTE a la más antigua, como
+  // pidió el dueño. Se ordena UNA sola vez y luego se corta por página,
   // para no reordenar el arreglo completo en cada render.
-  const meSorted=[...me].sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date)))
+  // Un gasto no tiene hora, así que dentro del mismo día se mantiene el
+  // orden en que llegaron del servidor: `Array.prototype.sort` es
+  // estable, y el desempate no haría más que reordenar sin criterio.
+  const meSorted=[...me].sort((a,b)=>cleanDate(b.date).localeCompare(cleanDate(a.date)))
   const mePages =Math.max(1,Math.ceil(meSorted.length/PAGE_SIZE))
   const mePage  =Math.min(Math.max(1,expPage),mePages)   // recorte defensivo
   const meShown =meSorted.slice((mePage-1)*PAGE_SIZE, mePage*PAGE_SIZE)
