@@ -9,7 +9,7 @@ React 18 + Vite · Google Apps Script + Sheets + Calendar · Deploy en Vercel
 
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=white)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
-[![Tests](https://img.shields.io/badge/Tests-273_passing-brightgreen)](#-testing)
+[![Tests](https://img.shields.io/badge/Tests-299_passing-brightgreen)](#-testing)
 [![Deploy](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)](https://vercel.com)
 [![Backend](https://img.shields.io/badge/Backend-Google_Apps_Script-34A853?logo=googleapps&logoColor=white)](https://script.google.com)
 
@@ -91,9 +91,17 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
   personalizables.
 - **Comparación mes a mes** y **Top servicios** (por ingresos y por demanda).
 - **Detalle de ingresos** y **detalle de gastos** con filtros.
-- **Paginación** en *Gastos del mes*, *Detalle de ingresos* y los
-  *Movimientos del período* cuando hay **más de 10 registros** (los totales
-  siguen sumando el período completo).
+- **Paginación** en *Gastos del mes* y *Movimientos del período* (10 por
+  página, **‹ Ant. · Sig. ›**) y en *Detalle de ingresos* y *Detalle de
+  gastos*: **7 días por página** con ese mismo **‹ Ant. · Sig. ›** y **5
+  registros dentro de cada día** con **círculos numerados**. Los totales
+  siguen sumando el período completo.
+- **Categorías desplegables** en *Detalle de gastos*: toca una categoría
+  para ver sus gastos uno por uno.
+- **Orden consistente**: lo más reciente primero; **dentro de un día** las
+  citas van **por hora** y los gastos **por descripción (A→Z)** y, si dos
+  gastos se llaman igual, **el mayor monto** — nunca en el orden en que se
+  registraron.
 - Desglose de **domicilios** (cantidad e ingreso).
 
 ### 📊 Reportes
@@ -211,14 +219,14 @@ SZ/
 │   ├── main.jsx               # Entry point de React
 │   ├── App.jsx                # 🟡 Toda la UI (~4.490 líneas): componentes y estado
 │   ├── api.js                 # load/save contra el Web App de Apps Script
-│   ├── helpers.js             # Funciones puras (~712 líneas) — la fuente de las reglas
+│   ├── helpers.js             # Funciones puras (~857 líneas) — la fuente de las reglas
 │   ├── index.css              # Reset mínimo
 │   ├── api.test.js            # Tests del módulo de transporte
 │   ├── helpers.test.js        # Tests unitarios de helpers
 │   └── backend.test.js        # Ejecuta el Code.gs REAL dentro de un sandbox
 │
 └── apps-script/               # 🟢 Backend (desplegar en Google Apps Script)
-    ├── Code.gs                # Lógica completa (~1.785 líneas)
+    ├── Code.gs                # Lógica completa (~2.072 líneas)
     ├── appsscript.json        # Manifiesto ACTIVO (scopes + zona horaria)
     └── appsscript.json.txt    # Manifiesto alternativo (preexistente; ver docs)
 ```
@@ -293,8 +301,8 @@ Copia `.env.example` a `.env` (local) o configúralas en
 | `VITE_SCRIPT_URL` | ✅ | interna | URL del Web App de Apps Script (`…/exec`) |
 | `VITE_TOKEN` | ✅ | ⚠️ **expuesta** | Debe coincidir exactamente con la propiedad de script `SB_SYNC_TOKEN` |
 | `VITE_BIZ_NAME` | — | pública | Nombre del negocio (header + `<title>`). Defecto: `SZ` |
-| `VITE_BIZ_SUBTITLE` | — | pública | Subtítulo corto del header |
-| `VITE_BIZ_EMOJI` | — | pública | Emoji del favicon (se inyecta en runtime). Defecto: `🌸` |
+| `VITE_BIZ_SUBTITLE` | — | pública | Subtítulo corto: aparece bajo el nombre **y** en la pestaña (`🌸 NOMBRE · SUBTITULO`) |
+| `VITE_BIZ_EMOJI` | — | pública | Emoji de la pestaña (texto e icono) y del encabezado. Defecto: `🌸` |
 | `VITE_BIZ_LOGO` | — | pública | URL absoluta del logo para `apple-touch-icon` |
 | `VITE_ADMIN_WHATSAPP` | — | ⚠️ **personal** | Número de WhatsApp del admin, destino del botón «💬 WhatsApp admin». Sin número, el botón sale **deshabilitado** |
 
@@ -365,13 +373,13 @@ Detalle completo en [`docs/MANUAL_TECNICO.md`](docs/MANUAL_TECNICO.md) sección 
 
 ## 🧪 Testing
 
-Hay **273 pruebas** en 3 suites, ejecutadas y verificadas en esta ronda de
+Hay **299 pruebas** en 3 suites, ejecutadas y verificadas en esta ronda de
 documentación:
 
 | Suite | Pruebas | Qué cubre |
 |---|---:|---|
-| `src/helpers.test.js` | 144 | Lógica pura: fechas, slots, teléfono, duraciones, estados, finanzas, reportes |
-| `src/backend.test.js` | 122 | **Ejecuta el `Code.gs` real** en un sandbox (`node:vm`): API, reset, Calendar, reportes, Excel y paridad correo/WhatsApp |
+| `src/helpers.test.js` | 165 | Lógica pura: fechas, slots, teléfono, duraciones, estados, finanzas, reportes |
+| `src/backend.test.js` | 127 | **Ejecuta el `Code.gs` real** en un sandbox (`node:vm`): API, reset, Calendar, reportes, Excel y paridad correo/WhatsApp |
 | `src/api.test.js` | 7 | Transporte: mensajes de error, `loadData`/`saveData`, restablecimiento |
 
 ```bash

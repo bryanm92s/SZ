@@ -88,7 +88,11 @@ En la parte inferior hay 7 botones:
 
 - **«✓ Sincronizado»** en verde → todo bien, los datos están guardados.
 - **«⟳ Sincronizando»** → la app está guardando o leyendo.
-- **«⚠ Modo sin conexión»** en rojo → no hay conexión; se guardará después.
+- **«⚠»** en rojo y, debajo del menú, una franja **«⚠️ Modo sin conexión —
+  \<motivo\>»** → la app no pudo hablar con el servidor. **No hay cola
+  mágica**: lo que cambies en ese estado queda solo en la pantalla y se
+  pierde si recargas. Vuelve a pulsar **↻** o a guardar cuando vuelva la
+  conexión, y confirma con **«✓ Sincronizado»**.
 - El nombre del negocio y su emoji (si se configuraron).
 
 ---
@@ -276,6 +280,11 @@ regla, es correcto: la app te está diciendo por qué no puede.
 
 1. Toca la clienta.
 2. Verás sus **citas**, los **montos** y su **última visita**.
+3. En **🗓️ Todas las citas** la lista sale de la más reciente a la más
+   antigua y, si hay **más de 5**, al final aparece **‹ Ant. · 1–5 de 23
+   citas · pág. 1 de 5 · Sig. ›**. Los **totales de arriba no cambian** al
+   paginar: siempre son de la clienta completa.
+   - La página vuelve a **1** cuando entras a otra clienta.
 
 ### Crear una clienta
 
@@ -460,24 +469,53 @@ administrador**.
 
 - **Detalle de ingresos** — lista las citas del mes, agrupadas por día, con
   los filtros **Todo · Recibido · Pendiente · No asistió**.
-  - Si hay **más de 10 días** con citas, aparece una **paginación**:
-    **‹ Ant. · 1–10 de 16 días · pág. 1 de 2 · Sig. ›**
-  - Con **10 días o menos no aparece nada**: la lista sale completa.
+  - Los días salen del **más reciente al más antiguo** y, **dentro de cada
+    día**, las citas van **de la hora más temprana a la más tarde** (como
+    se repasa una agenda).
+  - Si hay **más de 7 días** con citas, aparece una **paginación** al pie de
+    la lista de días: **‹ Ant. · 1–7 de 20 días · pág. 1 de 3 · Sig. ›**
+    - Toca **‹ Ant.** y **Sig. ›**; el contador te dice en qué página vas.
+    - Con **7 días o menos no aparece nada**: la lista sale completa.
+  - Además, **dentro de cada día** solo se ven **5 citas por página**, con su
+    **propio paginador de círculos** debajo: **‹ 1 2 3 ›**, donde la página
+    activa va en un **círculo relleno** y los extremos son **flechas ‹ ›**,
+    nunca números. Cada día recuerda **su propia** página.
   - Cada tarjeta de día muestra sus citas con la hora, la clienta y el
     monto recibido o pendiente.
-  - Si **cambias de mes o de filtro**, la paginación **vuelve a la
+  - Si **cambias de mes o de filtro**, ambas paginaciones **vuelven a la
     página 1**.
   - ⚠️ Los montos y los contadores de las 4 tarjetas de arriba
     (Todo / Recibido / Pendiente / No asistió) **siempre** corresponden al
     **mes completo**, no a la página que estás mirando. Pasa por todas las
     páginas y verás que no cambian.
-- **Detalle de gastos** — lista los gastos.
-  - Si hay **8 gastos o menos**, se listan **uno por uno**.
-  - Si hay **más de 8**, se muestran **una línea por categoría**
-    (p. ej. `Gasolina: $150.000 (5)`), de mayor a menor.
-  - ⚠️ El **Total gastos** **siempre** suma **todo** el período, aunque se
-    muestren agrupados.
-- **Gastos del mes** — la lista de gastos del mes seleccionado.
+- **Detalle de gastos** — lista los gastos del mes en dos vistas.
+  - Los días salen del **más reciente al más antiguo** y, **dentro de cada
+    día**, van **por descripción de la A a la Z** (sin importar mayúsculas
+    ni acentos) y, si dos gastos se llaman igual, **el más caro primero**.
+    Así el orden es siempre el mismo, sin importar en qué orden los
+    hayas ido registrando.
+  - Si hay **más de 7 días** con gastos, aparece una **paginación** al pie de
+    los días (**‹ Ant. · pág. 1 de 3 · Sig. ›**) y, **dentro de cada día**,
+    se ven **5 gastos** por página con su **círculo de páginas** debajo
+    (**‹ 1 2 3 ›**).
+  - 👉 Primero se ve **«Por categoría»**: una línea por categoría con su
+    color, su monto y una barra de participación, de **mayor a menor**.
+  - 👉 **Toca una categoría** para **abrir sus gastos**: se despliega una
+    tarjeta justo debajo con **todos los gastos de esa categoría**, del más
+    reciente al más antiguo (y, dentro del día, por descripción A→Z), **10
+    por página**. Vuelve a tocarla para
+    cerrarla. Al **abrir otra categoría** la paginación **vuelve a la
+    página 1**.
+  - Debajo van los **gastos por día**, uno por uno, con ✏️ para editarlos y
+    ✕ para borrarlos.
+  - ⚠️ El **Total del mes** y el desglose **por categoría** **siempre**
+    salen de **todos** los gastos del mes: no cambian al abrir o cerrar
+    una categoría ni al pasar de página. Tampoco cambian por el orden:
+    los totales son sumas, y una suma no depende de cómo se ordene la
+    lista.
+- **Gastos del mes** — la lista de gastos del mes seleccionado, del **más
+  reciente al más antiguo** y, dentro del mismo día, por **descripción
+  A→Z** (y si empatan, por el **mayor monto**).
   - Si el mes tiene **más de 10 gastos**, aparece una **paginación** al
     final de la lista: **‹ Ant. · 1–10 de 23 gastos · pág. 1 de 3 · Sig. ›**
   - Con **10 gastos o menos no aparece nada**: la lista sale completa.
@@ -508,7 +546,7 @@ Hay **4 botones** en este orden:
 |---|---|
 | **📅 Por día** | Un día específico |
 | **🗓️ Por mes** | Un mes completo |
-| **📆 Por rango** | Dos fechas que tú eliges |
+| **📆 Por rango** | Dos fechas que tú eliges — también puede **llegar al futuro**, para revisar citas ya agendadas |
 | **📅 Por año** | Un año completo (1 ene – 31 dic) y elige el año |
 
 **Pasos:**
@@ -521,7 +559,8 @@ Hay **4 botones** en este orden:
 ### Los movimientos del período
 
 Debajo del resumen verás **🧾 Movimientos del período**: la lista de todo lo
-que entró y salió, con los filtros **Todo · Ingresos · Gastos**.
+que entró y salió, con los filtros **Todo · Ingresos · Gastos**, ordenados
+**del más reciente al más antiguo**.
 
 - Si el período tiene **más de 10 movimientos**, aparece una **paginación**:
   **‹ Ant. · 1–10 de 37 movimientos · pág. 1 de 4 · Sig. ›**
@@ -637,13 +676,19 @@ de la dueña. (Ver [sección 2](#2-cómo-acceder).)
 
 ### La cita no guarda
 
-- Mira el mensaje exacto. Si dice «No se pudo guardar», **no se guardó**:
-  revisa la conexión e intenta de nuevo.
+Mira el texto dentro de la tarjeta **⚠️** que queda en la pantalla de la
+cita. Son **tres casos distintos**:
 
-### No se crea el evento de Calendar
+| Texto | ¿Se guardó? | Qué hacer |
+|---|---|---|
+| `⚠️ No se pudo guardar la cita en el servidor; no se envió nada a Google Calendar.` | **NO** | Revisa la conexión y vuelve a pulsar **Guardar cambios**. |
+| `⚠️ La cita se guardó, pero Google Calendar NO se actualizó: …` | **Sí** | Pulsa **🔄 Reintentar Calendar** (o **Listo** si prefieres). |
+| `✅ Cita guardada. Esta cita no tiene un evento de Calendar enlazado…` | **Sí** | Es normal en citas viejas: **no se crea un evento nuevo** para no duplicar los que ya existen. |
 
-1. La cita **sí quedó en SZ** (revisa 📅 Citas).
-2. Sal y vuelve a entrar para que pida permiso de nuevo.
+### «La cita se guardó, pero Google Calendar NO se actualizó»
+
+1. Pulsa **🔄 Reintentar Calendar** en la misma tarjeta.
+2. Si también falla, te mostrará el motivo (permisos de Google, cuota…).
 3. Si persiste, es un problema de autorización →
    [`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) sección D.7.
 

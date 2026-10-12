@@ -291,7 +291,7 @@ export default function App() {
   // Evitamos placeholders %VITE_*% en index.html porque Vite hace decodeURI()
   // sobre los href durante `vite build` y revienta con "URI malformed".
   useEffect(() => {
-    document.title = BIZ_SUBTITLE ? `${BIZ_NAME} · ${BIZ_SUBTITLE}` : BIZ_NAME
+    document.title = [BIZ_EMOJI, BIZ_SUBTITLE ? `${BIZ_NAME} · ${BIZ_SUBTITLE}` : BIZ_NAME].filter(Boolean).join(' ')  // «🌸 NOMBRE · SUBTITULO»; filter(Boolean) quita el emoji o el subtítulo si vienen vacíos
     if (BIZ_EMOJI) {
       const svg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E${encodeURIComponent(BIZ_EMOJI)}%3C/text%3E%3C/svg%3E`
       let link = document.querySelector("link[rel~='icon']")
@@ -338,17 +338,17 @@ export default function App() {
     try{ localStorage.setItem('sz_palette',themePalette) }catch{}
   },[themePalette])
 
-  useEffect(()=>{
-    // Título de la pestaña: emoji + nombre
-    document.title = BIZ_NAME
-    // Favicon dinámico con el emoji. Se codifica el SVG para que caracteres
-    // especiales del emoji (o un BIZ_EMOJI mal configurado) no rompan el data-URI.
-    const favicon = document.querySelector("link[rel='icon']") || document.createElement('link')
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>${BIZ_EMOJI}</text></svg>`
-    favicon.rel  = 'icon'
-    favicon.href = `data:image/svg+xml,${encodeURIComponent(svg)}`
-    document.head.appendChild(favicon)
-  },[])
+  // ── Un SOLO efecto de branding ─────────────────────────────────
+  // El de la línea 293 es el único que escribe `document.title`, el
+  // favicon y el `apple-touch-icon`. Antes había aquí un segundo
+  // `useEffect` que volvía a hacer `document.title = BIZ_NAME`; como
+  // React ejecuta los efectos en el orden en que se declaran, el
+  // segundo PISABA al primero y la pestaña se quedaba sin
+  // `VITE_BIZ_SUBTITLE` — el subtítulo solo se veía en el encabezado
+  // de la app, nunca en la pestaña, y por eso el fallo pasaba
+  // inadvertido. Si hace falta tocar el título o el favicon, se hace
+  // en ese efecto (293–306) y nunca en otro que lo sobrescriba.
+
   useEffect(() => { refresh() }, [])
 
   // Polling cada 30s. Se pausa cuando la pestaña no está visible para no
@@ -3014,10 +3014,10 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
   // «Gastos del mes»: de la fecha MÁS RECIENTE a la más antigua, como
   // pidió el dueño. Se ordena UNA sola vez y luego se corta por página,
   // para no reordenar el arreglo completo en cada render.
-  // Un gasto no tiene hora, así que dentro del mismo día se mantiene el
-  // orden en que llegaron del servidor: `Array.prototype.sort` es
-  // estable, y el desempate no haría más que reordenar sin criterio.
-  const meSorted=[...me].sort((a,b)=>cleanDate(b.date).localeCompare(cleanDate(a.date)))
+  // Un gasto no tiene hora, así que dentro del mismo día aplica
+  // `cmpExpense` (descripción A→Z y, si empatan, mayor monto): sin ese
+  // segundo criterio el orden lo decidía el servidor y salía arbitrario.
+  const meSorted=[...me].sort((a,b)=>cleanDate(b.date).localeCompare(cleanDate(a.date))||cmpExpense(a,b))
   const mePages =Math.max(1,Math.ceil(meSorted.length/PAGE_SIZE))
   const mePage  =Math.min(Math.max(1,expPage),mePages)   // recorte defensivo
   const meShown =meSorted.slice((mePage-1)*PAGE_SIZE, mePage*PAGE_SIZE)
@@ -4442,7 +4442,7 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
   useEffect(()=>{ setCatPage(1) },[openCat,month])
   const safe=Array.isArray(expenses)?expenses:[]
   const months=[...new Set([...safe.map(e=>cleanDate(e.date).slice(0,7)),monthStr()].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
-  const me=[...safe].filter(e=>cleanDate(e.date).slice(0,7)===month).sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date)))
+  const me=[...safe].filter(e=>cleanDate(e.date).slice(0,7)===month).sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date))||cmpExpense(a,b))
   const tot=me.reduce((s,e)=>s+toN(e.amount||0),0)
   const allCats=[...new Set([...DEF_CATS,...safe.map(e=>e.category).filter(Boolean)])]
   const byCat={}
@@ -4450,20 +4450,20 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
   const byDay={}
   me.forEach(e=>{const d=cleanDate(e.date);if(!byDay[d])byDay[d]=[];byDay[d].push(e)})
   // Días de más reciente a más antiguo (el orden que ya se mostraba),
-  // cortados por página de 7. Nada de lo de ARRIBA se pagina: el total
-  // del mes y el desglose por categoría salen siempre de `me` COMPLETO,
-  // nunca de la página visible.
+  // cortados por página de 7; dentro de cada día manda `cmpExpense`.
+  // Nada de lo de ARRIBA se pagina: el total del mes y el desglose por
+  // categoría salen siempre de `me` COMPLETO, nunca de la página visible.
   const dayEntries=Object.entries(byDay).sort(([a],[b])=>b.localeCompare(a))
   const dayPages  =Math.max(1,Math.ceil(dayEntries.length/DAY_PAGE_SIZE))
   const dayCur    =Math.min(Math.max(1,dayPage),dayPages)   // recorte defensivo
   const dayShown  =dayEntries.slice((dayCur-1)*DAY_PAGE_SIZE, dayCur*DAY_PAGE_SIZE)
   // Gastos de la categoría desplegada, de la fecha MÁS RECIENTE a la más
-  // antigua (el mismo orden que «Gastos del mes» en Finanzas). OJO: el
-  // total de la tarjeta sale de la lista COMPLETA, no de la página
-  // visible. `filter` devuelve un arreglo nuevo, así que ordenarlo no
-  // toca `me`, del que salen el total del mes y el desglose.
+  // antigua y, dentro del mismo día, por `cmpExpense` (descripción A→Z,
+  // luego mayor monto). OJO: el total de la tarjeta sale de la lista
+  // COMPLETA, no de la página visible. `filter` devuelve un arreglo
+  // nuevo, así que ordenarlo no toca `me`, del que salen total y desglose.
   const catList  = openCat ? me.filter(e=>e.category===openCat)
-                             .sort((a,b)=>cleanDate(b.date).localeCompare(cleanDate(a.date))) : []
+                             .sort((a,b)=>cleanDate(b.date).localeCompare(cleanDate(a.date))||cmpExpense(a,b)) : []
   const catTotal = catList.reduce((s,e)=>s+toN(e.amount||0),0)
   const catPages = Math.max(1,Math.ceil(catList.length/CATEGORY_PAGE_SIZE))
   const catCur   =Math.min(Math.max(1,catPage),catPages)   // recorte defensivo
@@ -5095,3 +5095,26 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
     </>
   )
 }
+
+/* ── Desempate de GASTOS dentro de un mismo día ────────────────────
+   Una CITA se puede ordenar por hora (cleanTime); un GASTO no tiene
+   hora, así que ordenar solo por fecha deja cada día en el orden en
+   que las filas llegaron de Google Sheets — es decir, en el orden en
+   que a la dueña le dio por registrarlas, sin ningún significado.
+
+   Se aplica DESPUÉS de la fecha en las tres listas de gastos:
+     · «Gastos del mes»      → meSorted (FinancesTab)
+     · «Detalle Gastos»      → me (los días) y catList (categoría)
+   Criterio, en este orden:
+     1. descripción A → Z ignorando mayúsculas y acentos
+        (sensitivity:'base', así «arriendo» y «Arriendo» empatan);
+     2. si siguen empatando, el monto MAYOR primero;
+     3. si aún así empatan, manda el orden estable de Array.sort,
+        que es el que traía del servidor.
+   Los totales NO cambian: son sumas con reduce, no dependen del
+   orden, y los cortes por página se hacen después de ordenar.
+   ──────────────────────────────────────────────────────────────── */
+const cmpExpense = (a, b) =>
+  String((a && a.description) || '').localeCompare(
+    String((b && b.description) || ''), 'es', { sensitivity: 'base' })
+  || toN(b && b.amount) - toN(a && a.amount)

@@ -28,7 +28,7 @@ Guía para **probar, diagnosticar, respaldar, restaurar y desplegar** SZ.
 Todos los comandos están tomados de `package.json` (`scripts`).
 
 ```bash
-npm run test          # una ejecución de las 273 pruebas
+npm run test          # una ejecución de las 299 pruebas
 npm run test:watch    # modo observador (re-ejecuta al guardar)
 npm run lint          # ESLint sobre src/ (*.js y *.jsx)
 npm run build         # build de producción en dist/
@@ -50,9 +50,9 @@ npm run format        # Prettier — formatea src/**
 
 | Comando | Resultado |
 |---|---|
-| `npm test` | ✅ **273/273 pruebas pasando** — 3 suites (4,40 s) |
+| `npm test` | ✅ **299/299 pruebas pasando** — 3 suites (≈6 s) |
 | `npm run lint` | ✅ **0 errores**, 11 *warnings* |
-| `npm run build` | ✅ OK (5,82 s) |
+| `npm run build` | ✅ OK (≈6 s) |
 
 > ⚠️ Estos resultados corresponden al estado del código **al momento de
 > documentar**. Si cambias el código, **vuelve a ejecutarlos** antes de
@@ -66,8 +66,8 @@ npm run format        # Prettier — formatea src/**
 
 | Suite | Pruebas | Qué cubre |
 |---|---:|---|
-| `src/helpers.test.js` | **144** | Toda la lógica pura de `helpers.js` |
-| `src/backend.test.js` | **122** | Ejecuta el `Code.gs` **real** en un sandbox |
+| `src/helpers.test.js` | **165** | Toda la lógica pura de `helpers.js` |
+| `src/backend.test.js` | **127** | Ejecuta el `Code.gs` **real** en un sandbox |
 | `src/api.test.js` | **7** | Transporte HTTP y mensajes de error |
 
 ### 2.2 `src/helpers.test.js` — lógica pura
@@ -76,14 +76,17 @@ Cubre sin depender de React ni del navegador:
 
 - **Fechas y tiempo**: `localDateStr`, `todayStr`, `monthStr`, `tomorrowStr`,
   `cleanDate`, `fmtDate`, `cleanTime`, `fmtTime`, `toMin`.
-- **Horarios**: `TIME_SLOTS`, `getSlots` (bloqueo de ocupados, cierre 21:00),
-  `checkSlot`, `overlap`, `buildConflictMap`.
+- **Horarios**: `TIME_SLOTS`, `getSlots` (bloqueo de ocupados, cierre 21:00,
+  horas pasadas), `checkSlot` y `confirmOutcome`. El cálculo de solape está
+  **dentro de `getSlots`**, no en una función aparte.
 - **Duraciones**: `svcDuration`, `sumDuration`, `apptDuration`,
   `fmtDuration`, `endTime`.
 - **Estados**: `apptLife`, `apptGroup`, `apptStatus`, `canModifyAppt`.
 - **Teléfono**: `phoneMatch` (sufijo y subcadena).
 - **Finanzas**: `reportMetrics`, `periodLedger`, `groupExpensesByCategory`,
-  `splitPaid`, `topServicesByDemand`, `apptServiceRefs`.
+  `periodLedger` (con `totalCash` / `totalTransfer`),
+  `topServicesByDemand`, `apptServiceRefs`,
+  `recoverSnapshotNames` (nombres con coma).
 - **Servicios**: `serviceDeletionCheck`, `normName`, nombres ambiguos.
 - **Reportes**: `reportLines` (formato del mensaje).
 
@@ -111,6 +114,14 @@ Cubre:
   desalinean, **la suite falla**.
 - ⭐ **Regresión de nombres con coma**: verifica que un servicio llamado
   `Diseño, depilación y sombreado` **no** se parte en dos entradas fantasma.
+- ⭐ **Reconstrucción con anclas**: verifica que un nombre perdido que
+  contenía coma se recupera completo usando como ancla un servicio conocido,
+  que el ancla solo se busca **en límite de palabra** (prefijos como `Cejas`
+  dentro de `Cejas full` no pueden descolocar el corte) y que, **sin ninguna
+  ancla**, se mantiene el corte posicional.
+- ⭐ **Paridad frontend↔backend** de `apptServiceRefs` y de
+  `_recoverSnapshotNames`: si `src/helpers.js` y `apps-script/Code.gs`
+  se desalinean, la suite falla.
 
 ### 2.4 `src/api.test.js` — transporte
 
@@ -180,12 +191,12 @@ Aplica Prettier (`semi: false`, `singleQuote: true`, `printWidth: 120`).
 
 ## 4. Qué NO cubren las pruebas
 
-Esto es importante: **pasar las 273 pruebas no garantiza que producción
+Esto es importante: **pasar las 299 pruebas no garantiza que producción
 funcione.**
 
 | No se prueba | Por qué |
 |---|---|
-| **Componentes React** | No hay `@testing-library/react`: toda la UI (~4.487 líneas) está **sin tests de componentes** |
+| **Componentes React** | No hay `@testing-library/react`: toda la UI (~5.120 líneas) está **sin tests de componentes** |
 | **Google Sheets real** | `SpreadsheetApp` está **mockeado** |
 | **Google Calendar real** | `CalendarApp` está **mockeado** |
 | **Gmail real** | `GmailApp` está **mockeado** |
@@ -266,21 +277,56 @@ Haz esta lista **antes** de cada publicación importante. Usa un
 - [ ] Con un período de **10 movimientos o menos**, la paginación **no debe
       aparecer**.
 
-### 5.6 Detalle de ingresos (paginación de días)
+### 5.6 Detalle de ingresos (paginación de días y de citas)
 
-- [ ] Entrar a **Finanzas → Recibido (Ver →)** en un mes con **más de 10 días**
+- [ ] Entrar a **Finanzas → Recibido (Ver →)** en un mes con **más de 7 días**
       con citas.
-- [ ] Debe aparecer la paginación: `1–10 de N días · pág. 1 de X`.
+- [ ] Al pie de los **días** debe aparecer la paginación **plana**
+      (`‹ Ant. · 1–7 de 20 días · pág. 1 de 3 · Sig. ›`) — **no** círculos.
+- [ ] Dentro de una tarjeta de día con **más de 5 citas** debe haber su
+      paginador de **círculos numerados** (`‹ 1 2 ›`): la página activa va
+      **rellena**, los extremos son **flechas ‹ ›** (nunca números; revisar
+      que **no** salga un `0` ni un número repetido) y **cada día debe
+      recordar su página**.
+- [ ] Los días deben salir **del más reciente al más antiguo** y las citas
+      **de la hora más temprana a la más tarde**.
 - [ ] ⭐ **Invariante:** los montos y contadores de las 4 tarjetas
       (**Todo / Recibido / Pendiente / No asistió**) deben ser **idénticos**
       en todas las páginas y tras cambiar de filtro (salen del mes completo,
       no de la página visible).
 - [ ] Cambiar de **filtro** estando en una página > 1 → debe **volver a la
-      página 1**.
+      página 1** (tanto el paginador de días como el de cada día).
 - [ ] Cambiar de **mes** → debe **volver a la página 1**.
-- [ ] Con **10 días o menos** (en el filtro seleccionado), la paginación
-      **no debe aparecer**. Nota: un filtro puede tener ≤10 días aunque
+- [ ] Con **7 días o menos** (en el filtro seleccionado), la paginación
+      **no debe aparecer**. Nota: un filtro puede tener ≤7 días aunque
       «Todo» tenga más, y en ese filtro **no** debe verse paginador.
+
+### 5.6b Detalle de gastos (paginación y categorías desplegables)
+
+- [ ] Mes con **más de 7 días** de gastos → paginación **plana** al pie de los
+      días y, **dentro de cada día**, **5 gastos por página** con su
+      paginador de **círculos** (mismos chequeos de flechas/`0` de §5.6).
+- [ ] Con **cualquier** cantidad de gastos, la tarjeta **«Por categoría»**
+      debe salir con **todas** las categorías, de mayor a menor. **Tocar una
+      categoría** debe **desplegar sus gastos** debajo (10 por página, del
+      más reciente al más antiguo y, dentro del día, por descripción A→Z)
+      y volver a tocarla debe **cerrarla**.
+- [ ] Con una categoría abierta en la **página 3**, **abrir otra categoría**
+      (o cerrar y volver a abrir la misma) debe **volver a la página 1** —
+      `catPage` es único y lo reinicia `App.jsx` 4442.
+- [ ] ⭐ **Invariante:** el **Total del mes** y el desglose por categoría
+      deben ser **idénticos** con la categoría abierta o cerrada y en todas
+      las páginas (salen del mes completo).
+- [ ] Los gastos de **«Gastos del mes»** deben salir **del más reciente al
+      más antiguo**.
+- [ ] ⭐ **Desempate dentro de un día:** en una tarjeta de día (y también en
+      «Gastos del mes» y en una categoría desplegada) dos gastos del mismo
+      día salen **por descripción A → Z ignorando mayúsculas y acentos**, y
+      si se llaman igual **el mayor monto primero** — nunca en el orden en
+      que se registraron. Ver `ARQUITECTURA` §12.6.1 (`cmpExpense`).
+- [ ] ⭐ El **total de la tarjeta del día**, el **total del mes** y el
+      **desglose por categoría** no cambian aunque cambie el orden (son
+      sumas).
 
 ### 5.7 Calendar (caso crítico)
 
@@ -383,6 +429,7 @@ Editor → **Registros de ejecución** → busca `ERROR`, `❌`, `not_applied`.
 | Evento de Calendar no se aplica | Calendar tardó en reflejar la hora | `updateCalEvent` devuelve `not_applied`; reintenta |
 | Los cambios en la hoja «no se guardan» | `writeSheet` reescribe la hoja completa | **No editar las hojas a mano** |
 | Servicio «con fantasmas» en rankings | Partir `serviceNames` por coma | **Ya corregido**: resolución **por id** (`apptServiceRefs`) |
+| Nombre de servicio con coma **partido a la mitad** en reportes | Recuperar el snapshot por posición | **Ya corregido**: reconstrucción **con anclas** (`recoverSnapshotNames`) |
 
 ### 7.4 Cómo depurar en local
 
@@ -400,8 +447,8 @@ Editor → **Registros de ejecución** → busca `ERROR`, `❌`, `not_applied`.
 
 | Qué | Cómo | Frecuencia | Dónde |
 |---|---|---|---|
-| Hoja completa | `createDailyBackup` (`Code.gs` 802) | Diaria, 23:00 | Drive: `BACKUP-PROYECTO/Backups/<hoja>/` |
-| Último respaldo | `sendWeeklyBackupEmail` (`Code.gs` 904) | Sábados, 9:00 | Correo (destinatario desde `SB_AUTHORIZED_EMAIL`) |
+| Hoja completa | `createDailyBackup` (`Code.gs` 884) | Diaria, 23:00 | Drive: `BACKUP-PROYECTO/Backups/<hoja>/` |
+| Último respaldo | `sendWeeklyBackupEmail` (`Code.gs` 986) | Sábados, 9:00 | Correo (destinatario desde `SB_AUTHORIZED_EMAIL`) |
 
 - **Retención:** 30 días (se eliminan los mayores).
 - **No duplica** si ya existe un respaldo de hoy.

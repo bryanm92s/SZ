@@ -119,7 +119,7 @@ Abre **http://localhost:5173**.
 ### B.5 Pruebas, lint y build
 
 ```bash
-npm test              # 273 pruebas, una sola ejecución
+npm test              # 299 pruebas, una sola ejecución
 npm run test:watch    # modo observador
 npm run lint          # ESLint sobre src/
 npm run build         # build de producción en dist/
@@ -130,7 +130,7 @@ npm run preview       # sirve dist/ localmente
 
 | Comando | Resultado |
 |---|---|
-| `npm test` | ✅ **273/273 pruebas pasando** (3 suites) |
+| `npm test` | ✅ **299/299 pruebas pasando** (3 suites) |
 | `npm run lint` | ✅ **0 errores**, 11 *warnings* preexistentes (`no-unused-vars`) |
 | `npm run build` | ✅ Build OK (~5,8 s) |
 
@@ -193,21 +193,21 @@ Todas se leen con `import.meta.env` y **quedan embebidas en el bundle JS**
 |---|---|
 | **Nombre exacto** | `VITE_BIZ_SUBTITLE` |
 | **Ubicación** | `.env`, Vercel |
-| **Uso** | Subtítulo bajo el nombre (`App.jsx` 194, 294, 533). |
+| **Uso** | Subtítulo bajo el nombre (`App.jsx` 194, 533) **y** en la pestaña, como `🌸 NOMBRE · SUBTITULO` (`App.jsx` 294). |
 | **Obligatoria** | No |
 | **Valor predeterminado** | `''` (vacío → en el pie se repite el nombre) |
 | **Sensibilidad** | Pública |
-| **Verificación** | Aparece en letras pequeñas bajo el nombre, en mayúsculas. |
+| **Verificación** | Aparece en letras pequeñas bajo el nombre, en mayúsculas, y también en el texto de la pestaña (`🌸 NOMBRE · SUBTITULO`). |
 
 | Campo | Contenido |
 |---|---|
 | **Nombre exacto** | `VITE_BIZ_EMOJI` |
 | **Ubicación** | `.env`, Vercel |
-| **Uso** | Emoji del favicon (se inyecta como `data:image/svg+xml` en runtime) y del encabezado (`App.jsx` 195, 296, 347, 529). |
+| **Uso** | Emoji del **texto** de la pestaña, del favicon (se inyecta como `data:image/svg+xml` en runtime) y del encabezado (`App.jsx` 195, 294, 296, 529). |
 | **Obligatoria** | No |
 | **Valor predeterminado** | `🌸` |
 | **Sensibilidad** | Pública |
-| **Verificación** | Cambia el ícono de la pestaña. Se codifica con `encodeURIComponent`, así que un emoji inválido no rompe el data-URI. |
+| **Verificación** | Cambia el ícono de la pestaña **y** el primer carácter de su texto. Se codifica con `encodeURIComponent`, así que un emoji inválido no rompe el data-URI. |
 
 | Campo | Contenido |
 |---|---|
@@ -279,15 +279,15 @@ saberlo al instalar en otro negocio:
 | `TIME_SLOTS` | 07:00 → 20:30, cada 30 min | `helpers.js` 9–13 | Bloques de agenda |
 | `CLOSING_TIME` | `21:00` | `helpers.js` 103 | Una cita no puede **terminar** después |
 | `SERVICE_DURATION` | 60 min | `helpers.js` 15 | Duración por defecto sin dato |
-| `safeDuration` | 15–480, defecto 60 | `Code.gs` 776 / `helpers.js` 106 | Recorte de duraciones |
+| `safeDuration` | 15–480, defecto 60 | `Code.gs` 858 | Recorte de duraciones (el frontend `svcDuration`, `helpers.js` 106, solo pone 60 si falta) |
 | `DURATION_OPTIONS` | 30, 60, 90, 120, 150, 180 | `App.jsx` 237 | Opciones del selector |
-| `CODE_TTL_MS` | 15 min | `Code.gs` 170 | Vigencia del código de reset |
-| `GRANT_TTL_MS` | 10 min | `Code.gs` 171 | Vigencia de la autorización |
-| `MAX_VERIFY_TRIES` | 5 | `Code.gs` 172 | Intentos de verificación |
-| `LOCKOUT_MS` | 30 min | `Code.gs` 173 | Bloqueo tras agotar intentos |
-| `MAX_SENDS` / `SEND_WINDOW_MS` | 3 / 1 h | `Code.gs` 174–175 | Códigos por ventana |
-| `REPORT_EXPENSE_DETAIL_MAX` / `DETALLE_MAX` | 8 | `helpers.js` 688 / `Code.gs` 1547 | Umbral de detalle de gastos |
-| `MAX_REPORT_EXPENSES` / `MAX_EXP` | 20 | `helpers.js` 681 / `Code.gs` 1552 | Tope de categorías en el reporte |
+| `CODE_TTL_MS` | 15 min | `Code.gs` 172 | Vigencia del código de reset |
+| `GRANT_TTL_MS` | 10 min | `Code.gs` 173 | Vigencia de la autorización |
+| `MAX_VERIFY_TRIES` | 5 | `Code.gs` 174 | Intentos de verificación |
+| `LOCKOUT_MS` | 30 min | `Code.gs` 175 | Bloqueo tras agotar intentos |
+| `MAX_SENDS` / `SEND_WINDOW_MS` | 3 / 1 h | `Code.gs` 176–177 | Códigos por ventana |
+| `REPORT_EXPENSE_DETAIL_MAX` / `DETALLE_MAX` | 8 | `helpers.js` 764 / `Code.gs` 1639 | Umbral de detalle de gastos |
+| `MAX_REPORT_EXPENSES` / `MAX_EXP` | 20 | `helpers.js` 757 / `Code.gs` 1644 | Tope de categorías en el reporte |
 | `DEF_CATS` | 7 categorías | `App.jsx` 211 | Categorías de gasto por defecto |
 
 ---
@@ -314,7 +314,7 @@ hoja automáticamente:
 
 | Archivo | Origen | Contenido |
 |---|---|---|
-| `Code.gs` | Pegar el contenido de `apps-script/Code.gs` | Toda la lógica (~1.785 líneas) |
+| `Code.gs` | Pegar el contenido de `apps-script/Code.gs` | Toda la lógica (~2.072 líneas) |
 | `appsscript.json` | Pegar el contenido de `apps-script/appsscript.json` | Manifiesto: zona horaria y scopes |
 
 > 💡 El editor por defecto **no muestra el manifiesto**. Actívalo en
@@ -397,7 +397,7 @@ En **⚙️ → Propiedades del proyecto → Propiedades de script**, agrega:
 
 - **Calendar:** se usa el **calendario por defecto** de la cuenta. No hay nada
   que configurar más allá de autorizar el permiso. Los eventos se crean con el
-  color `MAUVE` (`Code.gs` 685).
+  color `MAUVE` (`Code.gs` 767).
 - **Gmail:** se usa la cuenta del propietario del script (`GmailApp`). No
   requiere configuración adicional, pero sí el scope `script.mail`.
 
@@ -471,7 +471,7 @@ Cada vez que cambies `Code.gs`:
 
 ### E.1 Estructura de las hojas
 
-`initSheets()` (`Code.gs` 1864) **crea automáticamente** las 5 hojas que falten.
+`initSheets()` (`Code.gs` 1956) **crea automáticamente** las 5 hojas que falten.
 Cada hoja tiene una fila de encabezados en español (`HEADERS_ES`, `Code.gs` 30–39)
 y **todas las celdas se guardan como texto** (`setNumberFormat('@')`).
 
@@ -539,15 +539,15 @@ y **todas las celdas se guardan como texto** (`setNumberFormat('@')`).
 
 ### E.2 ⚠️ `writeSheet` reescribe la hoja completa
 
-`writeSheet` (`Code.gs` 1891) hace `sh.clearContents()` y **reescribe encabezados
+`writeSheet` (`Code.gs` 1983) hace `sh.clearContents()` y **reescribe encabezados
 y todas las filas** en cada guardado. Consecuencias prácticas:
 
 - **No edites las hojas a mano** mientras la app esté en uso: esas filas se
   pierden en el siguiente guardado.
 - Si una hoja tiene **más columnas** de las esperadas, `readSheet` las ignora y
-  avisa por consola (`Code.gs` 1880).
-- Si tiene **menos**, los campos faltantes llegan como `''` (línea 1881).
-- Las filas **sin ID en la columna A** se descartan al leer (línea 1884).
+  avisa por consola (`Code.gs` 1972).
+- Si tiene **menos**, los campos faltantes llegan como `''` (línea 1973).
+- Las filas **sin ID en la columna A** se descartan al leer (línea 1976).
 
 ### E.3 Formato de fechas, hora y moneda
 
@@ -562,7 +562,7 @@ y todas las filas** en cada guardado. Consecuencias prácticas:
 > `localNowISO` (`helpers.js` 33) existe precisamente para **no** usar
 > `toISOString()` (que devuelve UTC y desplaza las horas en Colombia).
 
-> `cellStr` (`Code.gs` 1901) normaliza al leer: si Sheets devuelve un `Date`, lo
+> `cellStr` (`Code.gs` 1993) normaliza al leer: si Sheets devuelve un `Date`, lo
 > convierte a `YYYY-MM-DD`; si devuelve un número entre 0 y 1, lo interpreta como
 > hora y lo convierte a `HH:MM`.
 
@@ -570,9 +570,9 @@ y todas las filas** en cada guardado. Consecuencias prácticas:
 
 | Operación | Función | Comportamiento |
 |---|---|---|
-| **Crear** | `createCalEvent` (`Code.gs` 679) | Crea el evento en el calendario **por defecto**, color `MAUVE`, sin enviar invitaciones. Devuelve `{ok, eventId}` o `{ok:false, error}`. |
-| **Actualizar** | `updateCalEvent` (`Code.gs` 710) | Usa **solo el id que trae la cita**. Nunca crea eventos. Comprueba **después** de escribir que Calendar aplicó la hora (tolerancia 1 s) y si no, devuelve `ok:false` con código `not_applied`. |
-| **Borrar** | `deleteCalEvent` (`Code.gs` 764) | Usa solo el id. Si el evento ya no existe, devuelve `ok:true, alreadyGone:true` (**idempotente**). Nunca barre el calendario. |
+| **Crear** | `createCalEvent` (`Code.gs` 761) | Crea el evento en el calendario **por defecto**, color `MAUVE`, sin enviar invitaciones. Devuelve `{ok, eventId}` o `{ok:false, error}`. |
+| **Actualizar** | `updateCalEvent` (`Code.gs` 792) | Usa **solo el id que trae la cita**. Nunca crea eventos. Comprueba **después** de escribir que Calendar aplicó la hora (tolerancia 1 s) y si no, devuelve `ok:false` con código `not_applied`. |
+| **Borrar** | `deleteCalEvent` (`Code.gs` 846) | Usa solo el id. Si el evento ya no existe, devuelve `ok:true, alreadyGone:true` (**idempotente**). Nunca barre el calendario. |
 
 **Título y descripción** (`calTitle_` / `calDescription_`, `Code.gs` 693–704):
 
@@ -611,8 +611,8 @@ así:
 
 | Función | Frecuencia | Qué hace |
 |---|---|---|
-| `createDailyBackup` (`Code.gs` 802) | Diario, 23:00 | Copia la hoja a `BACKUP-PROYECTO/Backups/<nombre de la hoja>/` como `<nombre> — Backup yyyy-MM-dd`. **No duplica** si ya existe hoy. Elimina los mayores de **30 días**. |
-| `sendWeeklyBackupEmail` (`Code.gs` 904) | Sábados, 9:00 | Busca el respaldo más reciente, lo exporta a `.xlsx` y lo envía por correo. Destinatario desde `SB_AUTHORIZED_EMAIL`; si falta, se omite y queda aviso en el log. |
+| `createDailyBackup` (`Code.gs` 884) | Diario, 23:00 | Copia la hoja a `BACKUP-PROYECTO/Backups/<nombre de la hoja>/` como `<nombre> — Backup yyyy-MM-dd`. **No duplica** si ya existe hoy. Elimina los mayores de **30 días**. |
+| `sendWeeklyBackupEmail` (`Code.gs` 986) | Sábados, 9:00 | Busca el respaldo más reciente, lo exporta a `.xlsx` y lo envía por correo. Destinatario desde `SB_AUTHORIZED_EMAIL`; si falta, se omite y queda aviso en el log. |
 
 **Instalación (una sola vez):**
 
@@ -623,7 +623,7 @@ setupWeeklyEmailTrigger()     → trigger los sábados a las 9:00
 
 ### E.8 Reportes automáticos por correo
 
-`setupAllReportTriggers()` (`Code.gs` 1790) instala **4 triggers**, todos a las
+`setupAllReportTriggers()` (`Code.gs` 1882) instala **4 triggers**, todos a las
 **12:00** (hora del script):
 
 | Función | Dispara | Período | Guard |
