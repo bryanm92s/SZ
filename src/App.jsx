@@ -4511,10 +4511,21 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
     {/* ── Gastos de la categoría desplegada ── Aparece DEBAJO de
         «Por categoría» y desaparece con un segundo clic. Si pasa de
         CATEGORY_PAGE_SIZE aparecen los círculos. */}
-    {openCat&&catList.length>0&&<div className="card" style={{marginBottom:10}}>
+    {openCat&&catList.length>0&&<div className="card" style={{
+        marginBottom:10,
+        // Se tiñe SOLO con variables del tema activo: `--primary-l` es el
+        // verde / rojo / morado CLARO de la paleta elegida en Ajustes y
+        // `--glass-strong` su sombra teñida. Así la tarjeta va siempre a
+        // juego con lo que tenga puesto la dueña, sin enumerar un color
+        // por cada tema ni romperse si añade uno nuevo.
+        background:'var(--primary-l)',
+        border:'1.5px solid var(--primary)',   // sobresale de las blancas
+        boxShadow:'0 6px 18px var(--glass-strong)',
+        transition:'background .2s',
+      }}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-        <span style={{fontWeight:700,fontSize:14}}>🗂️ {openCat}</span>
-        <span style={{fontWeight:700,color:'var(--red)',fontSize:13}}>{fmtM(catTotal)}</span>
+        <span style={{fontWeight:700,fontSize:14,color:'var(--primary)'}}>🗂️ {openCat}</span>
+        <span style={{fontWeight:700,color:'var(--primary-d)',fontSize:13}}>{fmtM(catTotal)}</span>
       </div>
       {catShown.map(e=>(
         <div key={e.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
