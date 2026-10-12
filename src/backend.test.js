@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath, URL as NodeURL } from 'node:url'
 import { createContext, runInContext } from 'node:vm'
 import { randomUUID, createHash } from 'node:crypto'
-import { reportMetrics, reportLines, topServicesByDemand } from './helpers.js'
+import { reportMetrics, reportLines, topServicesByDemand, apptServiceRefs } from './helpers.js'
 
 // Nota: bajo jsdom el global `URL` NO es el de Node, por eso se importa
 // `URL as NodeURL` para que fileURLToPath reciba una instancia válida.
@@ -2021,6 +2021,54 @@ describe('TEST-01 — Reconciliación y consistencia de datos', () => {
     expect(appt.serviceIds).toBe('s1')               // id huérfano, sin cascade
     expect(env.g.call('readSheet', env.ss, 'services').map(s => s.id)).toEqual(['s2'])
   })
+
+  it('eliminar un cliente NO borra sus citas ni mueve las cifras', () => {
+    // Riesgo financiero real: si el borrado de un cliente cascadeara a las
+    // citas, el dinero desaparecería de Finanzas, del reporte y del Excel.
+    //
+    // OJO con el formato del POST: una petición con MÁS DE UNA colección se
+    // trata como destructiva (_isDestructivePayload) y el backend la rechaza
+    // sin grant. Las syncs reales mandan UNA sola colección por petición,
+    // así que la cita se siembra en la hoja y el cliente se manda aparte.
+    const PROMO = { id: 'sA', name: 'Extensiones de pestañas 30%',
+                    price: '90000', duration: '60' }
+    const cita = {
+      id: 'a1', clientId: 'c1', clientName: 'Ana', clientPhone: '300',
+      serviceIds: 'sA', serviceNames: PROMO.name, servicePrice: '90000',
+      servicePrices: '{"sA":90000}',
+      domicilio: 'false', domicilioPrice: '0', totalPrice: '90000', address: '',
+      date: '2026-07-08', time: '10:00', createdAt: '2026-07-08T08:00:00',
+      calendarCreated: 'false', calendarEventId: '', completed: 'true',
+      duration: '60', paymentMethod: 'Efectivo',
+    }
+    env = makeEnv({ appts: [cita] })                  // cita ya en la hoja
+
+    post(env.g, {
+      clients: [{ id: 'c1', name: 'Ana', phone: '300', createdAt: '2026-01-01' }],
+    })
+    const metricas = () => reportMetrics({
+      appts: env.g.call('readSheet', env.ss, 'appointments'),
+      expenses: [], inPeriod: d => d === '2026-07-08',
+      from: '2026-07-08', to: '2026-07-08',
+    })
+    const citasAntes  = env.g.call('readSheet', env.ss, 'appointments')
+    const cifrasAntes = metricas()
+    expect(env.g.call('readSheet', env.ss, 'clients')).toHaveLength(1)
+    expect(cifrasAntes.revenue).toBe(90000)           // la cita sí cuenta
+
+    // Borrar al cliente manda SOLO la lista de clientes, como hace la app:
+    // SC(safe.filter(x => x.id !== c.id)). No se envía nada de citas.
+    post(env.g, { clients: [] })
+
+    expect(env.g.call('readSheet', env.ss, 'clients')).toEqual([])   // cliente fuera
+    // Las citas quedan idénticas, campo por campo: nada cascadea.
+    expect(env.g.call('readSheet', env.ss, 'appointments')).toEqual(citasAntes)
+    // Y las cifras del reporte salen IGUAL: el dinero no se perdió.
+    const cifrasDespues = metricas()
+    expect(cifrasDespues.revenue).toBe(90000)
+    expect(cifrasDespues.neto).toBe(cifrasAntes.neto)
+    expect(cifrasDespues.completed).toBe(1)
+  })
 })
 
 /* ══════════════════════════════════════════════════════════════
@@ -2258,6 +2306,31 @@ describe('REPORTE: el correo del trigger = el WhatsApp del admin', () => {
     expect(strip(backend)).toEqual(strip(reportLines({
       label, m, topByDemand: topServicesByDemand(m.apptsInPeriod, [S3]), stamp: 'X',
     })))
+  })
+
+  it('los nombres con , - % NO se parten IGUAL en el backend', () => {
+    // Paridad directa: Code.gs replica apptServiceRefs a mano en
+    // _apptServiceRefs. Si alguien cambia UNO de los dos lados, este
+    // test lo delata. Cubre los tres caracteres que el dueño pidió que
+    // nunca partan un servicio: coma, guion y porcentaje.
+    const cat = [
+      { id: 'sA', name: 'Extensiones de pestañas 30%',    price: '90000', duration: '60' },
+      { id: 'sB', name: 'Diseño-Depilación de pestañas',  price: '70000', duration: '45' },
+      { id: 'sC', name: 'Diseño, depilación de pestañas', price: '80000', duration: '50' },
+    ]
+    const g = runCodeGs(makeSpreadsheet({}))
+    const casos = [
+      { serviceIds: 'sA', serviceNames: 'Extensiones de pestañas 30%' },
+      { serviceIds: 'sB', serviceNames: 'Diseño-Depilación de pestañas' },
+      { serviceIds: 'sC', serviceNames: 'Diseño, depilación de pestañas' },
+      { serviceIds: 'sA,sC',
+        serviceNames: 'Extensiones de pestañas 30%, Diseño, depilación de pestañas' },
+      { serviceIds: '', serviceNames: 'Diseño, depilación de pestañas' },
+      { serviceIds: '', serviceNames: 'Extensiones de pestañas 30%' },
+    ]
+    casos.forEach(a => {
+      expect(g.call('_apptServiceRefs', a, cat)).toEqual(apptServiceRefs(a, cat))
+    })
   })
 
   it('el correo agrupa los gastos por categoría IGUAL que el WhatsApp', () => {

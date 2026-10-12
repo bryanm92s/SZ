@@ -621,6 +621,217 @@ describe('topServicesByDemand — el ranking no inventa servicios', () => {
   })
 })
 
+/* ══════════════════════════════════════════════════════════════
+   CARACTERES PROBLEMÁTICOS EN EL NOMBRE — `,` `-` `%`
+   ────────────────────────────────────────────────────────────
+   Petición del dueño: los nombres reales pueden traer coma, guion
+   o porcentaje —«Extensiones de pestañas 30%», «Diseño-Depilación
+   de pestañas», «Diseño, depilación de pestañas»— y ninguno de
+   esos tres puede partir el servicio en dos.
+
+   Por qué se cumplen (auditoría del código):
+     · `-` y `%` NUNCA fueron separadores. Se parte por `,` en
+       nombres, y además por `:` en horas y `-` en fechas, que son
+       campos distintos. El `%` del enlace de WhatsApp lo protege
+       `encodeURIComponent` (openWhatsApp), y los títulos de
+       Calendar y los reportes concatenan sin parsear.
+     · `,` es el ÚNICO separador del nombre, y actúa solo en el
+       último recurso del helper: citas sin ningún id.
+   Estos tests son la garantía: si alguien vuelve a partir el
+   nombre a mano, fallan aquí.
+   ══════════════════════════════════════════════════════════════ */
+describe('nombres con , - % — ninguno parte el servicio', () => {
+  const CAT = [
+    { id: 'sA', name: 'Extensiones de pestañas 30%',    price: '90000' },
+    { id: 'sB', name: 'Diseño-Depilación de pestañas',  price: '70000' },
+    { id: 'sC', name: 'Diseño, depilación de pestañas', price: '80000' },
+    { id: 'sD', name: 'Cejas',                          price: '20000' },
+  ]
+
+  it('%: el porcentaje se queda DENTRO del nombre', () => {
+    const a = { serviceIds: 'sA', serviceNames: 'Extensiones de pestañas 30%' }
+    expect(apptServiceRefs(a, CAT)).toEqual([
+      { id: 'sA', name: 'Extensiones de pestañas 30%' },
+    ])
+  })
+
+  it('-: el guion se queda DENTRO del nombre', () => {
+    const a = { serviceIds: 'sB', serviceNames: 'Diseño-Depilación de pestañas' }
+    expect(apptServiceRefs(a, CAT)).toEqual([
+      { id: 'sB', name: 'Diseño-Depilación de pestañas' },
+    ])
+  })
+
+  it('los tres mezclados en UNA cita de dos servicios', () => {
+    const a = { serviceIds: 'sA,sC',
+                serviceNames: 'Extensiones de pestañas 30%, Diseño, depilación de pestañas' }
+    expect(apptServiceRefs(a, CAT)).toEqual([
+      { id: 'sA', name: 'Extensiones de pestañas 30%' },
+      { id: 'sC', name: 'Diseño, depilación de pestañas' },
+    ])
+  })
+
+  it('catálogo sin cargar tampoco parte ninguno', () => {
+    const a = { serviceIds: 'sC', serviceNames: 'Diseño, depilación de pestañas' }
+    expect(apptServiceRefs(a, [])).toEqual([
+      { id: 'sC', name: 'Diseño, depilación de pestañas' },
+    ])
+  })
+
+  it('sin ids: el nombre ENTERO se reconoce en el catálogo', () => {
+    const sinIds = n => ({ serviceIds: '', serviceNames: n })
+    expect(apptServiceRefs(sinIds('Diseño, depilación de pestañas'), CAT))
+      .toEqual([{ id: 'sC', name: 'Diseño, depilación de pestañas' }])
+    expect(apptServiceRefs(sinIds('Diseño-Depilación de pestañas'), CAT))
+      .toEqual([{ id: 'sB', name: 'Diseño-Depilación de pestañas' }])
+    expect(apptServiceRefs(sinIds('Extensiones de pestañas 30%'), CAT))
+      .toEqual([{ id: 'sA', name: 'Extensiones de pestañas 30%' }])
+  })
+
+  it('el ranking cuenta UNA vez cada uno de los tres', () => {
+    const mk = (id, name, price) =>
+      ({ completed: 'true', serviceIds: id, serviceNames: name, servicePrice: price })
+    const top = topServicesByDemand([
+      mk('sA', 'Extensiones de pestañas 30%',    '90000'),
+      mk('sB', 'Diseño-Depilación de pestañas',  '70000'),
+      mk('sC', 'Diseño, depilación de pestañas', '80000'),
+    ], CAT)
+    expect(top).toHaveLength(3)
+    // Orden por código: coma (U+002C) antes que guion (U+002D), y D antes que E.
+    expect(top.map(t => t.name).sort()).toEqual([
+      'Diseño, depilación de pestañas',
+      'Diseño-Depilación de pestañas',
+      'Extensiones de pestañas 30%',
+    ])
+    expect(top.every(t => t.count === 1)).toBe(true)
+  })
+
+  it('dos citas de «…30%» acumulan en UNA entrada, sin duplicar', () => {
+    const mk = () => ({ completed: 'true', serviceIds: 'sA',
+                        serviceNames: 'Extensiones de pestañas 30%', servicePrice: '90000' })
+    expect(topServicesByDemand([mk(), mk()], CAT))
+      .toEqual([{ name: 'Extensiones de pestañas 30%', count: 2, revenue: 180000 }])
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════
+   ELIMINAR UN SERVICIO — el historial NO se pierde
+   ────────────────────────────────────────────────────────────
+   Escenario real del dueño: una promoción temporal («Extensiones
+   de pestañas 30%»), una cita completada y cobrada con ese
+   servicio, y una semana después el servicio se borra del catálogo.
+
+   Lo que se comprueba aquí:
+     · borrar NO lo bloquean las citas pasadas o completadas (solo
+       las futuras y las en curso);
+     · la cita NO se cascadea: conserva id, nombre y precios;
+     · la vista y el ranking siguen mostrando el nombre COMPLETO,
+       con su coma o su porcentaje, porque sale del snapshot entero
+       y no de partir el texto.
+   ══════════════════════════════════════════════════════════════ */
+describe('eliminar un servicio con citas pasadas — el historial se conserva', () => {
+  const NOW = new Date(2026, 6, 15, 13, 0, 0)   // 15 jul 2026
+  const PROMO = { id: 'sA', name: 'Extensiones de pestañas 30%', price: '90000' }
+  const CATALOGO = [PROMO, { id: 'sD', name: 'Cejas', price: '20000' }]
+
+  // La cita de la promoción: completada y cobrada una semana antes.
+  const cita = {
+    id: 'a1', date: '2026-07-08', time: '10:00', duration: 60,
+    completed: 'true', serviceIds: 'sA',
+    serviceNames: 'Extensiones de pestañas 30%',
+    servicePrices: '{"sA":90000}', servicePrice: '90000', totalPrice: '90000',
+  }
+
+  it('borrar la promoción NO lo bloquea: esa cita ya pasó', () => {
+    const r = serviceDeletionCheck(PROMO, [cita], CATALOGO, NOW)
+    expect(r.ok).toBe(true)
+    expect(r.count).toBe(0)
+    expect(r.blockers).toEqual([])
+  })
+
+  it('pero sí bloquean las citas FUTURAS que la usen', () => {
+    const futura = { ...cita, id: 'a2', date: '2026-07-20', completed: 'false' }
+    const r = serviceDeletionCheck(PROMO, [futura], CATALOGO, NOW)
+    expect(r.ok).toBe(false)
+    expect(r.count).toBe(1)
+    expect(r.blockers.map(a => a.id)).toEqual(['a2'])
+  })
+
+  it('la cita conserva id, nombre y dinero tras borrar el servicio', () => {
+    const SIN_PROMO = CATALOGO.filter(s => s.id !== 'sA')   // catálogo ya sin ella
+    // El nombre sale del snapshot ENTERO: no se parte por la coma del «30%».
+    expect(apptServiceRefs(cita, SIN_PROMO)).toEqual([
+      { id: 'sA', name: 'Extensiones de pestañas 30%' },
+    ])
+    // El dinero vive en la cita, no en el catálogo.
+    expect(toN(cita.totalPrice)).toBe(90000)
+    expect(toN(cita.servicePrice)).toBe(90000)
+  })
+
+  it('el ranking del reporte la sigue contando con su nombre completo', () => {
+    const SIN_PROMO = CATALOGO.filter(s => s.id !== 'sA')
+    expect(topServicesByDemand([cita], SIN_PROMO)).toEqual([
+      { name: 'Extensiones de pestañas 30%', count: 1, revenue: 90000 },
+    ])
+  })
+
+  it('mismo escenario con un nombre con coma: sigue sin partirse', () => {
+    const promo2 = { id: 'sB', name: 'Diseño, depilación de pestañas', price: '80000' }
+    const c2 = { ...cita, id: 'a3', serviceIds: 'sB',
+                 serviceNames: 'Diseño, depilación de pestañas',
+                 servicePrices: '{"sB":80000}', servicePrice: '80000', totalPrice: '80000' }
+    expect(serviceDeletionCheck(promo2, [c2], [promo2], NOW).ok).toBe(true)
+    expect(apptServiceRefs(c2, [])).toEqual([
+      { id: 'sB', name: 'Diseño, depilación de pestañas' },
+    ])
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════
+   ELIMINAR UN CLIENTE — no descuadra las cuentas
+   ────────────────────────────────────────────────────────────
+   Borrar un cliente NO borra sus citas: ni la app ni el backend
+   cascadean (el test de backend lo comprueba sobre el Code.gs real).
+
+   Y las cifras no pueden moverse, porque las funciones de dinero NO
+   reciben la lista de clientes. `periodLedger` —«FUENTE ÚNICA del
+   neto», de la que dependen Finanzas, el reporte y el Excel— solo
+   recibe (appts, expenses, from, to). El nombre del cliente es
+   presentación: sale de la propia cita y, si fuese vacío, el
+   importe sigue contando igual.
+   ══════════════════════════════════════════════════════════════ */
+describe('las cifras no dependen de la lista de clientes', () => {
+  const D = '2026-07-08'
+  const CITA = {
+    id: 'a1', date: D, time: '10:00', completed: 'true', clientName: 'Ana',
+    serviceIds: 'sA', serviceNames: 'Extensiones de pestañas 30%',
+    servicePrice: '90000', totalPrice: '90000',
+  }
+  const GASTO = { id: 'g1', date: D, category: 'Cera', description: 'Cera', amount: '30000' }
+
+  it('el neto sale solo de citas y gastos: no existe parámetro de clientes', () => {
+    const l = periodLedger([CITA], [GASTO], D, D)
+    expect(l.totalIncome).toBe(90000)
+    expect(l.totalExpenses).toBe(30000)
+    expect(l.neto).toBe(60000)
+    // No hay por dónde colarse: la firma es (appts, expenses, from, to).
+    expect(periodLedger.length).toBe(4)
+  })
+
+  it('el nombre del cliente es presentación: sin él, el dinero sigue', () => {
+    const l = periodLedger([{ ...CITA, clientName: '' }], [], D, D)
+    expect(l.incomes[0].who).toBe('')     // la fila sale con «who» vacío
+    expect(l.totalIncome).toBe(90000)     // …pero el importe NO cambia
+    expect(l.neto).toBe(90000)
+  })
+
+  it('el ranking de servicios tampoco mira clientes', () => {
+    const top = topServicesByDemand([{ ...CITA, clientName: '' }],
+      [{ id: 'sA', name: 'Extensiones de pestañas 30%', price: '90000' }])
+    expect(top).toEqual([{ name: 'Extensiones de pestañas 30%', count: 1, revenue: 90000 }])
+  })
+})
+
 /* -- apptLife · clasificación por fecha + hora + duración + estado --- */
 describe('apptLife', () => {
   const NOW = new Date(2026, 0, 15, 13, 0, 0)
