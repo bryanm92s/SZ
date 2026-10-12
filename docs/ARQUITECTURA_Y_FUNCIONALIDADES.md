@@ -1216,7 +1216,7 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 11 | **Lógica duplicada** frontend ↔ backend (revelada por las pruebas de paridad) | `helpers.js` / `Code.gs` |
 | 12 | **Los `VITE_*` requieren rebuild** — no cambian en caliente | Vite |
 | 13 | **`App.jsx` es monolítico** (~5.120 líneas) — decisión deliberada, documentada | `App.jsx` |
-| 14 | ~~`VITE_BIZ_SUBTITLE` no llegaba al `<title>` de la pestaña~~ → **CORREGIDO**: había **dos** `useEffect` de branding y el segundo (`App.jsx` 341–351, deps `[]`) pisaba al primero (293–306). React ejecuta los efectos en orden de declaración, así que ganaba el segundo y se perdía el subtítulo — **solo en la pestaña**, porque en el encabezado (533) sí se veía, y por eso el fallo pasaba inadvertido. Ahora **solo existe el de 293–306**, único escritor del `document.title` (294, formato `🌸 NOMBRE · SUBTITULO`), del favicon (297–299) y del `apple-touch-icon` (302–304); el hueco donde estaba el segundo lleva un comentario que prohíbe reañadirlo. | `App.jsx` 293–306 |
+| 14 | ~~`VITE_BIZ_SUBTITLE` no llegaba al `<title>` de la pestaña~~ → **CORREGIDO**: había **dos** `useEffect` de branding y el segundo (`App.jsx` 341–351, deps `[]`) pisaba al primero (293–306). React ejecuta los efectos en orden de declaración, así que ganaba el segundo y se perdía el subtítulo — **solo en la pestaña**, porque en el encabezado (533) sí se veía, y por eso el fallo pasaba inadvertido. Ahora **solo existe el de 293–306**, único escritor del `document.title` (294, formato `NOMBRE · SUBTITULO`), del favicon (297–299) y del `apple-touch-icon` (302–304); el hueco donde estaba el segundo lleva un comentario que prohíbe reañadirlo. | `App.jsx` 293–306 |
 
 ---
 

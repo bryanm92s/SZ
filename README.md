@@ -301,8 +301,8 @@ Copia `.env.example` a `.env` (local) o configúralas en
 | `VITE_SCRIPT_URL` | ✅ | interna | URL del Web App de Apps Script (`…/exec`) |
 | `VITE_TOKEN` | ✅ | ⚠️ **expuesta** | Debe coincidir exactamente con la propiedad de script `SB_SYNC_TOKEN` |
 | `VITE_BIZ_NAME` | — | pública | Nombre del negocio (header + `<title>`). Defecto: `SZ` |
-| `VITE_BIZ_SUBTITLE` | — | pública | Subtítulo corto: aparece bajo el nombre **y** en la pestaña (`🌸 NOMBRE · SUBTITULO`) |
-| `VITE_BIZ_EMOJI` | — | pública | Emoji de la pestaña (texto e icono) y del encabezado. Defecto: `🌸` |
+| `VITE_BIZ_SUBTITLE` | — | pública | Subtítulo corto: aparece bajo el nombre **y** en la pestaña (`NOMBRE · SUBTITULO`) |
+| `VITE_BIZ_EMOJI` | — | pública | Emoji del icono de la pestaña (favicon) y del encabezado. Defecto: `🌸` |
 | `VITE_BIZ_LOGO` | — | pública | URL absoluta del logo para `apple-touch-icon` |
 | `VITE_ADMIN_WHATSAPP` | — | ⚠️ **personal** | Número de WhatsApp del admin, destino del botón «💬 WhatsApp admin». Sin número, el botón sale **deshabilitado** |
 

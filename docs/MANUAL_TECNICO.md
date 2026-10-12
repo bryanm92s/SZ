@@ -193,21 +193,21 @@ Todas se leen con `import.meta.env` y **quedan embebidas en el bundle JS**
 |---|---|
 | **Nombre exacto** | `VITE_BIZ_SUBTITLE` |
 | **Ubicación** | `.env`, Vercel |
-| **Uso** | Subtítulo bajo el nombre (`App.jsx` 194, 533) **y** en la pestaña, como `🌸 NOMBRE · SUBTITULO` (`App.jsx` 294). |
+| **Uso** | Subtítulo bajo el nombre (`App.jsx` 194, 533) **y** en la pestaña, como `NOMBRE · SUBTITULO` (`App.jsx` 294). |
 | **Obligatoria** | No |
 | **Valor predeterminado** | `''` (vacío → en el pie se repite el nombre) |
 | **Sensibilidad** | Pública |
-| **Verificación** | Aparece en letras pequeñas bajo el nombre, en mayúsculas, y también en el texto de la pestaña (`🌸 NOMBRE · SUBTITULO`). |
+| **Verificación** | Aparece en letras pequeñas bajo el nombre, en mayúsculas, y también en el texto de la pestaña (`NOMBRE · SUBTITULO`). |
 
 | Campo | Contenido |
 |---|---|
 | **Nombre exacto** | `VITE_BIZ_EMOJI` |
 | **Ubicación** | `.env`, Vercel |
-| **Uso** | Emoji del **texto** de la pestaña, del favicon (se inyecta como `data:image/svg+xml` en runtime) y del encabezado (`App.jsx` 195, 294, 296, 529). |
+| **Uso** | Emoji del favicon (`App.jsx` 195, 296) y del encabezado (529), del pie (580) y de la pantalla de carga (515). ⚠️ **No va en el `<title>`** (294): el navegador pinta el icono y el texto juntos y se vería `🌸🌸`. |
 | **Obligatoria** | No |
 | **Valor predeterminado** | `🌸` |
 | **Sensibilidad** | Pública |
-| **Verificación** | Cambia el ícono de la pestaña **y** el primer carácter de su texto. Se codifica con `encodeURIComponent`, así que un emoji inválido no rompe el data-URI. |
+| **Verificación** | Cambia el ícono de la pestaña. Se codifica con `encodeURIComponent`, así que un emoji inválido no rompe el data-URI. |
 
 | Campo | Contenido |
 |---|---|

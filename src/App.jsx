@@ -291,7 +291,7 @@ export default function App() {
   // Evitamos placeholders %VITE_*% en index.html porque Vite hace decodeURI()
   // sobre los href durante `vite build` y revienta con "URI malformed".
   useEffect(() => {
-    document.title = [BIZ_EMOJI, BIZ_SUBTITLE ? `${BIZ_NAME} · ${BIZ_SUBTITLE}` : BIZ_NAME].filter(Boolean).join(' ')  // «🌸 NOMBRE · SUBTITULO»; filter(Boolean) quita el emoji o el subtítulo si vienen vacíos
+    document.title = BIZ_SUBTITLE ? `${BIZ_NAME} · ${BIZ_SUBTITLE}` : BIZ_NAME  // «NOMBRE · SUBTITULO»; el 🌸 vive SOLO en el favicon, si se mete aquí la pestaña lo duplica
     if (BIZ_EMOJI) {
       const svg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E${encodeURIComponent(BIZ_EMOJI)}%3C/text%3E%3C/svg%3E`
       let link = document.querySelector("link[rel~='icon']")
