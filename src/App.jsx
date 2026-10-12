@@ -713,10 +713,18 @@ function SyncBadge({status,lastSync}) {
 }
 
 /* ── Paginación de listas largas ─────────────────────────────────
-   Las tres listas que pueden crecer sin control — «Gastos del mes»
-   (Finanzas), «Movimientos del período» (Reportes) y la lista de
-   «Detalle Ingresos» (agrupada por día) — se muestran de PAGE_SIZE en
-   PAGE_SIZE para no saturar la pantalla del celular.
+   Hay DOS familias:
+
+   • PLANA — «Pager», con «‹ Ant. / Sig. ›», para listas de una sola
+     pieza: «Gastos del mes» (Finanzas), «Movimientos del período»
+     (Reportes) y «Todas las citas» del historial de cliente.
+   • ANIDADA — «CirclePager», con el número de página dentro de un
+     círculo, para «Detalle Gastos» y «Detalle Ingresos». Esas vistas
+     agrupan por DÍA, así que se pagina DOS veces: los días de a 7 con
+     el Pager de siempre y, dentro de cada día, los gastos/citas de a
+     5 con los círculos (Petición del dueño).
+
+   Todo con el mismo objetivo: no saturar la pantalla del celular.
 
    Reglas del control:
    • NO aparece si la lista cabe entera: la paginación es un añadido,
@@ -731,11 +739,12 @@ function SyncBadge({status,lastSync}) {
 const PAGE_SIZE = 10
 // «Todas las citas» del historial de cliente: 5 por página (Petición del dueño).
 const CLIENT_APPT_PAGE_SIZE = 5
-// «Detalle Gastos» pagina DOS listas anidadas, con tamaños distintos
-// (Petición del dueño): los DÍAS de a 7 y, dentro de cada día, los
-// GASTOS de a 5.
-const EXPENSE_DAY_PAGE_SIZE = 7
-const EXPENSE_ITEM_PAGE_SIZE = 5
+// «Detalle Gastos» e «Detalle Ingresos» pagina DOS listas anidadas con
+// los mismos tamaños (Petición del dueño): los DÍAS de a 7, con el Pager
+// de siempre, y dentro de cada día los gastos/citas de a 5, con el
+// paginador de círculos numerados.
+const DAY_PAGE_SIZE = 7
+const ITEM_PAGE_SIZE = 5
 
 function Pager({ page, total, onPage, label='registros', size=PAGE_SIZE }) {
   const sz = Number(size) > 0 ? Number(size) : PAGE_SIZE // nunca 0 (div./ por cero)
@@ -761,17 +770,21 @@ function Pager({ page, total, onPage, label='registros', size=PAGE_SIZE }) {
 
 /* ── Paginador con el número dentro de un círculo ───────────────
    Variante del Pager para listas ANIDADAS: los gastos de CADA DÍA en
-   «Detalle Gastos» (Petición del dueño). Mismas reglas que Pager — no
-   aparece si todo cabe, y el rango se recorta SIEMPRE dentro de
-   [1, pages] — pero dibuja el número de página dentro de un círculo
+   «Detalle Ingresos» (Petición del dueño). Mismas reglas que Pager —
+   no aparece si todo cabe, y el rango se recorta SIEMPRE dentro de
+   [1, pages] — pero dibujando el número de página dentro de un círculo
    en vez de «‹ Ant. / Sig. ›», que dentro de otra lista se lee peor.
+
+   Los DOS extremos son FLECHAS (‹ ›), nunca números: pintarles la
+   página a la que llevan era el bug del «0» inicial y del «1 2 3 3»
+   al avanzar.
 
    Con muchas páginas no se listan todas: se ven la primera, la última
    y las vecinas de la actual, con «…» en el hueco. Así 30 páginas
    siguen cabiendo en la pantalla del celular.
    ──────────────────────────────────────────────────────────────── */
-function CirclePager({ page, total, onPage, size=EXPENSE_ITEM_PAGE_SIZE }) {
-  const sz = Number(size) > 0 ? Number(size) : EXPENSE_ITEM_PAGE_SIZE // nunca 0
+function CirclePager({ page, total, onPage, size=ITEM_PAGE_SIZE }) {
+  const sz = Number(size) > 0 ? Number(size) : ITEM_PAGE_SIZE // nunca 0
   const pages = Math.max(1, Math.ceil(total / sz))
   if (total <= sz) return null
   const p = Math.min(Math.max(1, page), pages)          // nunca fuera de rango
@@ -781,22 +794,29 @@ function CirclePager({ page, total, onPage, size=EXPENSE_ITEM_PAGE_SIZE }) {
     if (i === 1 || i === pages || Math.abs(i - p) <= 1) items.push(i)
     else if (items[items.length - 1] !== '…') items.push('…')  // un «…» por hueco
   }
-  const circ = (key, val, active, dis) => (
+  const base = {
+    width:30, height:30, borderRadius:'50%', border:'none', padding:0, flexShrink:0,
+    fontFamily:'inherit', fontWeight:700, transition:'background .15s',
+    display:'flex', alignItems:'center', justifyContent:'center',
+  }
+  const arrow = (key, label, val, dis) => (
     <button key={key} disabled={dis} onClick={()=>onPage(val)}
-      style={{width:30,height:30,borderRadius:'50%',border:'none',padding:0,flexShrink:0,
-              fontFamily:'inherit',fontWeight:700,fontSize:12,cursor:dis?'default':'pointer',
-              opacity:dis?0.4:1,transition:'background .15s',
-              background:active?'var(--primary)':'var(--primary-l)',
-              color:active?'#fff':'var(--primary)',
-              display:'flex',alignItems:'center',justifyContent:'center'}}>{val}</button>
+      style={{...base, fontSize:17, lineHeight:1, cursor:dis?'default':'pointer',
+              background:'var(--primary-l)', color:'var(--primary)', opacity:dis?0.35:1}}>{label}</button>
+  )
+  const num = n => (
+    <button key={'p'+n} onClick={()=>onPage(n)}
+      style={{...base, fontSize:12, cursor:'pointer',
+              background:n===p?'var(--primary)':'var(--primary-l)',
+              color:n===p?'#fff':'var(--primary)'}}>{n}</button>
   )
   return (
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,paddingTop:10,marginTop:10,borderTop:'1px solid var(--border)'}}>
-      {circ('prev', p-1, false, p<=1)}
+      {arrow('prev','‹',p-1,p<=1)}
       {items.map((n,i)=> n==='…'
         ? <span key={'gap'+i} style={{color:'var(--t2)',fontSize:12,fontWeight:700}}>…</span>
-        : circ('p'+n, n, n===p, false))}
-      {circ('next', p+1, false, p>=pages)}
+        : num(n))}
+      {arrow('next','›',p+1,p>=pages)}
     </div>
   )
 }
@@ -4013,7 +4033,11 @@ function IncomeDetail({appts,setTab,tabExtra}) {
   // IMPORTANTE: los montos y contadores de las 4 tarjetas de arriba salen
   // de `ma`/`done`/`pend`/`noshow` COMPLETOS, nunca de la página visible.
   const [incPage,setIncPage]=useState(1)
-  useEffect(()=>{ setIncPage(1) },[filter,month])
+  // Cada día guarda SU propia página de citas, así moverse por el día 12
+  // no arrastra a los demás. Se reinicia junto con las demás al cambiar
+  // de mes o de filtro, para no quedar mirando una página que ya existe.
+  const [apptPages,setApptPages]=useState({})
+  useEffect(()=>{ setIncPage(1); setApptPages({}) },[filter,month])
   const safe   = Array.isArray(appts)?appts:[]
   const months = [...new Set([...safe.map(a=>cleanDate(a.date).slice(0,7)),monthStr()].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
   const ma     = [...safe].filter(a=>cleanDate(a.date).slice(0,7)===month).sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date)))
@@ -4030,12 +4054,13 @@ function IncomeDetail({appts,setTab,tabExtra}) {
   display.forEach(a=>{const d=cleanDate(a.date);if(!byDay[d])byDay[d]=[];byDay[d].push(a)})
 
   // Días ordenados de más reciente a más antiguo (el orden que ya se
-  // mostraba) y cortados por página. Es la ÚNICA lista que se pagina:
-  // los totales de arriba no se tocan.
+  // mostraba) y cortados por página de 7. Los importes y contadores de
+  // las 4 tarjetas de arriba no se tocan: siguen saliendo de ma/done/
+  // pend/noshow COMPLETOS.
   const dayEntries=Object.entries(byDay).sort(([a],[b])=>b.localeCompare(a))
-  const dayPages  =Math.max(1,Math.ceil(dayEntries.length/PAGE_SIZE))
+  const dayPages  =Math.max(1,Math.ceil(dayEntries.length/DAY_PAGE_SIZE))
   const dayCur    =Math.min(Math.max(1,incPage),dayPages)   // recorte defensivo
-  const dayShown  =dayEntries.slice((dayCur-1)*PAGE_SIZE, dayCur*PAGE_SIZE)
+  const dayShown  =dayEntries.slice((dayCur-1)*DAY_PAGE_SIZE, dayCur*DAY_PAGE_SIZE)
 
   return <>
     <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
@@ -4073,6 +4098,11 @@ function IncomeDetail({appts,setTab,tabExtra}) {
         {dayShown.map(([day,items])=>{
         const dayTot=items.reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
         const dayDone=items.filter(a=>bool(a.completed)).reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
+        // Citas del día de a 5. OJO: los dos importes de ARRIBA salen de
+        // `items` COMPLETO, no de lo que se ve en la página.
+        const apPages=Math.max(1,Math.ceil(items.length/ITEM_PAGE_SIZE))
+        const apCur  =Math.min(Math.max(1,apptPages[day]||1),apPages)   // recorte defensivo
+        const apShown=items.slice((apCur-1)*ITEM_PAGE_SIZE, apCur*ITEM_PAGE_SIZE)
         return <div className="card" key={day} style={{marginBottom:10}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
             <span style={{fontWeight:700,fontSize:14}}>{fmtDate(day)}</span>
@@ -4081,7 +4111,7 @@ function IncomeDetail({appts,setTab,tabExtra}) {
               {dayTot>dayDone&&filter!=='completed'&&<div style={{fontSize:11,color:'var(--gold)'}}>({fmtM(dayTot-dayDone)} pendiente)</div>}
             </div>
           </div>
-          {items.map(a=><div key={a.id} className="row" style={{fontSize:13}}>
+          {apShown.map(a=><div key={a.id} className="row" style={{fontSize:13}}>
             <div style={{background:'var(--primary-l)',borderRadius:8,padding:'5px 8px',fontWeight:700,color:'var(--primary)',fontSize:12,flexShrink:0}}>{fmtTime(a.time)}</div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.clientName}</div>
@@ -4092,14 +4122,19 @@ function IncomeDetail({appts,setTab,tabExtra}) {
               <div style={{fontSize:10,color:bool(a.completed)?'var(--green)':'var(--gold)'}}>{bool(a.completed)?('✓ Recibido'+(payMethodOf(a)?' · '+payMethodOf(a):'')):'Pendiente'}</div>
             </div>
           </div>)}
+          {/* Números en círculo: solo si el día tiene más de 5 citas. */}
+          <CirclePager page={apCur} total={items.length} size={ITEM_PAGE_SIZE}
+                       onPage={n=>setApptPages(s=>({...s,[day]:n}))}/>
         </div>
         })}
-        {/* Paginación de los días. Los montos y contadores de las 4 tarjetas
-            de arriba siguen siendo los del mes COMPLETO (salen de ma/done/
-            pend/noshow), no solo los de la página visible. */}
-        {dayEntries.length>PAGE_SIZE&&(
+        {/* Paginación de los días: de a 7, con el Pager de siempre y solo
+            si hay más de siete (la regla ya venía dentro de Pager). Los
+            montos y contadores de las 4 tarjetas de arriba siguen siendo
+            los del mes COMPLETO, no solo los de la página visible. */}
+        {dayEntries.length>DAY_PAGE_SIZE&&(
           <div className="card" style={{padding:'2px 14px 6px'}}>
-            <Pager page={dayCur} total={dayEntries.length} onPage={setIncPage} label="días" />
+            <Pager page={dayCur} total={dayEntries.length} onPage={setIncPage}
+                   label="días" size={DAY_PAGE_SIZE} />
           </div>
         )}
       </>
@@ -4381,9 +4416,9 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
   // del mes y el desglose por categoría salen siempre de `me` COMPLETO,
   // nunca de la página visible.
   const dayEntries=Object.entries(byDay).sort(([a],[b])=>b.localeCompare(a))
-  const dayPages  =Math.max(1,Math.ceil(dayEntries.length/EXPENSE_DAY_PAGE_SIZE))
+  const dayPages  =Math.max(1,Math.ceil(dayEntries.length/DAY_PAGE_SIZE))
   const dayCur    =Math.min(Math.max(1,dayPage),dayPages)   // recorte defensivo
-  const dayShown  =dayEntries.slice((dayCur-1)*EXPENSE_DAY_PAGE_SIZE, dayCur*EXPENSE_DAY_PAGE_SIZE)
+  const dayShown  =dayEntries.slice((dayCur-1)*DAY_PAGE_SIZE, dayCur*DAY_PAGE_SIZE)
   const saveEdit=()=>{SE(safe.map(e=>e.id===editId?{...e,...editData}:e));setEI(null)}
 
   return <>
@@ -4425,9 +4460,9 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
         const dayTot=items.reduce((s,e)=>s+toN(e.amount||0),0)
         // Gastos del día de a 5. OJO: `dayTot` se calcula con `items`
         // COMPLETO, no con lo que se ve en la página.
-        const ipPages=Math.max(1,Math.ceil(items.length/EXPENSE_ITEM_PAGE_SIZE))
+        const ipPages=Math.max(1,Math.ceil(items.length/ITEM_PAGE_SIZE))
         const ipCur  =Math.min(Math.max(1,expPages[day]||1),ipPages)   // recorte defensivo
-        const ipShown=items.slice((ipCur-1)*EXPENSE_ITEM_PAGE_SIZE, ipCur*EXPENSE_ITEM_PAGE_SIZE)
+        const ipShown=items.slice((ipCur-1)*ITEM_PAGE_SIZE, ipCur*ITEM_PAGE_SIZE)
         return <div className="card" key={day} style={{marginBottom:10}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
             <span style={{fontWeight:700,fontSize:14}}>{fmtDate(day)}</span>
@@ -4454,14 +4489,14 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
             </div>
           })}
           {/* Números en círculo: solo si el día tiene más de 5 gastos. */}
-          <CirclePager page={ipCur} total={items.length} size={EXPENSE_ITEM_PAGE_SIZE}
+          <CirclePager page={ipCur} total={items.length} size={ITEM_PAGE_SIZE}
                        onPage={n=>setExpPages(s=>({...s,[day]:n}))}/>
         </div>
       })}
       {/* Días de a 7: el Pager de siempre, que solo se pinta si hay
           más de siete (la regla ya venía dentro de Pager). */}
       <Pager page={dayCur} total={dayEntries.length} onPage={setDayPage}
-             label="días" size={EXPENSE_DAY_PAGE_SIZE}/>
+             label="días" size={DAY_PAGE_SIZE}/>
       </>}
   </>
 }
