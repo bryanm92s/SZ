@@ -3701,7 +3701,19 @@ function ReportTab({appts,expenses,services,setTab}) {
   // dos veces, una para el «vacío» y otra para el .map) y luego se corta
   // por página. El «Neto del período» de abajo usa `neto`, que sale del
   // libro completo, NO de la página visible.
+  //
+  // En PANTALLA va de la fecha MÁS RECIENTE a la más antigua. El libro
+  // (`ledger.rows`) se deja en orden cronológico — que es como debe ser
+  // un libro y como lo reciben WhatsApp y Excel — y el orden nuevo se
+  // aplica aquí, sobre la lista ya filtrada. `filter` devuelve un arreglo
+  // nuevo, así que el libro no se toca; de hacerlo habría que replicar el
+  // cambio en `_periodLedger` de Code.gs, que es el que manda los
+  // reportes por correo.
+  // Dentro de un mismo día se respeta el orden del libro (los gastos y
+  // después las citas de la más temprana a la más tarde): `sort` es
+  // estable, no hace falta desempatar.
   const mvRows  = ledger.rows.filter(r=>mvFilter==='all'||r.kind===mvFilter)
+                             .sort((a,b)=> b.date.localeCompare(a.date))
   const mvPages = Math.max(1,Math.ceil(mvRows.length/PAGE_SIZE))
   const mvCur   = Math.min(Math.max(1,mvPage),mvPages)   // recorte defensivo
   const mvShown = mvRows.slice((mvCur-1)*PAGE_SIZE, mvCur*PAGE_SIZE)
