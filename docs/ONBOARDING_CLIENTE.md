@@ -163,6 +163,20 @@ npm test      # debe pasar: 317 tests
 npm run build
 ```
 
+> ⚠️ **Windows + PowerShell (pasó en la práctica):** si `npm` revienta con
+> *«No se puede cargar el archivo `C:\Program Files\nodejs\npm.ps1` porque
+> la ejecución de scripts está deshabilitada»*, no es un fallo de Node:
+> PowerShell bloquea los `.ps1`. Solución, **una de las dos**:
+> ```powershell
+> # a) Ajuste único y definitivo (estándar de quien programa en Windows)
+> Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # → Y
+>
+> # b) Sin tocar nada: usar la variante de CMD
+> npm.cmd install ; npm.cmd test ; npm.cmd run build
+> ```
+> Si el test responde *«Package jsdom installed, re-run the command to
+> start»*, vuelve a lanzarlo: faltaba `jsdom` y acaba de instalarse.
+
 > 📌 El paso 4 **no rompe la independencia**: `madre` es un remote de
 > consulta. Tus `main` siguen separados; lo único que ganas es poder
 > hacer `git diff`, `git log` y `cherry-pick` **contra** la plantilla
@@ -369,3 +383,108 @@ problemas) y [`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) sección F.
 [ ] Deploy → checklist de la sección 5 completo
 [ ] Anotado en el gestor de contraseñas: token y correo del cliente
 ```
+
+---
+
+## 10. Apéndice — Orden real (así se ejecutó, con lo que de verdad salió)
+
+Esta es la secuencia **tal como se hizo** la primera vez, con los tropiezos
+reales incluidos. Sirve de runbook: cada bloque es exactamente lo que hay
+que pegar.
+
+### A.1 — Local + GitHub (≈20 min)
+
+```powershell
+# 0. Estar en la CARPETA PADRE de SZ
+cd "C:\...\PROYECTOS GITHUB"      # Get-Location debe terminar en \PROYECTOS GITHUB
+
+# 1. Copia (SZ solo se LEE; sin /MIR ni /PURGE a propósito)
+robocopy "SZ" "NOMBRE" /E /XD .git node_modules dist /NFL /NDL /NJH
+Test-Path "NOMBRE\src\App.jsx"    # True
+Test-Path "NOMBRE\.git"           # False ← se copia SIN historial
+
+# 2. Historia nueva
+cd NOMBRE
+git init -b main
+git add .                         # warnings "LF → CRLF": normales en Windows
+git commit -m "chore: base de NOMBRE (copia de SZ @ <sha>)"
+
+# 3. Subir
+git remote add origin https://github.com/TU_USUARIO/NOMBRE.git
+git push -u origin main
+
+# 4. La madre como remote de SOLO LECTURA
+git remote add madre https://github.com/TU_USUARIO/SZ.git
+git fetch madre
+git remote -v                     # ✅ origin (NOMBRE) + madre (SZ)
+
+# 5. Validar (ver aviso de PowerShell arriba, sección 4)
+npm install
+npm test        # ✅ 317 pruebas
+npm run build   # ✅ built in ~3s
+
+# 6. SZ intacto
+cd ..\SZ
+git status -sb                     # ## main...origin/main
+git remote -v                      # solo origin = .../SZ.git
+git --no-pager log --oneline -1    # el sha de la plantilla
+```
+
+### A.2 — Google (≈20 min) — el orden importa
+
+1. **Drive (cuenta del cliente) → Nuevo → Google Sheets** → `NOMBRE DB`.
+2. Desde esa hoja: **Extensiones → Apps Script** (queda vinculado, sin IDs).
+3. ⚙️ → **Mostrar archivo de manifiesto** → pegar **todo**
+   `apps-script/appsscript.json` → Guardar.
+   > ⚠️ Sin `"access": "ANYONE_ANONYMOUS"` la app queda en «Modo sin
+   > conexión». **Esta la olvida todo el mundo.**
+4. Pegar **todo** `apps-script/Code.gs` → Guardar → nombrar el proyecto
+   `NOMBRE API`.
+5. ⚙️ → Propiedades del proyecto → **Propiedades de script** — *antes* de
+   implementar:
+   | `SB_SYNC_TOKEN` | token nuevo: `(New-Guid).ToString('N') + (New-Guid).ToString('N')` |
+   | `SB_AUTHORIZED_EMAIL` | correo del dueño |
+   | `SB_BIZ_NAME` | nombre del negocio (firma los correos) |
+6. **Implementar → Nueva implementación → Aplicación web** →
+   *Ejecutar como:* **Yo** · *Quién tiene acceso:* **Cualquier usuario** →
+   Implementar → autorizar permisos → **copiar URL `…/exec`**.
+7. (Después, no bloquea) `setupAllReportTriggers()` ·
+   `setupDailyBackupTrigger()` · `setupWeeklyEmailTrigger()`.
+
+### A.3 — Vercel (≈10 min)
+
+1. *New Project* → importa el repo.
+2. *Environment Variables* → crear: `VITE_SCRIPT_URL` (URL del A.2.6),
+   `VITE_TOKEN` (**idéntica** a `SB_SYNC_TOKEN`), `VITE_BIZ_NAME`,
+   `VITE_CATALOG`, `VITE_BIZ_EMOJI`, `VITE_BIZ_SUBTITLE`,
+   `VITE_ADMIN_WHATSAPP` y — si hay logo — `VITE_BIZ_LOGO`.
+3. *Build Settings* lo deja Vercel: Vite, `npm run build`, salida `dist`.
+4. **Deploy**.
+5. **Prueba:** «✓ Sincronizado» → cliente de prueba en la hoja → cita en
+   **su** Calendar → correo de restablecimiento con **su** nombre.
+
+### A.4 — Errores que SÍ salieron en la práctica
+
+| Qué salió | Por qué | Qué se hizo |
+|---|---|---|
+| `fatal: not a git repository` al correr `git rev-parse --show-toplevel` | estaba escrito **antes** de `git init` | no era error: verificar la ruta con `Get-Location` **antes**, y `rev-parse` solo **después** del init |
+| `npm.ps1 … la ejecución de scripts está deshabilitada` | PowerShell ExecutionPolicy bloquea los `.ps1` de npm | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` **o** usar `npm.cmd …` (ver sección 4) |
+| `Package jsdom installed, re-run the command to start` | faltaba `jsdom` al primer `npm test` | volver a lanzar el test |
+| `warning: LF will be replaced by CRLF` | `core.autocrlf=true` en Windows | normal; no afecta |
+| La app dice «Configura `VITE_SCRIPT_URL` y `VITE_TOKEN`» | faltan las dos o el deploy es anterior a las variables | pegar **ambas** y **Redeploy** |
+| La app muestra **emoji** en el encabezado en vez del logo | faltaba `VITE_BIZ_LOGO` | crearla y **Redeploy** |
+| Tras editar `Code.gs`, sigue pasando lo viejo | Apps Script corre la versión anterior | *Implementar → Gestionar implementaciones → ✏️ → **Nueva versión*** |
+
+> 🔑 **Las dos «red» del despliegue**: las `VITE_*` se **incrustan al
+> compilar** → toda variable nueva exige **Redeploy**; y las propiedades
+> `SB_*` se leen **en cada llamada** → no necesitan redeploy, pero tampoco
+> existen en Vercel.
+
+### A.5 — Lo único que es de verdad NO negociable
+
+```
+Google (URL /exec + SB_SYNC_TOKEN)  →  Vercel (VITE_SCRIPT_URL + VITE_TOKEN)  →  Deploy  →  Probar
+```
+
+Ese tramo va en ese orden. Todo lo demás — GitHub primero o Google
+primero, triggers antes o después, logo al final — **es intercambiable**.
