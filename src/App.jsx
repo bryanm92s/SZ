@@ -4043,7 +4043,16 @@ function IncomeDetail({appts,setTab,tabExtra}) {
   useEffect(()=>{ setIncPage(1); setApptPages({}) },[filter,month])
   const safe   = Array.isArray(appts)?appts:[]
   const months = [...new Set([...safe.map(a=>cleanDate(a.date).slice(0,7)),monthStr()].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
-  const ma     = [...safe].filter(a=>cleanDate(a.date).slice(0,7)===month).sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date)))
+  // Orden: día de más reciente a más antiguo (el que ya se mostraba) y,
+  // DENTRO de cada día, de la hora más temprana a la más tarde — que es
+  // como el dueño repasa su agenda. Sin el segundo criterio el orden
+  // dentro del día venía dado por el servidor y salía de cualquier
+  // manera. `cleanTime` vacío ('') queda el primero, que es lo razonable
+  // para una cita sin hora fijada todavía.
+  // Los montos NO se ven afectados: son sumas, no dependen del orden.
+  const ma     = [...safe].filter(a=>cleanDate(a.date).slice(0,7)===month)
+    .sort((a,b)=> cleanDate(a.date).localeCompare(cleanDate(b.date))
+                || cleanTime(a.time).localeCompare(cleanTime(b.time)))
   const done   = ma.filter(a=>bool(a.completed)&&a.completed!=='noshow')
   const noshow = ma.filter(a=>a.completed==='noshow')
   const pend   = ma.filter(a=>!bool(a.completed)&&a.completed!=='noshow')
