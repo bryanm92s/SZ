@@ -12,7 +12,7 @@ import {
   svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, openWhatsApp, PAYMENT_METHODS, payMethodOf,
   apptStatus, canModifyAppt, canRemindAppt, checkSlot, confirmOutcome, projectedIncome, movsRanges,
   serviceDeletionCheck, apptGroup, reportMetrics, isResetOutcome, domBreakdown,
-  reportLines, apptServiceRefs, topServicesByDemand,
+  reportLines, apptServiceIds, apptServiceRefs, topServicesByDemand,
 } from './helpers.js'
 
 /* ══════════════════════════════════════════════════════════════
@@ -729,13 +729,16 @@ function SyncBadge({status,lastSync}) {
      COMPLETA, no de la página visible.
    ──────────────────────────────────────────────────────────────── */
 const PAGE_SIZE = 10
+// «Todas las citas» del historial de cliente: 5 por página (Petición del dueño).
+const CLIENT_APPT_PAGE_SIZE = 5
 
-function Pager({ page, total, onPage, label='registros' }) {
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  if (total <= PAGE_SIZE) return null
-  const p = Math.min(Math.max(1, page), pages)          // nunca fuera de rango
-  const first = (p - 1) * PAGE_SIZE + 1
-  const last  = Math.min(p * PAGE_SIZE, total)
+function Pager({ page, total, onPage, label='registros', size=PAGE_SIZE }) {
+  const sz = Number(size) > 0 ? Number(size) : PAGE_SIZE // nunca 0 (div./ por cero)
+  const pages = Math.max(1, Math.ceil(total / sz))
+  if (total <= sz) return null
+  const p = Math.min(Math.max(1, page), pages)           // nunca fuera de rango
+  const first = (p - 1) * sz + 1
+  const last  = Math.min(p * sz, total)
   const edge  = dir => p === dir
   return (
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,paddingTop:10,marginTop:10,borderTop:'1px solid var(--border)'}}>
@@ -1911,12 +1914,17 @@ function ApptDetail({appt,services,onClose,onEdit,onDelete}) {
   // catálogo actual; si el servicio ya no existe se muestra el nombre
   // guardado en la cita (snapshot), sin inventar datos.
   const svcList = (() => {
-    const ids   = String(appt.serviceIds||'').split(',').map(s=>s.trim()).filter(Boolean)
-    const names = String(appt.serviceNames||'').split(',').map(s=>s.trim()).filter(Boolean)
     const safeS = Array.isArray(services)?services:[]
-    const byId  = ids.map(id => safeS.find(s => String(s.id)===String(id))).filter(Boolean)
-    if (byId.length) return byId.map(s => ({name:s.name, price:toN(s.price), dur:svcDuration(s), missing:false}))
-    return names.map(n => ({name:n, price:null, dur:null, missing:true}))
+    const refs  = apptServiceRefs(appt, safeS)
+    const found = refs.map(r=>{
+      const s = safeS.find(x=>String(x.id)===String(r.id))
+      return s ? {name:s.name, price:toN(s.price), dur:svcDuration(s), missing:false} : null
+    }).filter(Boolean)
+    if (found.length) return found
+    // Ningún id resolvió: se muestra el nombre de la cita sin inventar
+    // datos. Los nombres salen del helper, que NO parte el snapshot por
+    // comas —«Diseño, depilación y sombreado» es UN servicio—.
+    return refs.map(r=>({name:r.name, price:null, dur:null, missing:true}))
   })()
 
   const statusTag = {
@@ -2095,15 +2103,18 @@ function EditAppt({appt,services,appts,SA,priceHistory,onClose}) {
 
   // Build originalIds + original price map from appt data
   const resolveInitialIds = () => {
-    const ids = String(appt.serviceIds||'').split(',').map(s=>s.trim()).filter(Boolean)
-    if (ids.length) {
-      const validById = ids.filter(id=>safeSvcs.some(s=>s.id===id))
-      if (validById.length) return validById
-      const names = String(appt.serviceNames||'').split(',').map(s=>s.trim()).filter(Boolean)
-      return safeSvcs.filter(s=>names.includes(s.name)).map(s=>s.id)
-    }
-    const names = String(appt.serviceNames||'').split(',').map(s=>s.trim()).filter(Boolean)
-    return safeSvcs.filter(s=>names.includes(s.name)).map(s=>s.id)
+    const ids   = apptServiceIds(appt)
+    const valid = id => safeSvcs.some(s=>String(s.id)===String(id))
+    const ok    = ids.filter(valid)
+    if (ok.length) return ok
+    // Recuperación por nombre cuando los ids no resuelven (citas antiguas
+    // o catálogo reemplazado). Se resuelve contra el catálogo con
+    // apptServiceRefs, que NO parte el snapshot por comas: «Diseño,
+    // depilación y sombreado» es UN servicio, y partirlo no casaba con
+    // ningún nombre del catálogo (quedaba vacío y la cita se desmarcaba).
+    return apptServiceRefs(appt, safeSvcs)
+      .map(r => (safeSvcs.find(s => String(s.name) === String(r.name)) || {}).id)
+      .filter(valid)
   }
 
   // ── Hooks primero — regla de React ─────────────────────────────────────────
@@ -2293,7 +2304,15 @@ function EditAppt({appt,services,appts,SA,priceHistory,onClose}) {
       ))}
       {/* Deleted services: show as disabled if they were in the original appointment */}
       {(() => {
-        const deletedNames = String(appt.serviceNames||'').split(',').map(s=>s.trim()).filter(n=>n&&!safeSvcs.some(s=>s.name===n))
+        // Servicios de la cita que ya NO están en el catálogo. Se comprueba
+        // por ID contra el catálogo: partir el snapshot por comas marcaba
+        // como «eliminado» a servicios que sí existen, si su nombre llevaba
+        // una coma —«Diseño, depilación y sombreado» salía como dos
+        // eliminados—. El helper devuelve el id real, así que basta.
+        const deletedNames = apptServiceRefs(appt, safeSvcs)
+          .filter(r => !safeSvcs.some(s => String(s.id) === String(r.id)))
+          .map(r => String(r.name||'').trim())
+          .filter(Boolean)
         return deletedNames.length>0 ? (
           <div style={{background:'#FBF0F3',borderRadius:10,padding:'10px 14px',marginBottom:8,fontSize:13,color:'var(--t2)'}}>
             <span style={{fontWeight:600}}>Servicios eliminados del catálogo:</span> {deletedNames.join(', ')} — solo aparecen en el historial, no se pueden re-seleccionar.
@@ -3074,9 +3093,14 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
 /* ══════════════════════════════════════════════════════════════
    CLIENT HISTORY
 ══════════════════════════════════════════════════════════════ */
-function ClientHistory({appts,setTab,tabExtra}) {
+function ClientHistory({appts,services,setTab,tabExtra}) {
   const client   = tabExtra?.client
   const safeAppts= Array.isArray(appts)?appts:[]
+  // Página de «Todas las citas». El hook va ANTES del return temprano de
+  // abajo (regla de React). No necesita efecto de reinicio: setTab cambia
+  // `tab` y `tabExtra` a la vez, así que al volver a la lista este
+  // componente se desmonta y el estado vuelve a 1 al entrar en otro cliente.
+  const [apptPage,setApptPage]=useState(1)
   if (!client) { return <div className="card" style={{textAlign:'center',padding:30,color:'var(--t2)'}}>Sin datos de cliente<br/><br/><button className="btn-sm" onClick={()=>setTab('clients')}>← Volver</button></div> }
 
   const phone = (client.phone||'').replace(/\D/g,'')
@@ -3091,15 +3115,25 @@ function ClientHistory({appts,setTab,tabExtra}) {
   const totalPend   = pend.reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
   const lastVisit   = done.length ? done[0].date : null
 
-  // Favourite services
+  // Favourite services.
+  // Se resuelven por ID contra el catálogo (apptServiceRefs) y NUNCA
+  // partiendo `serviceNames` por comas: «Diseño, depilación y sombreado»
+  // es UN solo servicio y partirlo inventaba dos entradas fantasma.
   const svcCount = {}
   cAppts.forEach(a=>{
-    String(a.serviceNames||'').split(',').forEach(s=>{
-      const name = s.trim(); if (!name) return
+    apptServiceRefs(a, services).forEach(r=>{
+      const name = String(r.name||'').trim(); if (!name) return
       svcCount[name] = (svcCount[name]||0)+1
     })
   })
   const topSvcs = Object.entries(svcCount).sort(([,a],[,b])=>b-a).slice(0,3)
+
+  // Paginación de «Todas las citas». Se ordena UNA vez y luego se corta
+  // por página, sin reordenar en cada render. El recorte defensivo evita
+  // apuntar a una página que ya no existe si se borra una cita.
+  const apptPages  = Math.max(1, Math.ceil(cAppts.length/CLIENT_APPT_PAGE_SIZE))
+  const apptPageCur= Math.min(Math.max(1,apptPage),apptPages)
+  const apptShown  = cAppts.slice((apptPageCur-1)*CLIENT_APPT_PAGE_SIZE, apptPageCur*CLIENT_APPT_PAGE_SIZE)
 
   return (
     <div>
@@ -3169,7 +3203,7 @@ function ClientHistory({appts,setTab,tabExtra}) {
         <div style={{fontWeight:700,fontSize:14,marginBottom:12}}>Todas las citas ({cAppts.length})</div>
         {cAppts.length===0
           ?<div style={{textAlign:'center',padding:20,color:'var(--t2)',fontSize:14}}>Sin citas registradas</div>
-          :cAppts.map(a=>{
+          :apptShown.map(a=>{
             const st = a.completed==='noshow'?'noshow':bool(a.completed)?'done':'pending'
             const stCfg = {done:{bg:'#EDF7F0',col:'var(--green)',lbl:'✓ Completada'},noshow:{bg:'#FFF4F0',col:'var(--red)',lbl:'✗ No asistió'},pending:{bg:'var(--primary-l)',col:'var(--primary)',lbl:'Pendiente'}}[st]
             return (
@@ -3190,6 +3224,7 @@ function ClientHistory({appts,setTab,tabExtra}) {
             )
           })
         }
+        <Pager page={apptPageCur} total={cAppts.length} onPage={setApptPage} label="citas" size={CLIENT_APPT_PAGE_SIZE}/>
       </div>
     </div>
   )
