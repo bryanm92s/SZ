@@ -17,6 +17,7 @@ quien lo va a **mantener**.
 |---|---|---|
 | [`../README.md`](../README.md) | Todos | Punto de entrada: descripción, stack, estructura, comandos y enlaces |
 | [`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) | Administrador / implementador | Instalar SZ desde cero: requisitos, variables, Apps Script, Sheets, Calendar, Vercel, seguridad y mantenimiento |
+| [`ONBOARDING_CLIENTE.md`](ONBOARDING_CLIENTE.md) | Administrador / comercial | Llevar este mismo programa a **otro negocio**: duplicar el despliegue, cambiar de nombre, elegir catálogo y qué NO se toca |
 | [`MANUAL_USUARIO.md`](MANUAL_USUARIO.md) | Operadora / usuario final | Cómo usar la app día a día, sin lenguaje técnico |
 | [`ARQUITECTURA_Y_FUNCIONALIDADES.md`](ARQUITECTURA_Y_FUNCIONALIDADES.md) | Desarrollador | Comportamiento real: arquitectura, entidades, reglas de negocio y matriz de funcionalidades |
 | [`PRUEBAS_Y_MANTENIMIENTO.md`](PRUEBAS_Y_MANTENIMIENTO.md) | Mantenimiento | Cómo probar, diagnosticar, respaldar, restaurar y desplegar |
@@ -27,6 +28,9 @@ quien lo va a **mantener**.
   (secciones A → G).
 - **Voy a usar la app en el estudio** → [`MANUAL_USUARIO.md`](MANUAL_USUARIO.md)
   completo.
+- **Voy a llevar este programa a otro negocio** →
+  [`ONBOARDING_CLIENTE.md`](ONBOARDING_CLIENTE.md) completo (es la lista de
+  pasos; no exige leer nada más).
 - **Necesito entender una regla de negocio concreta** →
   [`ARQUITECTURA_Y_FUNCIONALIDADES.md`](ARQUITECTURA_Y_FUNCIONALIDADES.md)
   (sección 17: matriz de funcionalidades).

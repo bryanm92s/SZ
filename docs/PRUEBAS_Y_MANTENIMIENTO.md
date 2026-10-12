@@ -28,7 +28,7 @@ Guía para **probar, diagnosticar, respaldar, restaurar y desplegar** SZ.
 Todos los comandos están tomados de `package.json` (`scripts`).
 
 ```bash
-npm run test          # una ejecución de las 299 pruebas
+npm run test          # una ejecución de las 317 pruebas
 npm run test:watch    # modo observador (re-ejecuta al guardar)
 npm run lint          # ESLint sobre src/ (*.js y *.jsx)
 npm run build         # build de producción en dist/
@@ -50,7 +50,7 @@ npm run format        # Prettier — formatea src/**
 
 | Comando | Resultado |
 |---|---|
-| `npm test` | ✅ **299/299 pruebas pasando** — 3 suites (≈6 s) |
+| `npm test` | ✅ **317/317 pruebas pasando** — 4 suites (≈6 s) |
 | `npm run lint` | ✅ **0 errores**, 11 *warnings* |
 | `npm run build` | ✅ OK (≈6 s) |
 
@@ -62,13 +62,14 @@ npm run format        # Prettier — formatea src/**
 
 ## 2. Qué cubren las pruebas
 
-### 2.1 Las tres suites
+### 2.1 Las cuatro suites
 
 | Suite | Pruebas | Qué cubre |
 |---|---:|---|
 | `src/helpers.test.js` | **165** | Toda la lógica pura de `helpers.js` |
-| `src/backend.test.js` | **127** | Ejecuta el `Code.gs` **real** en un sandbox |
+| `src/backend.test.js` | **131** | Ejecuta el `Code.gs` **real** en un sandbox |
 | `src/api.test.js` | **7** | Transporte HTTP y mensajes de error |
+| `src/catalogs.test.js` | **14** | Catálogo inicial por tipo de negocio (`VITE_CATALOG` / `VITE_DEFAULT_SERVICES`) |
 
 ### 2.2 `src/helpers.test.js` — lógica pura
 
@@ -129,7 +130,19 @@ Cubre:
 - `loadData` / `saveData` con `fetch` simulado.
 - Flujo de restablecimiento.
 
-### 2.5 Fidelidad de los mocks — lección aprendida
+### 2.5 `src/catalogs.test.js` — catálogo inicial
+
+- Los tres presets (`cejas`, `unas`, `peluqueria`): entradas usables,
+  precios y duraciones válidos, nombres únicos y duraciones dentro de
+  `DURATION_OPTIONS`.
+- Selección por `VITE_CATALOG`: clave exacta, mayúsculas/espacios, y que
+  una clave desconocida **caiga al preset por defecto** sin romper.
+- Override por `VITE_DEFAULT_SERVICES`: prioridad sobre el preset,
+  normalización de precio/duración, descarte de entradas sin nombre y
+  que un **JSON roto nunca** haga fallar el arranque.
+- Que el resultado sea una copia: mutarlo no contamina el preset.
+
+### 2.6 Fidelidad de los mocks — lección aprendida
 
 > ⚠️ **Cinco fallos de producción escaparon de pruebas en verde** porque el
 > mock era **más capaz o menos fiel** que Apps Script real:
@@ -191,7 +204,7 @@ Aplica Prettier (`semi: false`, `singleQuote: true`, `printWidth: 120`).
 
 ## 4. Qué NO cubren las pruebas
 
-Esto es importante: **pasar las 299 pruebas no garantiza que producción
+Esto es importante: **pasar las 317 pruebas no garantiza que producción
 funcione.**
 
 | No se prueba | Por qué |

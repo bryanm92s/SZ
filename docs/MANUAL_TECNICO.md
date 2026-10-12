@@ -119,7 +119,7 @@ Abre **http://localhost:5173**.
 ### B.5 Pruebas, lint y build
 
 ```bash
-npm test              # 299 pruebas, una sola ejecución
+npm test              # 317 pruebas, una sola ejecución
 npm run test:watch    # modo observador
 npm run lint          # ESLint sobre src/
 npm run build         # build de producción en dist/
@@ -130,7 +130,7 @@ npm run preview       # sirve dist/ localmente
 
 | Comando | Resultado |
 |---|---|
-| `npm test` | ✅ **299/299 pruebas pasando** (3 suites) |
+| `npm test` | ✅ **317/317 pruebas pasando** (4 suites) |
 | `npm run lint` | ✅ **0 errores**, 11 *warnings* preexistentes (`no-unused-vars`) |
 | `npm run build` | ✅ Build OK (~5,8 s) |
 
@@ -221,6 +221,30 @@ Todas se leen con `import.meta.env` y **quedan embebidas en el bundle JS**
 
 | Campo | Contenido |
 |---|---|
+| **Nombre exacto** | `VITE_CATALOG` |
+| **Ubicación** | `.env`, Vercel |
+| **Uso** | Catálogo de servicios con el que **arranca** el programa (aún sin datos, y también tras un restablecimiento). Presets en `src/catalogs.js`: `cejas`, `unas`, `peluqueria`. |
+| **Obligatoria** | No |
+| **Valor predeterminado** | `cejas` (el catálogo histórico de SZ) |
+| **Cómo configurarla** | Una de las claves de `CATALOGS`. Una clave desconocida cae a `cejas` sin romper el arranque. |
+| **Reinicio o despliegue** | **Sí** (rebuild). |
+| **Sensibilidad** | Pública |
+| **Verificación** | Con la app vacía, en «Servicios» aparecen los servicios del negocio correcto. |
+
+| Campo | Contenido |
+|---|---|
+| **Nombre exacto** | `VITE_DEFAULT_SERVICES` |
+| **Ubicación** | `.env`, Vercel |
+| **Uso** | Lista JSON con los servicios **exactos** del cliente: `[{"name":"Corte","price":45000,"duration":60}]`. **Tiene prioridad sobre `VITE_CATALOG`** y sirve para negocios que no encajan en un preset. |
+| **Obligatoria** | No |
+| **Valor predeterminado** | `''` (se usa el preset) |
+| **Cómo configurarla** | Una sola línea JSON. Cada entrada necesita `name`; `price` y `duration` se normalizan (inválidos → 0 y 30). Una entrada sin nombre se descarta. |
+| **Reinicio o despliegue** | **Sí** (rebuild). |
+| **Sensibilidad** | Pública |
+| **Verificación** | JSON roto o vacío → la app arranca igual, con el preset. Ese es el diseño: **nunca** reventar por una variable mal escrita. |
+
+| Campo | Contenido |
+|---|---|
 | **Nombre exacto** | `VITE_ADMIN_WHATSAPP` |
 | **Ubicación** | `.env`, Vercel |
 | **Uso** | Destino del botón «💬 WhatsApp admin» del reporte (`App.jsx` 206, 209). Se le agrega el prefijo `57` si no lo trae. |
@@ -257,6 +281,9 @@ saberlo al instalar en otro negocio:
 |---|---|---|---|
 | `'America/Bogota'` | `appsscript.json` | Zona horaria del script | ✅ Sí, editando el manifiesto |
 | `'BACKUP-PROYECTO'` y `'Backups'` | `Code.gs` (buscador de carpetas de Drive) | Carpetas de Drive para los respaldos | ❌ Hardcodeado |
+| `'SZ'` (marca por defecto) | `App.jsx` (`BIZ_NAME`) y `Code.gs` (`BIZ_NAME_DEFAULT`) | Nombre con el que arranca la pestaña y con el que firman los correos **cuando no hay nada configurado** | ✅ Sí, sin editar código: `VITE_BIZ_NAME` (app) y `SB_BIZ_NAME` (correos). Es el **único** resto de marca escrita en el código |
+| `'cejas'` (catálogo por defecto) | `src/catalogs.js` (`DEFAULT_CATALOG_KEY`) | Servicios con los que arranca el programa si nadie elige catálogo | ✅ Sí: `VITE_CATALOG` o `VITE_DEFAULT_SERVICES` |
+| `'sb_c'`, `'sb_s'`, `'sb_a'`, `'sb_e'` | `App.jsx` | Claves de `localStorage` (copia de trabajo offline) | ❌ Hardcodeado, pero **no es marca**: cada dominio tiene su propio `localStorage`, así que un cliente nuevo nunca las comparte con SZ |
 
 > ✅ **El correo ya NO está escrito en el código.** Antes aparecía en tres
 > sitios (`_sendReportEmail`, `sendWeeklyBackupEmail` y como respaldo del
@@ -390,6 +417,7 @@ En **⚙️ → Propiedades del proyecto → Propiedades de script**, agrega:
 |---|---|
 | `SB_SYNC_TOKEN` | Un texto **único y largo** (p. ej. 32+ caracteres aleatorios). El mismo que usarás en `VITE_TOKEN`. |
 | `SB_AUTHORIZED_EMAIL` | **Obligatoria.** Tu correo. Sin ella no se envía el código de restablecimiento, ni los reportes automáticos, ni el respaldo semanal. |
+| `SB_BIZ_NAME` | Nombre del negocio **en los correos que envía el script** (asunto, cuerpo y tarjeta HTML del código de restablecimiento). No es secreto, pero vive aquí y no en el código: un cliente nuevo cambia de nombre sin editar `Code.gs`. Si falta → «SZ». |
 
 > 🔑 **Nunca** escribas el token dentro de `Code.gs`: el repositorio es público.
 

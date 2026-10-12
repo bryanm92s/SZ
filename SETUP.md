@@ -37,6 +37,10 @@ Vercel (React App)  ←→  Google Apps Script  ←→  Google Sheets + Google C
    - **`SB_AUTHORIZED_EMAIL`** → tu correo.
      > ⚠️ **Obligatoria.** Sin ella **no se envía nada**: ni el código de
      > restablecimiento, ni los reportes automáticos, ni el respaldo semanal.
+   - **`SB_BIZ_NAME`** → el nombre del negocio **tal como debe aparecer en
+     los correos** que envía el script (código de restablecimiento).
+     Opcional: si falta, los correos firman con «SZ» (el nombre por
+     defecto del despliegue original).
 6. Vincula el script a tu spreadsheet:
    - **Opción recomendada:** desde el Spreadsheet, ve a **Extensiones → Apps
      Script** y pega el código ahí. Así el script tiene acceso automático a
@@ -87,6 +91,8 @@ git push -u origin main
    |---|---|
    | `VITE_SCRIPT_URL` | La URL del Apps Script del Paso 3 |
    | `VITE_TOKEN` | El mismo valor de la propiedad `SB_SYNC_TOKEN` |
+   | `VITE_BIZ_NAME` | El nombre del negocio (en un cliente nuevo, **obligatoria**) |
+   | `VITE_CATALOG` | `cejas`, `unas` o `peluqueria` (catálogo inicial) |
    | `VITE_ADMIN_WHATSAPP` | Tu número con prefijo de país (p. ej. `573001234567`) |
 
    > 🔑 **Nunca** escribas el token en `Code.gs`: el repositorio es público.

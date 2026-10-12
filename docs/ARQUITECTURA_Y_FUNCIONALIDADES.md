@@ -8,7 +8,7 @@ aplica.
 >
 > - ✅ **Verificado en código** — se leyó la implementación en este repositorio.
 > - 🧪 **Verificado en pruebas automatizadas** — existe un test que lo cubre
->   (299 pruebas, ejecutadas y en verde en esta ronda de documentación).
+>   (317 pruebas, ejecutadas y en verde en esta ronda de documentación).
 > - 🔎 **No verificado en producción** — la regla existe en el código pero no
 >   se probó en el entorno real de Google/Vercel.
 
@@ -634,7 +634,7 @@ CSV **ambiguo**: un servicio puede llamarse
 >
 > Réplica obligatoria en **`Code.gs` → `_recoverSnapshotNames`** (ES5),
 > cubierta por el test de **paridad frontend↔backend**. Si se toca un lado
-> sin el otro, los 299 tests se caen.
+> sin el otro, los 317 tests se caen.
 
 ---
 
@@ -1318,7 +1318,7 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 🔎 | No verificado en producción (integraciones reales de Google y Vercel) |
 
 > ⚠️ **Ninguna funcionalidad fue probada manualmente en producción durante
-> esta ronda de documentación.** Las 299 pruebas corren en un **sandbox con
+> esta ronda de documentación.** Las 317 pruebas corren en un **sandbox con
 > mocks** de Apps Script (`node:vm`), no contra Google real. La integración
 > con Sheets, Calendar, Gmail, Drive y Vercel queda marcada como 🔎.
 

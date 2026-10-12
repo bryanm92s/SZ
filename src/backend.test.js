@@ -2072,9 +2072,12 @@ describe('TEST-01 — Reconciliación y consistencia de datos', () => {
 })
 
 /* ══════════════════════════════════════════════════════════════
-   CORREO DE RESTABLECIMIENTO — presentación (SZ)
+   CORREO DE RESTABLECIMIENTO — presentación (marca parametrizada)
    Verifica sobre el Code.gs REAL (sandbox vm) que:
-     · el asunto y el cuerpo usan SZ, sin «Studio Beauty»;
+     · la marca sale de la propiedad SB_BIZ_NAME y por defecto es
+       «SZ»: un despliegue nuevo cambia de nombre SIN tocar el
+       código, y su correo NUNCA lleva la marca del despliegue
+       original;
      · hay texto plano Y HTML (alternativa para clientes sin HTML);
      · la vigencia es la de la lógica (CODE_TTL_MS), no inventada;
      · la lógica de seguridad NO cambió: hash, un solo uso, expiración,
@@ -2084,7 +2087,7 @@ describe('TEST-01 — Reconciliación y consistencia de datos', () => {
 describe('correo de restablecimiento · presentación y seguridad', () => {
   const request = (g) => post(g, { action: 'requestResetCode' })
 
-  it('asunto y cuerpo usan SZ y NO mencionan Studio Beauty', () => {
+  it('sin SB_BIZ_NAME la marca por defecto es SZ y NO menciona Studio Beauty', () => {
     const { g } = makeEnv()
     expect(request(g).ok).toBe(true)
     const m = lastMail(g.store)
@@ -2094,6 +2097,49 @@ describe('correo de restablecimiento · presentación y seguridad', () => {
     expect(m.body).not.toMatch(/studio/i)
     expect(m.htmlBody).toContain('SZ')
     expect(m.htmlBody).not.toMatch(/studio/i)
+  })
+
+  it('lee la marca de SB_BIZ_NAME: el correo de un cliente nuevo no dice SZ', () => {
+    const { g } = makeEnv()
+    g.store.props.set('SB_BIZ_NAME', 'Uñas de Valentina')
+    expect(request(g).ok).toBe(true)
+    const m = lastMail(g.store)
+    // Aparece en los TRES lugares: asunto, texto plano y tarjeta HTML.
+    expect(m.subject).toContain('Uñas de Valentina · Código de restablecimiento')
+    expect(m.body).toContain('Uñas de Valentina')
+    expect(m.htmlBody).toContain('Uñas de Valentina')
+    // Y la marca del despliegue original desaparece por completo.
+    expect(m.subject).not.toContain('SZ')
+    expect(m.body).not.toContain('SZ')
+    expect(m.htmlBody).not.toContain('SZ')
+  })
+
+  it('SB_BIZ_NAME vacía o de solo espacios se ignora (cae al defecto)', () => {
+    for (const valor of ['', '   ', null]) {
+      const { g } = makeEnv()
+      if (valor !== null) g.store.props.set('SB_BIZ_NAME', valor)
+      request(g)
+      expect(lastMail(g.store).subject).toContain('SZ')
+    }
+  })
+
+  it('la marca se ESCAPA en el HTML (un nombre con <etiquetas> no inyecta)', () => {
+    const { g } = makeEnv()
+    g.store.props.set('SB_BIZ_NAME', '<b>Uñas</b>')
+    request(g)
+    const m = lastMail(g.store)
+    expect(m.htmlBody).toContain('&lt;b&gt;Uñas&lt;/b&gt;')
+    expect(m.htmlBody).not.toContain('<b>Uñas</b>')
+    // El texto plano no lleva HTML: ahí va tal cual.
+    expect(m.body).toContain('<b>Uñas</b>')
+  })
+
+  it('SB_BIZ_NAME no cambia el destinatario: sigue siendo SB_AUTHORIZED_EMAIL', () => {
+    const { g } = makeEnv()
+    g.store.props.set('SB_BIZ_NAME', 'Uñas de Valentina')
+    request(g)
+    expect(lastMail(g.store).to).toBe(AUTHORIZED_EMAIL)
+    expect(g.store.props.get('SB_AUTHORIZED_EMAIL')).toBe(AUTHORIZED_EMAIL)
   })
 
   it('envía HTML y también texto plano (alternativa sin HTML)', () => {

@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  Salome Zuluaga | SZ  ║
+// ║  Proyecto original: Salome Zuluaga | SZ  ·  marca: SB_BIZ_NAME ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 /* ── Token de sincronización ────────────────────────────────────
@@ -164,6 +164,7 @@ function doPost(e) {
 
 const PROP_KEY = {
   email:  'SB_AUTHORIZED_EMAIL', // ÚNICA fuente del correo autorizado
+  bizName:'SB_BIZ_NAME',          // marca que firma los correos del script
   code:   'SB_RESET_CODE',        // JSON {hash, expiresAt, tries}
   grants: 'SB_RESET_GRANTS',      // JSON {grantId: {hash, expiresAt, usedAt}}
   limits: 'SB_RESET_LIMITS'       // JSON {sends:[ms], lockedUntil:ms}
@@ -185,6 +186,25 @@ function _props() {
 function _authorizedEmail() {
   try { return String(_props().getProperty(PROP_KEY.email) || '').trim(); }
   catch(_) { return ''; }
+}
+
+/* ── Marca del negocio ──
+   Firma los correos que envía el propio script (asunto, texto plano y
+   tarjeta HTML del código de restablecimiento). Vive en la propiedad
+   de script `SB_BIZ_NAME` para que un despliegue nuevo cambie de
+   nombre SIN editar este archivo: el repo es compartido entre todos
+   los clientes. Si la propiedad falta, se usa BIZ_NAME_DEFAULT, que
+   es el nombre del despliegue original. OJO: se lee en crudo (no con
+   _readProp), porque _readProp hace JSON.parse y un nombre como
+   `Uñas de Cristina` no es JSON válido. */
+const BIZ_NAME_DEFAULT = 'SZ';
+
+function _bizName() {
+  try {
+    const n = String(_props().getProperty(PROP_KEY.bizName) || '').trim();
+    if (n) return n;
+  } catch(_) {}
+  return BIZ_NAME_DEFAULT;
 }
 
 function _readProp(key, fallback) {
@@ -302,7 +322,7 @@ function _requestResetCode() {
   // un correo configurado (ver cabecera de esta sección); el diagnóstico
   // va al registro de ejecución, que solo lee el propietario del proyecto.
   if (!_authorizedEmail()) {
-    console.error('SZ: falta la propiedad SB_AUTHORIZED_EMAIL; ' +
+    console.error(_bizName() + ': falta la propiedad SB_AUTHORIZED_EMAIL; ' +
                   'no se envió código de restablecimiento.');
     return { sent: true };
   }
@@ -329,7 +349,7 @@ function _requestResetCode() {
   try {
     GmailApp.sendEmail(
       _authorizedEmail(),
-      'SZ · Código de restablecimiento',
+      _bizName() + ' · Código de restablecimiento',
       _resetEmailText(code),
       { htmlBody: _resetEmailHtml(code) });
   } catch(_) {}
@@ -348,19 +368,21 @@ function _escHtml(s) {
 
 function _resetEmailText(code) {
   const mins = CODE_TTL_MS / 60000;
-  return 'SZ · Código de restablecimiento\n\n' +
+  const biz  = _bizName();
+  return biz + ' · Código de restablecimiento\n\n' +
     'Se recibió una solicitud para restablecer los datos del sistema.\n' +
     'Usa el siguiente código para autorizarla:\n\n' +
     code + '\n\n' +
     'Vigencia: ' + mins + ' minutos. Solo puede usarse una vez.\n\n' +
-    'No compartas este código con nadie. SZ nunca te lo pedirá por\n' +
+    'No compartas este código con nadie. ' + biz + ' nunca te lo pedirá por\n' +
     'teléfono ni por mensaje.\n\n' +
-    '— SZ';
+    '— ' + biz;
 }
 
 function _resetEmailHtml(code) {
   const mins  = CODE_TTL_MS / 60000;
   const c     = _escHtml(code);
+  const biz   = _escHtml(_bizName());
   // Tablas + estilos en línea: máxima compatibilidad (Gmail, Outlook, iOS).
   return '' +
   '<div style="margin:0;padding:0;background-color:#f4f5f7;">' +
@@ -371,7 +393,7 @@ function _resetEmailHtml(code) {
 
       // Encabezado
       '<tr><td align="center" style="background-color:#1f2937;padding:20px 24px;">' +
-        '<span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:3px;">SZ</span>' +
+        '<span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:3px;">' + biz + '</span>' +
       '</td></tr>' +
 
       // Cuerpo
@@ -398,14 +420,14 @@ function _resetEmailHtml(code) {
       '<tr><td style="padding:18px 28px 4px;">' +
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fff7ed;border:1px solid #fed7aa;border-radius:8px;">' +
           '<tr><td style="padding:12px 14px;">' +
-            '<p style="margin:0;font-size:13px;line-height:19px;color:#9a3412;">No compartas este código con nadie. SZ nunca te lo pedirá por teléfono ni por mensaje.</p>' +
+            '<p style="margin:0;font-size:13px;line-height:19px;color:#9a3412;">No compartas este código con nadie. ' + biz + ' nunca te lo pedirá por teléfono ni por mensaje.</p>' +
           '</td></tr>' +
         '</table>' +
       '</td></tr>' +
 
       // Pie
       '<tr><td align="center" style="padding:22px 28px 28px;">' +
-        '<p style="margin:0;font-size:12px;color:#9ca3af;letter-spacing:1px;">SZ</p>' +
+        '<p style="margin:0;font-size:12px;color:#9ca3af;letter-spacing:1px;">' + biz + '</p>' +
       '</td></tr>' +
 
     '</table>' +
@@ -1627,7 +1649,7 @@ function _sendReportEmail(period, kind) {
   // reporte avisando en el log en vez de fallar el trigger.
   var recipient = _authorizedEmail();
   if (!recipient) {
-    console.warn('SZ: falta la propiedad SB_AUTHORIZED_EMAIL; se omite el reporte ' + kind + '.');
+    console.warn(_bizName() + ': falta la propiedad SB_AUTHORIZED_EMAIL; se omite el reporte ' + kind + '.');
     return;
   }
 

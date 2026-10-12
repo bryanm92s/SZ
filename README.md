@@ -9,7 +9,7 @@ React 18 + Vite · Google Apps Script + Sheets + Calendar · Deploy en Vercel
 
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=white)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
-[![Tests](https://img.shields.io/badge/Tests-299_passing-brightgreen)](#-testing)
+[![Tests](https://img.shields.io/badge/Tests-317_passing-brightgreen)](#-testing)
 [![Deploy](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)](https://vercel.com)
 [![Backend](https://img.shields.io/badge/Backend-Google_Apps_Script-34A853?logo=googleapps&logoColor=white)](https://script.google.com)
 
@@ -42,6 +42,7 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 | Documento | Para qué sirve |
 |---|---|
 | 📋 [`docs/MANUAL_TECNICO.md`](docs/MANUAL_TECNICO.md) | **Instalar SZ desde cero**: requisitos, variables de entorno, Google Apps Script, Sheets, Calendar, Vercel, seguridad y mantenimiento |
+| 🧬 [`docs/ONBOARDING_CLIENTE.md`](docs/ONBOARDING_CLIENTE.md) | **Llevar este programa a otro negocio**: duplicar el despliegue, cambiar de nombre, elegir catálogo y qué NO se toca |
 | 🙋 [`docs/MANUAL_USUARIO.md`](docs/MANUAL_USUARIO.md) | **Manual del usuario final**: cómo usar cada pantalla, paso a paso y sin lenguaje técnico |
 | 🏗️ [`docs/ARQUITECTURA_Y_FUNCIONALIDADES.md`](docs/ARQUITECTURA_Y_FUNCIONALIDADES.md) | **Informe técnico-funcional**: arquitectura, entidades, reglas de negocio y matriz de funcionalidades |
 | 🧪 [`docs/PRUEBAS_Y_MANTENIMIENTO.md`](docs/PRUEBAS_Y_MANTENIMIENTO.md) | **Pruebas, diagnóstico, respaldo, restauración y despliegue** |
@@ -211,6 +212,7 @@ SZ/
 ├── docs/                      # 📚 Documentación completa
 │   ├── INDEX.md               # Índice y observaciones pendientes
 │   ├── MANUAL_TECNICO.md      # Instalación y configuración desde cero
+│   ├── ONBOARDING_CLIENTE.md  # Cómo llevar el programa a otro negocio
 │   ├── MANUAL_USUARIO.md      # Manual para la operadora
 │   ├── ARQUITECTURA_Y_FUNCIONALIDADES.md
 │   └── PRUEBAS_Y_MANTENIMIENTO.md
@@ -220,9 +222,11 @@ SZ/
 │   ├── App.jsx                # 🟡 Toda la UI (~4.490 líneas): componentes y estado
 │   ├── api.js                 # load/save contra el Web App de Apps Script
 │   ├── helpers.js             # Funciones puras (~857 líneas) — la fuente de las reglas
+│   ├── catalogs.js            # Catálogos por tipo de negocio (VITE_CATALOG)
 │   ├── index.css              # Reset mínimo
 │   ├── api.test.js            # Tests del módulo de transporte
 │   ├── helpers.test.js        # Tests unitarios de helpers
+│   ├── catalogs.test.js       # Tests de los catálogos iniciales
 │   └── backend.test.js        # Ejecuta el Code.gs REAL dentro de un sandbox
 │
 └── apps-script/               # 🟢 Backend (desplegar en Google Apps Script)
@@ -300,10 +304,12 @@ Copia `.env.example` a `.env` (local) o configúralas en
 |---|:---:|:---:|---|
 | `VITE_SCRIPT_URL` | ✅ | interna | URL del Web App de Apps Script (`…/exec`) |
 | `VITE_TOKEN` | ✅ | ⚠️ **expuesta** | Debe coincidir exactamente con la propiedad de script `SB_SYNC_TOKEN` |
-| `VITE_BIZ_NAME` | — | pública | Nombre del negocio (header + `<title>`). Defecto: `SZ` |
+| `VITE_BIZ_NAME` | — | pública | Nombre del negocio (header + `<title>`). Defecto: `SZ` (despliegue original) → **obligatoria en un cliente nuevo** |
 | `VITE_BIZ_SUBTITLE` | — | pública | Subtítulo corto: aparece bajo el nombre **y** en la pestaña (`NOMBRE · SUBTITULO`) |
-| `VITE_BIZ_EMOJI` | — | pública | Emoji del icono de la pestaña (favicon) y del encabezado. Defecto: `🌸` |
+| `VITE_BIZ_EMOJI` | — | pública | Emoji del icono de la pestaña (favicon), del encabezado y del cierre del mensaje de WhatsApp. Defecto: `🌸` |
 | `VITE_BIZ_LOGO` | — | pública | URL absoluta del logo para `apple-touch-icon` |
+| `VITE_CATALOG` | — | pública | Catálogo inicial de servicios: `cejas` \| `unas` \| `peluqueria` (`src/catalogs.js`). Defecto: `cejas` |
+| `VITE_DEFAULT_SERVICES` | — | pública | Lista JSON con los servicios exactos del cliente. **Tiene prioridad** sobre `VITE_CATALOG` |
 | `VITE_ADMIN_WHATSAPP` | — | ⚠️ **personal** | Número de WhatsApp del admin, destino del botón «💬 WhatsApp admin». Sin número, el botón sale **deshabilitado** |
 
 > ⚠️ **Todas las variables `VITE_*` quedan embebidas en el JavaScript del
@@ -373,13 +379,14 @@ Detalle completo en [`docs/MANUAL_TECNICO.md`](docs/MANUAL_TECNICO.md) sección 
 
 ## 🧪 Testing
 
-Hay **299 pruebas** en 3 suites, ejecutadas y verificadas en esta ronda de
+Hay **317 pruebas** en 4 suites, ejecutadas y verificadas en esta ronda de
 documentación:
 
 | Suite | Pruebas | Qué cubre |
 |---|---:|---|
 | `src/helpers.test.js` | 165 | Lógica pura: fechas, slots, teléfono, duraciones, estados, finanzas, reportes |
-| `src/backend.test.js` | 127 | **Ejecuta el `Code.gs` real** en un sandbox (`node:vm`): API, reset, Calendar, reportes, Excel y paridad correo/WhatsApp |
+| `src/backend.test.js` | 131 | **Ejecuta el `Code.gs` real** en un sandbox (`node:vm`): API, reset, Calendar, reportes, Excel, paridad correo/WhatsApp y marca de los correos (`SB_BIZ_NAME`) |
+| `src/catalogs.test.js` | 14 | Catálogo inicial por tipo de negocio (`VITE_CATALOG` / `VITE_DEFAULT_SERVICES`) |
 | `src/api.test.js` | 7 | Transporte: mensajes de error, `loadData`/`saveData`, restablecimiento |
 
 ```bash

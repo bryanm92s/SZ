@@ -14,6 +14,9 @@ import {
   serviceDeletionCheck, apptGroup, reportMetrics, isResetOutcome, domBreakdown,
   reportLines, apptServiceIds, apptServiceRefs, topServicesByDemand,
 } from './helpers.js'
+// Catálogo de servicios inicial, elegible por variable de entorno
+// (VITE_CATALOG / VITE_DEFAULT_SERVICES) sin tocar este archivo:
+import { resolveCatalog } from './catalogs.js'
 
 /* ══════════════════════════════════════════════════════════════
    CONSTANTS & HELPERS  (los helpers puros viv en src/helpers.js)
@@ -190,6 +193,9 @@ const applyTheme = (pid) => {
   r.setProperty('--glass-blur-sm',  'blur(12px)')
 }
 /* ── Business config — set these in Vercel environment variables ── */
+// `SZ` es SOLO el valor por defecto del despliegue original: cualquier
+// despliegue nuevo (otro negocio) debe definir VITE_BIZ_NAME, porque
+// este fallback es lo único de la marca que queda escrito en el código.
 const BIZ_NAME     = import.meta.env.VITE_BIZ_NAME     || 'SZ'
 const BIZ_SUBTITLE = import.meta.env.VITE_BIZ_SUBTITLE || ''
 const BIZ_EMOJI    = import.meta.env.VITE_BIZ_EMOJI    || '🌸'
@@ -223,17 +229,15 @@ const isPastAppt = a => {
   return false
 }
 
-const DEFAULT_SERVICES = [
-  {id:uid(),name:'Micropigmentación cejas',          price:350000, duration:90},
-  {id:uid(),name:'Retoque micropigmentación cejas',  price:150000, duration:60},
-  {id:uid(),name:'Diseño y depilación',              price:50000,  duration:30},
-  {id:uid(),name:'Diseño, depilación y sombreado',   price:60000,  duration:30},
-  {id:uid(),name:'Extensiones de pestañas',          price:160000, duration:90},
-  {id:uid(),name:'Retoque extensiones de pestañas',  price:70000,  duration:60},
-  {id:uid(),name:'Lifting de pestañas',              price:130000, duration:60},
-  {id:uid(),name:'Remoción con láser',               price:200000, duration:60},
-  {id:uid(),name:'Laminado de cejas',                price:130000, duration:60},
-]
+/* ── Catálogo inicial de servicios ──
+   Depende del tipo de negocio del despliegue: se elige con
+   VITE_CATALOG (preset) o VITE_DEFAULT_SERVICES (JSON propio) y NO
+   requiere tocar el código. Ver src/catalogs.js. Los ids se generan
+   aquí porque el catálogo vive en memoria durante toda la sesión. */
+const DEFAULT_SERVICES = resolveCatalog({
+  catalog:  import.meta.env.VITE_CATALOG,
+  services: import.meta.env.VITE_DEFAULT_SERVICES,
+}).map(s => ({ id: uid(), ...s }))
 const DURATION_OPTIONS = [30, 60, 90, 120, 150, 180]
 
 // WhatsApp with proper emoji encoding
@@ -244,7 +248,10 @@ const openWA = (phone, name, time, date, serviceNames, total, isDom, domPrice = 
   const p     = ('57' + phone.replace(/\D/g, '')).replace(/^5757/, '57')
   // ASCII-safe JS unicode escapes — works regardless of file encoding
   const CLOCK = '\u23F0'         // ⏰
-  const BLOOM = '\uD83C\uDF38'  // 🌸
+  // El emoji de despedida es el del negocio (VITE_BIZ_EMOJI), no uno
+  // fijo: así el mensaje de WhatsApp también lleva la marca del
+  // despliegue. Si no hay emoji configurado, se usa 🌸.
+  const BLOOM = BIZ_EMOJI || '\uD83C\uDF38'  // 🌸
   const MOTO  = '\uD83D\uDEF5'  // 🛵
   const SPARK = '\u2728'         // ✨
   const CAL   = '\uD83D\uDCC5'  // 📅
@@ -496,7 +503,7 @@ export default function App() {
     //     se deja el id a mano para borrarlo a mano: no se inventa una
     //     transacción atómica entre Google Sheets y Google Calendar.
     confirm(
-      `La cita de ${appt.clientName} se eliminó de SZ, pero NO se pudo borrar su evento de Google Calendar.\n\nMotivo: ${r.error}\n\n¿Reintentar el borrado del evento?`,
+      `La cita de ${appt.clientName} se eliminó de ${BIZ_NAME}, pero NO se pudo borrar su evento de Google Calendar.\n\nMotivo: ${r.error}\n\n¿Reintentar el borrado del evento?`,
       async () => {
         const again = await calDelete(appt.calendarEventId)
         if (again.ok) return
@@ -2011,7 +2018,7 @@ function ApptDetail({appt,services,onClose,onEdit,onDelete}) {
     </div>
   )
 
-  // Cierre con la tecla Esc, como el resto de modales de SZ.
+  // Cierre con la tecla Esc, como el resto de modales de la app.
   useEffect(() => {
     const onKey = e => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -4778,7 +4785,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
             aria-label={`Ver detalle de la cita de ${a.clientName}`}>
             👁 Detalle
           </button>
-          {/* Editar: abre el mismo formulario de edición de SZ con la cita
+          {/* Editar: abre el mismo formulario de edición con la cita
               precargada por su ID. Ya no navega a la pestaña Citas. */}
           {canModifyAppt(a) && (
             <button className="btn-sm" style={{ flex: 1 }}
@@ -4822,7 +4829,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
      RENDER
   ═══════════════════════════════════════════════════ */
   /* ── Edición directa desde el listado del día ──
-     Reutiliza el MISMO formulario de SZ (EditAppt) con la cita resuelta
+     Reutiliza el MISMO formulario de edición (EditAppt) con la cita resuelta
      por su ID real. No se navega a la pestaña Citas.
      Al devolverlo con retorno anticipado, CalendarView sigue montado:
      su estado (incluido `selDay`) se conserva, y al cerrar la edición
