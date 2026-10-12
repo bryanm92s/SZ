@@ -745,6 +745,10 @@ const CLIENT_APPT_PAGE_SIZE = 5
 // paginador de círculos numerados.
 const DAY_PAGE_SIZE = 7
 const ITEM_PAGE_SIZE = 5
+// Detalle Gastos: al hacer clic sobre una categoría de «Por categoría»
+// se despliegan SUS gastos debajo, de a 10 por página (Petición del
+// dueño: si hay más de 10 aparecen los círculos).
+const CATEGORY_PAGE_SIZE = 10
 
 function Pager({ page, total, onPage, label='registros', size=PAGE_SIZE }) {
   const sz = Number(size) > 0 ? Number(size) : PAGE_SIZE // nunca 0 (div./ por cero)
@@ -4430,6 +4434,12 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
   const [dayPage,setDayPage]=useState(1)
   const [expPages,setExpPages]=useState({})
   useEffect(()=>{ setDayPage(1); setExpPages({}) },[month])
+  // Categoría desplegada en «Por categoría»: clic = abrir, clic encima =
+  // cerrar, clic en otra = cambiar de una. Cambiar de mes o de categoría
+  // devuelve el desplegado a la página 1.
+  const [openCat,setOpenCat]=useState(null)
+  const [catPage,setCatPage]=useState(1)
+  useEffect(()=>{ setCatPage(1) },[openCat,month])
   const safe=Array.isArray(expenses)?expenses:[]
   const months=[...new Set([...safe.map(e=>cleanDate(e.date).slice(0,7)),monthStr()].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
   const me=[...safe].filter(e=>cleanDate(e.date).slice(0,7)===month).sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date)))
@@ -4447,6 +4457,17 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
   const dayPages  =Math.max(1,Math.ceil(dayEntries.length/DAY_PAGE_SIZE))
   const dayCur    =Math.min(Math.max(1,dayPage),dayPages)   // recorte defensivo
   const dayShown  =dayEntries.slice((dayCur-1)*DAY_PAGE_SIZE, dayCur*DAY_PAGE_SIZE)
+  // Gastos de la categoría desplegada, de la fecha MÁS RECIENTE a la más
+  // antigua (el mismo orden que «Gastos del mes» en Finanzas). OJO: el
+  // total de la tarjeta sale de la lista COMPLETA, no de la página
+  // visible. `filter` devuelve un arreglo nuevo, así que ordenarlo no
+  // toca `me`, del que salen el total del mes y el desglose.
+  const catList  = openCat ? me.filter(e=>e.category===openCat)
+                             .sort((a,b)=>cleanDate(b.date).localeCompare(cleanDate(a.date))) : []
+  const catTotal = catList.reduce((s,e)=>s+toN(e.amount||0),0)
+  const catPages = Math.max(1,Math.ceil(catList.length/CATEGORY_PAGE_SIZE))
+  const catCur   =Math.min(Math.max(1,catPage),catPages)   // recorte defensivo
+  const catShown =catList.slice((catCur-1)*CATEGORY_PAGE_SIZE, catCur*CATEGORY_PAGE_SIZE)
   const saveEdit=()=>{SE(safe.map(e=>e.id===editId?{...e,...editData}:e));setEI(null)}
 
   return <>
@@ -4466,11 +4487,17 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
       <div style={{fontWeight:700,fontSize:14,marginBottom:12}}>Por categoría</div>
       {Object.entries(byCat).sort(([,a],[,b])=>b-a).map(([cat,val],i)=>{
         const color=CAT_COLORS[i%CAT_COLORS.length]
-        return <div key={cat} style={{marginBottom:10}}>
+        const open = openCat===cat
+        // La fila entera es la zona de clic: abre sus gastos debajo, y un
+        // segundo clic encima la cierra. Se resalta mientras esté abierta
+        // y lleva la flechita para que se entienda que es desplegable.
+        return <div key={cat} onClick={()=>setOpenCat(open?null:cat)}
+          style={{cursor:'pointer',borderRadius:9,padding:'7px 8px',margin:'0 -8px 10px',
+                  background:open?'var(--primary-l)':'transparent',transition:'background .15s'}}>
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:4,fontSize:13}}>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <div style={{width:10,height:10,borderRadius:2,background:color,flexShrink:0}}/>
-              <span style={{fontWeight:600}}>{cat}</span>
+              <span style={{fontWeight:600,color:open?'var(--primary)':'inherit'}}>{open?'▾':'▸'} {cat}</span>
             </div>
             <span style={{fontWeight:700,color}}>{fmtM(val)}</span>
           </div>
@@ -4479,6 +4506,24 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
           </div>
         </div>
       })}
+    </div>}
+
+    {/* ── Gastos de la categoría desplegada ── Aparece DEBAJO de
+        «Por categoría» y desaparece con un segundo clic. Si pasa de
+        CATEGORY_PAGE_SIZE aparecen los círculos. */}
+    {openCat&&catList.length>0&&<div className="card" style={{marginBottom:10}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <span style={{fontWeight:700,fontSize:14}}>🗂️ {openCat}</span>
+        <span style={{fontWeight:700,color:'var(--red)',fontSize:13}}>{fmtM(catTotal)}</span>
+      </div>
+      {catShown.map(e=>(
+        <div key={e.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
+          <span style={{fontSize:11,color:'var(--t2)',flexShrink:0,minWidth:70}}>{fmtDate(e.date)}</span>
+          <div style={{flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:600,fontSize:13}}>{e.description}</div>
+          <span style={{fontWeight:700,color:'var(--red)',fontSize:13,flexShrink:0}}>{fmtM(e.amount)}</span>
+        </div>
+      ))}
+      <CirclePager page={catCur} total={catList.length} size={CATEGORY_PAGE_SIZE} onPage={setCatPage}/>
     </div>}
 
     {dayEntries.length===0
