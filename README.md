@@ -308,7 +308,7 @@ Copia `.env.example` a `.env` (local) o configúralas en
 | `VITE_BIZ_SUBTITLE` | — | pública | Subtítulo corto: aparece bajo el nombre **y** en la pestaña (`NOMBRE · SUBTITULO`) |
 | `VITE_BIZ_EMOJI` | — | pública | Emoji del icono de la pestaña (favicon), del encabezado y del cierre del mensaje de WhatsApp. Defecto: `🌸` |
 | `VITE_BIZ_LOGO` | — | pública | URL absoluta del logo para `apple-touch-icon` |
-| `VITE_CATALOG` | — | pública | Catálogo inicial de servicios: `cejas` \| `unas` \| `peluqueria` (`src/catalogs.js`). Defecto: `cejas` |
+| `VITE_CATALOG` | — | pública | Catálogo inicial de servicios: `cejas` \| `unas` \| `peluqueria` \| `barberia` \| `depilacion` \| `masajes` \| `estetica` \| `maquillaje` (`src/catalogs.js`). Defecto: `cejas` |
 | `VITE_DEFAULT_SERVICES` | — | pública | Lista JSON con los servicios exactos del cliente. **Tiene prioridad** sobre `VITE_CATALOG` |
 | `VITE_ADMIN_WHATSAPP` | — | ⚠️ **personal** | Número de WhatsApp del admin, destino del botón «💬 WhatsApp admin». Sin número, el botón sale **deshabilitado** |
 

@@ -223,7 +223,7 @@ Todas se leen con `import.meta.env` y **quedan embebidas en el bundle JS**
 |---|---|
 | **Nombre exacto** | `VITE_CATALOG` |
 | **Ubicación** | `.env`, Vercel |
-| **Uso** | Catálogo de servicios con el que **arranca** el programa (aún sin datos, y también tras un restablecimiento). Presets en `src/catalogs.js`: `cejas`, `unas`, `peluqueria`. |
+| **Uso** | Catálogo de servicios con el que **arranca** el programa (aún sin datos, y también tras un restablecimiento). Presets en `src/catalogs.js`: `cejas`, `unas`, `peluqueria`, `barberia`, `depilacion`, `masajes`, `estetica`, `maquillaje`. |
 | **Obligatoria** | No |
 | **Valor predeterminado** | `cejas` (el catálogo histórico de SZ) |
 | **Cómo configurarla** | Una de las claves de `CATALOGS`. Una clave desconocida cae a `cejas` sin romper el arranque. |

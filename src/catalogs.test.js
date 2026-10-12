@@ -3,8 +3,11 @@ import { CATALOGS, DEFAULT_CATALOG_KEY, resolveCatalog } from './catalogs.js'
 
 /* ── Presets ─────────────────────────────────────────────────── */
 describe('CATALOGS', () => {
-  it('expone los tres presets documentados', () => {
-    expect(Object.keys(CATALOGS).sort()).toEqual(['cejas', 'peluqueria', 'unas'])
+  it('expone los presets documentados', () => {
+    expect(Object.keys(CATALOGS).sort()).toEqual([
+      'barberia', 'cejas', 'depilacion', 'estetica', 'maquillaje', 'masajes',
+      'peluqueria', 'unas',
+    ])
   })
 
   it('el preset por defecto es el catálogo histórico de SZ (sin cambios)', () => {

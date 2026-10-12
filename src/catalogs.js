@@ -9,7 +9,8 @@
 
    ── Cómo elegir catálogo (Vercel → Environment Variables) ──
 
-   1. `VITE_CATALOG=unas|peluqueria|cejas`
+   1. `VITE_CATALOG=cejas|unas|peluqueria|barberia|
+             depilacion|masajes|estetica|maquillaje`
       Un preset de CATALOGS de abajo. Si falta o no existe la
       clave, se usa DEFAULT_CATALOG_KEY (comportamiento original).
 
@@ -66,6 +67,73 @@ export const CATALOGS = {
     { name: 'Tratamiento capilar',       price: 60000,  duration: 60 },
     { name: 'Depilación de cejas',       price: 20000,  duration: 30 },
     { name: 'Peinado de novia / evento',  price: 150000, duration: 120 },
+  ],
+
+  /* Barbería (corte masculino + barba + facial) */
+  barberia: [
+    { name: 'Corte',                price: 35000,  duration: 30 },
+    { name: 'Corte para niños',     price: 30000,  duration: 30 },
+    { name: 'Corte de barba',       price: 25000,  duration: 30 },
+    { name: 'Afeitado',             price: 25000,  duration: 30 },
+    { name: 'Corte y afeitado',     price: 50000,  duration: 60 },
+    { name: 'Marcación',            price: 20000,  duration: 30 },
+    { name: 'Cejas',                price: 10000,  duration: 30 },
+    { name: 'Camuflaje de canas',   price: 40000,  duration: 60 },
+    { name: 'Limpieza facial',      price: 50000,  duration: 60 },
+    { name: 'Lavado y peinado',     price: 30000,  duration: 30 },
+  ],
+
+  /* Depilación con cera */
+  depilacion: [
+    { name: 'Cejas con cera',            price: 15000,  duration: 30 },
+    { name: 'Labio superior',            price: 15000,  duration: 30 },
+    { name: 'Mentón',                    price: 20000,  duration: 30 },
+    { name: 'Axilas',                    price: 30000,  duration: 30 },
+    { name: 'Brazos',                    price: 45000,  duration: 60 },
+    { name: 'Media pierna',              price: 55000,  duration: 60 },
+    { name: 'Piernas completas',         price: 80000,  duration: 60 },
+    { name: 'Ingles / línea de bikini',  price: 50000,  duration: 30 },
+    { name: 'Depilación brasileña',      price: 70000,  duration: 60 },
+    { name: 'Espalda o pecho (caballero)', price: 70000, duration: 60 },
+  ],
+
+  /* Spa de masajes / bienestar */
+  masajes: [
+    { name: 'Masaje relajante',              price: 70000,  duration: 60 },
+    { name: 'Masaje descontracturante',      price: 80000,  duration: 60 },
+    { name: 'Masaje con piedras calientes',  price: 100000, duration: 90 },
+    { name: 'Drenaje linfático',             price: 90000,  duration: 60 },
+    { name: 'Masaje deportivo',              price: 90000,  duration: 60 },
+    { name: 'Masaje facial',                 price: 45000,  duration: 30 },
+    { name: 'Punto gatillo / liberación miofascial', price: 85000, duration: 60 },
+    { name: 'Masaje corporal detox',         price: 95000,  duration: 90 },
+    { name: 'Prensa japonesa (linfática)',   price: 90000,  duration: 60 },
+  ],
+
+  /* Estética facial */
+  estetica: [
+    { name: 'Higiene facial profunda',   price: 60000,  duration: 60 },
+    { name: 'Peeling químico',           price: 90000,  duration: 60 },
+    { name: 'Microdermoabrasión',        price: 85000,  duration: 60 },
+    { name: 'Microneedling',             price: 150000, duration: 90 },
+    { name: 'Radiofrecuencia facial',    price: 120000, duration: 60 },
+    { name: 'Tratamiento anti-edad',     price: 110000, duration: 90 },
+    { name: 'Tratamiento para acné',     price: 70000,  duration: 60 },
+    { name: 'Hidratación profunda',      price: 75000,  duration: 60 },
+    { name: 'Mascarilla de luminosidad', price: 55000,  duration: 60 },
+  ],
+
+  /* Maquillaje profesional */
+  maquillaje: [
+    { name: 'Maquillaje natural',        price: 60000,  duration: 60 },
+    { name: 'Maquillaje social',         price: 70000,  duration: 60 },
+    { name: 'Maquillaje de noche',       price: 80000,  duration: 60 },
+    { name: 'Maquillaje de novia',       price: 180000, duration: 90 },
+    { name: 'Maquillaje de quinceañera', price: 130000, duration: 60 },
+    { name: 'Maquillaje fantasia',       price: 90000,  duration: 60 },
+    { name: 'Maquillaje artístico / escénico', price: 95000, duration: 60 },
+    { name: 'Cejas con henna',           price: 35000,  duration: 30 },
+    { name: 'Prueba de maquillaje',      price: 50000,  duration: 60 },
   ],
 }
 

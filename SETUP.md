@@ -92,7 +92,7 @@ git push -u origin main
    | `VITE_SCRIPT_URL` | La URL del Apps Script del Paso 3 |
    | `VITE_TOKEN` | El mismo valor de la propiedad `SB_SYNC_TOKEN` |
    | `VITE_BIZ_NAME` | El nombre del negocio (en un cliente nuevo, **obligatoria**) |
-   | `VITE_CATALOG` | `cejas`, `unas` o `peluqueria` (catálogo inicial) |
+   | `VITE_CATALOG` | `cejas`, `unas`, `peluqueria`, `barberia`, `depilacion`, `masajes`, `estetica` o `maquillaje` (catálogo inicial) |
    | `VITE_ADMIN_WHATSAPP` | Tu número con prefijo de país (p. ej. `573001234567`) |
 
    > 🔑 **Nunca** escribas el token en `Code.gs`: el repositorio es público.

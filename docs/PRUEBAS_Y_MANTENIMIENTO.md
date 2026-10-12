@@ -132,7 +132,9 @@ Cubre:
 
 ### 2.5 `src/catalogs.test.js` — catálogo inicial
 
-- Los tres presets (`cejas`, `unas`, `peluqueria`): entradas usables,
+- Los presets de catálogo (`cejas`, `unas`, `peluqueria`, `barberia`,
+  `depilacion`, `masajes`, `estetica`, `maquillaje`):
+  entradas usables,
   precios y duraciones válidos, nombres únicos y duraciones dentro de
   `DURATION_OPTIONS`.
 - Selección por `VITE_CATALOG`: clave exacta, mayúsculas/espacios, y que

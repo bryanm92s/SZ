@@ -50,7 +50,7 @@ requiere tocar el código.
 | `VITE_BIZ_EMOJI` | Emoji de favicon, encabezado y cierre del WhatsApp | `💅` |
 | `VITE_BIZ_LOGO` | URL **absoluta** del logo (opcional; sustituye al emoji) | `https://…/logo.png` |
 | `VITE_ADMIN_WHATSAPP` | Número del admin para el botón «💬 WhatsApp admin» | `573001234567` |
-| `VITE_CATALOG` | Catálogo inicial: `cejas` \| `unas` \| `peluqueria` | `unas` |
+| `VITE_CATALOG` | Catálogo inicial: `cejas` \| `unas` \| `peluqueria` \| `barberia` \| `depilacion` \| `masajes` \| `estetica` \| `maquillaje` | `unas` |
 | `VITE_DEFAULT_SERVICES` | Catálogo en JSON si no encaja en un preset | `[{"name":"Corte","price":45000,"duration":60}]` |
 
 > ⚠️ **`VITE_BIZ_NAME` es obligatoria en un cliente nuevo.** Es el único
