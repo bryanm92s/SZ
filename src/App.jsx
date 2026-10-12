@@ -3607,20 +3607,23 @@ function ReportTab({appts,expenses,services,setTab}) {
   const [year,  setYear]  = useState(today.slice(0, 4))   // modo «Año»
   const [from,  setFrom]  = useState(today)
   const [to,    setTo]    = useState(today)
-  // Rango siempre válido: Hasta nunca puede ser menor que Desde, y ninguna
-  // fecha puede ser futura. Se valida aquí (no solo con min/max) porque en
-  // iOS/Safari el selector de fecha no siempre respeta min/max.
+  // Rango siempre válido: Hasta nunca puede ser menor que Desde. Se
+  // valida aquí (no solo con min/max) porque en iOS/Safari el selector
+  // de fecha no siempre los respeta.
+  //
+  // A diferencia de «Por día» y «Por mes», el rango SÍ puede ir al
+  // futuro: el dueño agenda citas por adelantado y quiere revisarlas en
+  // el reporte (esas fechas simplemente salen vacías mientras no haya
+  // nada agendado). Ni el filtro ni el backend (_inPeriod en Code.gs)
+  // comparan contra hoy: solo hacen `desde <= fecha <= hasta`.
   const onFrom = v => {
     if (!v) return
-    const f = v > today ? today : v
-    setFrom(f)
-    if (to < f) setTo(f)   // si Desde pasa a Hasta, Hasta se ajusta
+    setFrom(v)
+    if (to < v) setTo(v)   // si Desde pasa a Hasta, Hasta se ajusta
   }
   const onTo = v => {
     if (!v) return
-    let t = v > today ? today : v
-    if (t < from) t = from // Hasta no puede ser anterior a Desde
-    setTo(t)
+    setTo(v < from ? from : v)   // Hasta no puede ser anterior a Desde
   }
   const [mvFilter, setMvFilter] = useState('all') // 'all'|'in'|'out'
   // Paginación de «Movimientos del período» (ver Pager). Se reinicia al
@@ -3870,8 +3873,8 @@ function ReportTab({appts,expenses,services,setTab}) {
             </select>
           </div>
         : <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
-            <div><label className="lbl">Desde</label><input type="date" className="inp" value={from} max={to < today ? to : today} onChange={e=>onFrom(e.target.value)}/></div>
-            <div><label className="lbl">Hasta</label><input type="date" className="inp" value={to} min={from} max={today} onChange={e=>onTo(e.target.value)}/></div>
+            <div><label className="lbl">Desde</label><input type="date" className="inp" value={from} max={to} onChange={e=>onFrom(e.target.value)}/></div>
+            <div><label className="lbl">Hasta</label><input type="date" className="inp" value={to} min={from} onChange={e=>onTo(e.target.value)}/></div>
           </div>
       }
 
