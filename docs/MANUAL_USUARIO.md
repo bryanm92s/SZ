@@ -307,6 +307,12 @@ regla, es correcto: la app te está diciendo por qué no puede.
 
 **Objetivo:** mantener el catálogo de servicios con su precio y duración.
 
+> 💡 **De dónde salen esos servicios:** al instalar, la app se puebla con
+> una lista inicial según el tipo de negocio — cejas y pestañas, uñas,
+> peluquería, barbería, depilación, masajes, estética o maquillaje.
+> Esa lista es solo el **punto de partida**: aquí puedes agregar,
+> editar y borrar todo lo que quieras.
+
 ### Crear un servicio
 
 1. Toca **✂️ Servicios**.

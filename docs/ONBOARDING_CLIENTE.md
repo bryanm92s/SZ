@@ -24,6 +24,69 @@ salen de variables de entorno y de propiedades de Apps Script.
 > puedes tener 10 clientes con el mismo código y ninguno ve la información
 > de otro.
 
+### 🤖 O deja que el script haga los pasos contigo
+
+`onboarding-cliente.ps1` recorre **esta misma guía** en modo asistido.
+**No vive dentro de ningún repo** (por eso no aparece en el árbol del
+README): está en la raíz del espacio de trabajo, junto a SZ y a los
+clientes:
+
+```text
+C:\Users\root\Desktop\PROYECTOS GITHUB\
+├── onboarding-cliente.ps1   ← el asistente (fuera de git)
+├── SZ\                       ← la plantilla: de aquí copia
+├── WXYZ\                     ← los clientes nacen al lado
+└── <siguiente cliente>\
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "C:\Users\root\Desktop\PROYECTOS GITHUB\onboarding-cliente.ps1"
+```
+
+La plantilla la detecta solo (busca `.\SZ` junto al script). Si algún día
+la mueves, se la dices: `-Fuente "C:\...\SZ"`. Y el destino por defecto
+es `...\PROYECTOS GITHUB\<nombre>`; puedes forzarlo con `-Destino`.
+
+**Lo que NO copia** (porque cada cliente es un mundo):
+
+- `.git`, `node_modules`, `dist`, `coverage`, `.zcode` ni los `.env`.
+- **`logo.png`** — el icono de SZ no es el del cliente. El script pregunta
+  en el paso 0 por la ruta del logo; si no la das, deja el repo sin él y
+  **quita del README la imagen rota** hasta que lo agregues.
+
+**Lo que renombra solo** — que la documentación del repo nuevo hable del
+repo nuevo: `README`, `SETUP` y los cuatro manuales pasan de «SZ» a
+`<NOMBRE>`, incluido el `git clone .../<NOMBRE>.git`. Con tres excepciones
+a propósito:
+
+- `«SZ»`, `` `SZ` `` y `'SZ'` **no se tocan**: son el valor por defecto del
+  código, que sigue siendo «SZ».
+- `SZ-ROLES` tampoco (es el nombre de una carpeta).
+- `ONBOARDING_CLIENTE.md` y `SESION_*.md` siguen hablando de la madre SZ:
+  son historial y la guía para crear *otros* clientes.
+
+| Tipo de paso | Quién | Qué pasa |
+|---|---|---|
+| **🤖 Automático** | El script | Copia la plantilla a la carpeta del cliente (sin `.git`, `node_modules`, `dist`, `.env` ni `logo.png`), renombra la marca en los docs, `git init` con historia propia, `package.json` → `name`, `.env`, tu `logo.png`, `CUSTOMIZACIONES.md`, remote `madre`, `npm install` + **317 pruebas** + build, y **genera un token nuevo** para `SB_SYNC_TOKEN` / `VITE_TOKEN` |
+| **🧑 Manual** | Tú | Google, GitHub y Vercel: el script **imprime el paso completo** (con las rutas y valores ya rellenados) y espera tu respuesta |
+| **✅ Verificación** | Tú | Los 9 chequeos de la fase D, uno por uno, con la causa probable si algo falla |
+
+**Las tres respuestas que necesitas saber:**
+
+- **S** → ya lo hice → seguimos con el siguiente paso.
+- **N** → aún no → te **repite las instrucciones** y vuelve a preguntar.
+- **X** → saltarlo por ahora → queda en la lista de *pendientes* del
+  resumen final.
+
+Además es **reanudable**: guarda el progreso en
+`%USERPROFILE%\.sz-onboarding\<cliente>.json` (incluye el token). Al
+relanzarlo con el mismo nombre te propone retomar desde donde ibas, y al
+final puedes borrar ese archivo.
+
+> ⚠️ El script **solo lee** de la carpeta de SZ: escribe únicamente en la
+> carpeta del cliente y en su carpeta de estado local. La copia usa
+> robocopy **sin `/MIR`**, así que nada se borra.
+
 ---
 
 ## 1. Resumen: 5 artefactos por cliente
@@ -65,10 +128,32 @@ requiere tocar el código.
 > `logo.png` en su repo. El favicon de la pestaña sí se pinta solo, con
 > `VITE_BIZ_EMOJI`.
 
-**Catálogo** (`src/catalogs.js`):
+**Catálogo — elige entre 8 categorías** (`src/catalogs.js`):
 
-- `VITE_CATALOG=unas` → usa el preset `unas`.
-- `VITE_DEFAULT_SERVICES='[…]'` → gana sobre `VITE_CATALOG`.
+| Categoría (`VITE_CATALOG`) | Tipo de negocio | Serv. |
+|---|---|:---:|
+| `cejas` ← *defecto* | Cejas y pestañas | 9 |
+| `unas` | Spa de uñas / nail bar | 11 |
+| `peluqueria` | Peluquería dama y caballero | 10 |
+| `barberia` | Barbería (corte masculino) | 10 |
+| `depilacion` | Depilación con cera | 10 |
+| `masajes` | Spa de masajes | 9 |
+| `estetica` | Estética facial | 9 |
+| `maquillaje` | Maquillaje profesional | 9 |
+
+**Paso a paso (Vercel → Environment Variables):**
+
+1. **Settings → Environment Variables** → `VITE_CATALOG` → valor: la
+   clave exacta, en **minúsculas y sin tildes** (p. ej. `barberia`).
+2. **Save** y luego **Deployments → ⋮ → Redeploy**: las `VITE_*` solo
+   se aplican al compilar.
+3. Abre la app **sin datos** (o haz un restablecimiento) y comprueba en
+   ✂️ Servicios que aparecen los servicios de esa categoría.
+
+Reglas que ya vienen resueltas:
+
+- `VITE_DEFAULT_SERVICES='[…]'` → gana sobre `VITE_CATALOG`; úsalo si el
+  negocio no encaja en ninguna de las 8.
 - JSON roto o clave desconocida → **cae al preset `cejas` y la app arranca
   igual** (decisión de diseño: una variable mal escrita nunca tumbe el
   despliegue).
@@ -456,7 +541,8 @@ git --no-pager log --oneline -1    # el sha de la plantilla
 1. *New Project* → importa el repo.
 2. *Environment Variables* → crear: `VITE_SCRIPT_URL` (URL del A.2.6),
    `VITE_TOKEN` (**idéntica** a `SB_SYNC_TOKEN`), `VITE_BIZ_NAME`,
-   `VITE_CATALOG`, `VITE_BIZ_EMOJI`, `VITE_BIZ_SUBTITLE`,
+   `VITE_CATALOG` (**una de las 8 categorías** de §2; si se omite, queda
+   `cejas`), `VITE_BIZ_EMOJI`, `VITE_BIZ_SUBTITLE`,
    `VITE_ADMIN_WHATSAPP` y — si hay logo — `VITE_BIZ_LOGO`.
 3. *Build Settings* lo deja Vercel: Vite, `npm run build`, salida `dist`.
 4. **Deploy**.

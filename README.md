@@ -312,6 +312,15 @@ Copia `.env.example` a `.env` (local) o configúralas en
 | `VITE_DEFAULT_SERVICES` | — | pública | Lista JSON con los servicios exactos del cliente. **Tiene prioridad** sobre `VITE_CATALOG` |
 | `VITE_ADMIN_WHATSAPP` | — | ⚠️ **personal** | Número de WhatsApp del admin, destino del botón «💬 WhatsApp admin». Sin número, el botón sale **deshabilitado** |
 
+> 🗂 **Categorías de catálogo:** `VITE_CATALOG` acepta **8 claves** y cada
+> una deja listos entre 9 y 11 servicios con precios y duraciones típicos
+> del negocio — `cejas` (defecto), `unas`, `peluqueria`, `barberia`,
+> `depilacion`, `masajes`, `estetica` y `maquillaje`. Solo puebla el
+> **primer arranque** (y un restablecimiento). Paso a paso y detalle por
+> categoría en [`docs/MANUAL_TECNICO.md`](docs/MANUAL_TECNICO.md) →
+> **C.1.1**; cómo llevarlo a un cliente nuevo, en
+> [`docs/ONBOARDING_CLIENTE.md`](docs/ONBOARDING_CLIENTE.md) → **§2**.
+
 > ⚠️ **Todas las variables `VITE_*` quedan embebidas en el JavaScript del
 > navegador** una vez compilado. Por eso **`VITE_TOKEN` no es un secreto
 > efectivo**: el auténtico vive en Apps Script (`SB_SYNC_TOKEN`). El número del

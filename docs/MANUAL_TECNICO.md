@@ -243,6 +243,52 @@ Todas se leen con `import.meta.env` y **quedan embebidas en el bundle JS**
 | **Sensibilidad** | Pública |
 | **Verificación** | JSON roto o vacío → la app arranca igual, con el preset. Ese es el diseño: **nunca** reventar por una variable mal escrita. |
 
+#### C.1.1 Categorías de catálogo: las 8 disponibles y paso a paso
+
+`VITE_CATALOG` acepta **8 claves exactas**. Cada una puebla la pantalla
+«✂️ Servicios» con los precios y duraciones típicos de ese tipo de negocio
+(siempre editables desde la app):
+
+| # | Clave (`VITE_CATALOG`) | Tipo de negocio | Serv. | Ejemplos de servicios |
+|---:|---|---|:---:|---|
+| 1 | `cejas` ← *defecto* | Cejas y pestañas | 9 | Micropigmentación (350.000 / 90 min), extensiones, lifting, laminado |
+| 2 | `unas` | Spa de uñas / nail bar | 11 | Esmaltado semipermanente, acrílicas, builder gel, nail art |
+| 3 | `peluqueria` | Peluquería dama y caballero | 10 | Corte, tinte, mechas, alisado, peinado de novia |
+| 4 | `barberia` | Barbería (corte masculino) | 10 | Corte, corte de barba, afeitado, marcación, camuflaje de canas |
+| 5 | `depilacion` | Depilación con cera | 10 | Axilas, brazos, piernas, ingles / bikini, brasileña |
+| 6 | `masajes` | Spa de masajes | 9 | Relajante, descontracturante, piedras calientes, drenaje linfático |
+| 7 | `estetica` | Estética facial | 9 | Higiene facial, peeling, microneedling, radiofrecuencia |
+| 8 | `maquillaje` | Maquillaje profesional | 9 | Social, novia, quinceañera, fantasia, cejas con henna |
+
+**Paso a paso para elegir (o cambiar) la categoría:**
+
+1. Abre **vercel.com** → tu proyecto → **Settings → Environment Variables**.
+2. Si `VITE_CATALOG` no existe, pulsa **Add**; si existe, **Edit**.
+3. Valor: **solo la clave**, en minúsculas y sin tildes (p. ej. `masajes`).
+   Marca el entorno **Production** (y **Preview** si lo usas).
+4. **Save**.
+5. Publica el cambio: **Deployments** → ⋮ del despliegue más reciente →
+   **Redeploy**. ⚠️ Las `VITE_*` se leen **al compilar**: sin rebuild,
+   no cambia nada.
+6. Verificación: abre la app **sin datos** (o ejecuta un restablecimiento)
+   y comprueba en ✂️ Servicios que aparecen los servicios correctos.
+
+> 📌 **Tres reglas que conviene tener claras**
+>
+> - **La clave es exacta.** `Masajes` o `  UNAS ` sí funcionan (se pasa a
+>   minúsculas y se recortan los espacios), pero `peluquería` con tilde
+>   **no**: cae al defecto `cejas` sin ningún aviso en pantalla.
+> - **Solo puebla el primer arranque** y el resultado de un
+>   **restablecimiento**. En cuanto hay datos, el catálogo real vive en
+>   Google Sheets y se edita desde ✂️ Servicios.
+> - **Si nada encaja** (estudio de tatuajes, lavandería, etc.) se usa
+>   `VITE_DEFAULT_SERVICES` con la lista JSON del negocio; esa tiene
+>   prioridad sobre `VITE_CATALOG`.
+>
+> El archivo fuente de estas 8 categorías es `src/catalogs.js`; el test
+> `src/catalogs.test.js` verifica que todas sean utilizables (nombre,
+> precio y duración válidos).
+
 | Campo | Contenido |
 |---|---|
 | **Nombre exacto** | `VITE_ADMIN_WHATSAPP` |

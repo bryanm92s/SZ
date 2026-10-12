@@ -714,8 +714,23 @@ explícitamente:
 
 ### 11.3 Catálogo por defecto
 
-`DEFAULT_SERVICES` (`App.jsx` 226) trae **9 servicios precargados** con precio y
-duración, para que la app no arranque vacía.
+`DEFAULT_SERVICES` (`App.jsx` 237) **no está escrito en el código**: se
+resuelve en tiempo de compilación con `resolveCatalog()` (`src/catalogs.js`),
+que aplica este orden:
+
+1. **`VITE_DEFAULT_SERVICES`** → JSON con los servicios exactos del cliente.
+   Tiene prioridad absoluta.
+2. **`VITE_CATALOG`** → una de las **8 categorías** disponibles:
+   `cejas` (9 servicios, la lista histórica), `unas` (11), `peluqueria` (10),
+   `barberia` (10), `depilacion` (10), `masajes` (9), `estetica` (9) y
+   `maquillaje` (9).
+3. Clave desconocida, JSON roto o nada → `DEFAULT_CATALOG_KEY = 'cejas'`.
+
+La resolución **nunca lanza**: una variable mal escrita no puede impedir el
+arranque. La lista resultante se usa en el **primer arranque**
+(`App.jsx` 325 y 334) y al **restablecer** (434, 439 y 449); en cuanto hay
+datos, el catálogo real es el de Google Sheets. Detalle y paso a paso en
+[`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) → **C.1.1**.
 
 ---
 
