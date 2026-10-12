@@ -2333,6 +2333,39 @@ describe('REPORTE: el correo del trigger = el WhatsApp del admin', () => {
     })
   })
 
+  it('el servicio borrado recupera su nombre IGUAL en el backend', () => {
+    // Paridad de la reconstrucción con anclas (_recoverSnapshotNames en
+    // Code.gs). Cubre también el caso del ancla que es prefijo de otra.
+    const CEJAS     = { id: 's1', name: 'Cejas' }
+    const CEJASFULL = { id: 's2', name: 'Cejas full' }
+    const COMA      = { id: 'sC', name: 'Diseño, depilación de pestañas' }
+    const g = runCodeGs(makeSpreadsheet({}))
+    const casos = [
+      // borrado el PRIMERO, y su nombre lleva coma
+      { a: { serviceIds: 'sC,s1',
+             serviceNames: 'Diseño, depilación de pestañas, Cejas' }, cat: [CEJAS] },
+      // borrado el ÚLTIMO, y su nombre lleva coma
+      { a: { serviceIds: 's1,sC',
+             serviceNames: 'Cejas, Diseño, depilación de pestañas' }, cat: [CEJAS] },
+      // borrado en MEDIO, entre dos anclas
+      { a: { serviceIds: 's1,sC,s2',
+             serviceNames: 'Cejas, Diseño, depilación de pestañas, Cejas full' },
+        cat: [CEJAS, CEJASFULL] },
+      // una ancla que es PREFIJO de otra
+      { a: { serviceIds: 's2,s1', serviceNames: 'Cejas full, Cejas' }, cat: [CEJAS] },
+      // sin ninguna ancla: se cae al respaldo posicional en los dos lados
+      { a: { serviceIds: 'sX,sY',
+             serviceNames: 'Cejas, Diseño, depilación de pestañas' }, cat: [] },
+      // todos siguen en catálogo: no se toca el snapshot
+      { a: { serviceIds: 'sC,s1',
+             serviceNames: 'Diseño, depilación de pestañas, Cejas' },
+        cat: [CEJAS, CEJASFULL, COMA] },
+    ]
+    casos.forEach(({ a, cat }) => {
+      expect(g.call('_apptServiceRefs', a, cat)).toEqual(apptServiceRefs(a, cat))
+    })
+  })
+
   it('el correo agrupa los gastos por categoría IGUAL que el WhatsApp', () => {
     // Mes cargado: 12 gastos en 4 categorías → los dos lados pasan a la
     // vista «por categoría» y tienen que calzar renglón por renglón.

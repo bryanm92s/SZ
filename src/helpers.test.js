@@ -715,6 +715,84 @@ describe('nombres con , - % — ninguno parte el servicio', () => {
 })
 
 /* ══════════════════════════════════════════════════════════════
+   SNAPSHOT CON ANCLAS — el servicio BORRADO recupera su nombre
+   ────────────────────────────────────────────────────────────
+   `serviceNames` guarda los nombres en el MISMO orden que
+   `serviceIds`, separados por «, ». Mientras todos sigan en el
+   catálogo el nombre sale de él y no hay ningún parseo. El problema
+   aparece cuando ALGUNO ya se borró y algún nombre lleva coma:
+   partir el snapshot daba trozos, las posiciones se desplazaban y
+   el servicio borrado se quedaba con un pedazo («Diseño» en vez de
+   «Diseño, depilación de pestañas»).
+
+   La solución son ANCLAS: los nombres que sí se conocen marcan por
+   dónde corta el texto, y el perdido ocupa desde el final del
+   anterior hasta el inicio del siguiente.
+   ══════════════════════════════════════════════════════════════ */
+describe('apptServiceRefs — el servicio borrado recupera su nombre completo', () => {
+  const CEJAS     = { id: 's1', name: 'Cejas' }
+  const CEJASFULL = { id: 's2', name: 'Cejas full' }
+  const COMA      = { id: 'sC', name: 'Diseño, depilación de pestañas' }
+
+  it('el borrado va el PRIMERO y su nombre lleva coma', () => {
+    const a = { serviceIds: 'sC,s1',
+                serviceNames: 'Diseño, depilación de pestañas, Cejas' }
+    expect(apptServiceRefs(a, [CEJAS])).toEqual([
+      { id: 'sC', name: 'Diseño, depilación de pestañas' },
+      { id: 's1', name: 'Cejas' },
+    ])
+  })
+
+  it('el borrado va el ÚLTIMO y su nombre lleva coma', () => {
+    const a = { serviceIds: 's1,sC',
+                serviceNames: 'Cejas, Diseño, depilación de pestañas' }
+    expect(apptServiceRefs(a, [CEJAS])).toEqual([
+      { id: 's1', name: 'Cejas' },
+      { id: 'sC', name: 'Diseño, depilación de pestañas' },
+    ])
+  })
+
+  it('el borrado va en MEDIO, entre dos anclas', () => {
+    const a = { serviceIds: 's1,sC,s2',
+                serviceNames: 'Cejas, Diseño, depilación de pestañas, Cejas full' }
+    expect(apptServiceRefs(a, [CEJAS, CEJASFULL])).toEqual([
+      { id: 's1', name: 'Cejas' },
+      { id: 'sC', name: 'Diseño, depilación de pestañas' },
+      { id: 's2', name: 'Cejas full' },
+    ])
+  })
+
+  it('una ancla que es PREFIJO de otra no engaña al recortar', () => {
+    // «Cejas» aparece DENTRO de «Cejas full». Buscando por simple subcadena
+    // el borrado se quedaba sin nombre; hay que cortar solo en límites.
+    const a = { serviceIds: 's2,s1', serviceNames: 'Cejas full, Cejas' }
+    expect(apptServiceRefs(a, [CEJAS])).toEqual([
+      { id: 's2', name: 'Cejas full' },
+      { id: 's1', name: 'Cejas' },
+    ])
+  })
+
+  it('todos siguen en catálogo: no se toca el snapshot para nada', () => {
+    const a = { serviceIds: 'sC,s1',
+                serviceNames: 'Diseño, depilación de pestañas, Cejas' }
+    expect(apptServiceRefs(a, [CEJAS, CEJASFULL, COMA])).toEqual([
+      { id: 'sC', name: 'Diseño, depilación de pestañas' },
+      { id: 's1', name: 'Cejas' },
+    ])
+  })
+
+  it('sin NINGUNA ancla no se inventa nada: se cae al respaldo posicional', () => {
+    // Ningún id resuelve, así que no hay por dónde cortar. Se conserva el
+    // comportamiento anterior y queda documentado su límite.
+    const a = { serviceIds: 'sX,sY', serviceNames: 'Cejas, Diseño, depilación de pestañas' }
+    expect(apptServiceRefs(a, [])).toEqual([
+      { id: 'sX', name: 'Cejas' },
+      { id: 'sY', name: 'Diseño' },
+    ])
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════
    ELIMINAR UN SERVICIO — el historial NO se pierde
    ────────────────────────────────────────────────────────────
    Escenario real del dueño: una promoción temporal («Extensiones

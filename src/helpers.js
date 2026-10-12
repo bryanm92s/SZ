@@ -286,6 +286,75 @@ export const apptServiceIds = a => {
 export const apptServiceNames = a =>
   String((a && a.serviceNames) || '').split(',').map(s => s.trim()).filter(Boolean)
 
+/* Separador con el que la app concatenaba los nombres al agendar
+   (selSvcs.map(s => s.name).join(', ')). Tiene que ser el MISMO aquí,
+   en App.jsx y en Code.gs. */
+const SNAP_SEP = ', '
+
+/**
+ * Recupera los nombres del snapshot cuando ALGÚN id ya no está en el
+ * catálogo, apoyándose en los nombres que sí se conocen.
+ *
+ * `serviceNames` es un CSV: los nombres van en el MISMO orden que los ids
+ * de `serviceIds`, separados por «, ». Eso basta… salvo cuando un nombre
+ * lleva coma: «Cejas, Diseño, depilación de pestañas» son DOS servicios,
+ * pero partirlo por la coma da TROZOS y las posiciones se desplazan, con
+ * lo que el servicio borrado se quedaba con «Diseño».
+ *
+ * Con al menos un nombre del catálogo como ANCLA se recorre el texto en
+ * orden: cada nombre perdido ocupa desde donde acaba el anterior conocido
+ * hasta donde empieza el siguiente. Si no hay ninguna ancla no hay manera
+ * de saber dónde corta cada uno, y se devuelve '' para caer al respaldo
+ * posicional (comportamiento anterior).
+ *
+ * @param {string} raw       serviceNames tal cual, sin partir
+ * @param {Array}  resolved  nombre del catálogo por id; '' si ya no existe
+ * @returns {Array}          un nombre por id, en el mismo orden
+ */
+const recoverSnapshotNames = (raw, resolved) => {
+  const txt = String(raw === null || raw === undefined ? '' : raw)
+  // Busca `name` solo donde puede empezar un nombre: al principio del
+  // texto o justo después de «, ». Sin esta restricción, si una ancla es
+  // PREFIJO de otra («Cejas» dentro de «Cejas full») la búsqueda por
+  // subcadena devolvía la posición equivocada y se comía el nombre.
+  const atBoundary = (name, from) => {
+    let i = Math.max(0, from)
+    while (i <= txt.length) {
+      const j = txt.indexOf(name, i)
+      if (j === -1) return -1
+      const before = j === 0 || txt.startsWith(SNAP_SEP, j - SNAP_SEP.length)
+      const after  = j + name.length === txt.length || txt.startsWith(SNAP_SEP, j + name.length)
+      if (before && after) return j
+      i = j + 1
+    }
+    return -1
+  }
+
+  const out = []
+  let pos = 0
+  for (let i = 0; i < resolved.length; i++) {
+    const known = resolved[i]
+    if (known) {
+      const idx = atBoundary(known, pos)
+      if (idx === -1) { out.push(''); continue }   // renombrado: sin ancla
+      out.push(known)
+      pos = idx + known.length + SNAP_SEP.length
+      continue
+    }
+    // Sin ancla a la izquierda: termina donde empieza el siguiente nombre
+    // conocido, o al final del texto.
+    let end = txt.length
+    for (let j = i + 1; j < resolved.length; j++) {
+      if (!resolved[j]) continue
+      const k = atBoundary(resolved[j], pos)
+      if (k !== -1) { end = Math.max(pos, k - SNAP_SEP.length); break }
+    }
+    out.push(txt.slice(pos, end).trim())
+    pos = end + SNAP_SEP.length
+  }
+  return out
+}
+
 /**
  * Servicios de una cita YA resueltos contra el catálogo: [{id, name}].
  *
@@ -314,10 +383,17 @@ export const apptServiceRefs = (a, services) => {
   }
 
   if (ids.length > 1) {
-    // Varios servicios: nombre del catálogo, nunca de partir el snapshot.
-    // Si alguno ya no existe, el snapshot de la MISMA posición (el CSV y
-    // el snapshot van en paralelo; es lo único que queda para no perderlo).
-    return ids.map((id, i) => ({ id: String(id), name: porId(id) || (snap[i] || '') }))
+    // Varios servicios: el nombre sale del catálogo, nunca de partir el
+    // snapshot. Para los que ya no existen se recupera el texto recorriéndolo
+    // con los nombres conocidos como ANCLA (recoverSnapshotNames), y no por
+    // la posición i: si un nombre lleva coma, las posiciones se desplazaban
+    // y el servicio borrado se quedaba con un trozo («Diseño» por «Diseño,
+    // depilación de pestañas»). Sin ninguna ancla se cae al respaldo
+    // posicional de antes, porque no hay información para reconstruir.
+    const raw   = String(a.serviceNames || '')
+    const known = ids.map(porId)           // '' = ya no está en el catálogo
+    const rec   = known.some(Boolean) ? recoverSnapshotNames(raw, known) : known
+    return ids.map((id, i) => ({ id: String(id), name: rec[i] || snap[i] || '' }))
       .filter(r => r.name)
   }
 

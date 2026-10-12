@@ -535,6 +535,67 @@ function _apptServiceNames(a) {
 function _toN(v) { var n = Number(String(v).replace(/[^0-9.-]/g, '')); return isNaN(n) ? 0 : n; }
 function _boolV(v) { return v === true || v === 'true'; }
 
+// Separador con el que el frontend concatenaba los nombres al agendar
+// (selSvcs.map(s => s.name).join(', ')). Debe ser el MISMO que SNAP_SEP
+// en helpers.js.
+var SNAP_SEP = ', ';
+
+/**
+ * Recupera los nombres del snapshot cuando ALGÚN id ya no está en el
+ * catálogo (réplica de recoverSnapshotNames en helpers.js).
+ *
+ * `serviceNames` es un CSV con los nombres en el MISMO orden que los ids
+ * de `serviceIds`, separados por «, ». Si un nombre lleva coma, partirlo
+ * desplaza las posiciones y el servicio borrado se quedaba con un trozo
+ * («Diseño» por «Diseño, depilación de pestañas»). Con al menos un nombre
+ * conocido como ANCLA se recorre el texto en orden; sin ninguna ancla no
+ * hay información para cortar, así que se devuelve '' y se cae al
+ * respaldo posicional de antes.
+ */
+function _recoverSnapshotNames(raw, resolved) {
+  var txt = String(raw === null || raw === undefined ? '' : raw);
+  // Busca `name` solo donde puede empezar un nombre: al principio del texto
+  // o justo después de «, ». Sin esto, si una ancla es PREFIJO de otra
+  // («Cejas» dentro de «Cejas full») la búsqueda por subcadena devolvía la
+  // posición equivocada y se comía el nombre.
+  function atBoundary(name, from) {
+    var i = Math.max(0, from);
+    while (i <= txt.length) {
+      var j = txt.indexOf(name, i);
+      if (j === -1) return -1;
+      var before = (j === 0) || txt.startsWith(SNAP_SEP, j - SNAP_SEP.length);
+      var after  = (j + name.length === txt.length) || txt.startsWith(SNAP_SEP, j + name.length);
+      if (before && after) return j;
+      i = j + 1;
+    }
+    return -1;
+  }
+
+  var out = [];
+  var pos = 0;
+  for (var i = 0; i < resolved.length; i++) {
+    var known = resolved[i];
+    if (known) {
+      var idx = atBoundary(known, pos);
+      if (idx === -1) { out.push(''); continue; }   // renombrado: sin ancla
+      out.push(known);
+      pos = idx + known.length + SNAP_SEP.length;
+      continue;
+    }
+    // Sin ancla a la izquierda: termina donde empieza el siguiente nombre
+    // conocido, o al final del texto.
+    var end = txt.length;
+    for (var j = i + 1; j < resolved.length; j++) {
+      if (!resolved[j]) continue;
+      var k = atBoundary(resolved[j], pos);
+      if (k !== -1) { end = Math.max(pos, k - SNAP_SEP.length); break; }
+    }
+    out.push(txt.slice(pos, end).trim());
+    pos = end + SNAP_SEP.length;
+  }
+  return out;
+}
+
 /**
  * Servicios de una cita YA resueltos contra el catálogo: [{id, name}]
  * (réplica de apptServiceRefs en helpers.js).
@@ -564,11 +625,17 @@ function _apptServiceRefs(a, services) {
   }
 
   if (ids.length > 1) {
-    // Varios servicios: nombre del catálogo, nunca de partir el snapshot.
-    // Si alguno ya no existe, el snapshot de la MISMA posición (el CSV y
-    // el snapshot van en paralelo; es lo único que queda para no perderlo).
+    // Varios servicios: el nombre sale del catálogo, nunca de partir el
+    // snapshot. Para los que ya no existen se recupera el texto con los
+    // nombres conocidos como ANCLA (_recoverSnapshotNames), y no por la
+    // posición i: si un nombre lleva coma, las posiciones se desplazaban
+    // y el servicio borrado se quedaba con un trozo. Sin ninguna ancla se
+    // cae al respaldo posicional de antes, por falta de información.
+    var rawSnap = String(a.serviceNames || '');
+    var known   = ids.map(porId);           // '' = ya no está en el catálogo
+    var rec     = known.some(Boolean) ? _recoverSnapshotNames(rawSnap, known) : known;
     return ids.map(function(id, i){
-      return { id: String(id), name: porId(id) || (snap[i] || '') };
+      return { id: String(id), name: rec[i] || snap[i] || '' };
     }).filter(function(r){ return r.name; });
   }
 
