@@ -64,10 +64,11 @@ una **restricción de diseño**, no un defecto.
 1. ~~**Destinatario del reporte por correo hardcodeado.**~~ ✅ **CORREGIDO.**
    `_sendReportEmail` y `sendWeeklyBackupEmail` usaban una dirección de correo
    escrita **dentro del código**. Ahora los tres puntos (reporte, respaldo
-   semanal y restablecimiento) leen `_authorizedEmail()`, que únicamente
-   consulta la propiedad de script `SB_AUTHORIZED_EMAIL`. **Ninguna dirección
-   de correo queda en el repositorio**, ni siquiera en los tests (usan un
-   valor sintético).
+   semanal y restablecimiento) leen propiedades de script: códigos y reportes
+   usan `_authorizedEmail()` → `SB_AUTHORIZED_EMAIL`, y el respaldo semanal
+   usa `_backupEmail()` → `SB_BACKUP_EMAIL` si existe, y si no,
+   `SB_AUTHORIZED_EMAIL`. **Ninguna dirección de correo queda en el
+   repositorio**, ni siquiera en los tests (usan un valor sintético).
    > ⚠️ **Exige acción al desplegar:** crea la propiedad
    > `SB_AUTHORIZED_EMAIL` en el editor de Apps Script **antes** de pegar el
    > `Code.gs` nuevo. Si falta, no se envía nada: el código de

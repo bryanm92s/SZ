@@ -309,8 +309,10 @@ Ninguna se escribe dentro del código (el repo es público).
 | Nombre exacto | Clave en el código | Uso | Obligatoria | Sensibilidad | Verificación |
 |---|---|---|---|---|---|
 | `SB_SYNC_TOKEN` | `TOKEN_PROP_KEY` (`Code.gs` 15) | Autentica GET y POST. **Si falta, no se autoriza nada** («fail closed») y el servidor responde «Token de sincronización no configurado: añade la propiedad SB_SYNC_TOKEN…» (`Code.gs` 244–245). | **Sí** | **Secreto** | Sin ella, cualquier petición es rechazada. Con ella y el token correcto, la app muestra «✓ Sincronizado». |
-| `SB_AUTHORIZED_EMAIL` | `PROP_KEY.email` (`Code.gs` ~164) | **ÚNICA** fuente del correo: código de restablecimiento, los 4 reportes automáticos y el respaldo semanal. | **Sí** — sin ella no se envía nada. | **Secreto / personal** | Con ella: el correo llega al indicado al pedir el código. Sin ella: no sale nada y el log de ejecución avisa (el reset responde igual para no revelar la configuración, pero no gasta el cupo de solicitudes). |
-| `SB_RESET_CODE` | `PROP_KEY.code` (`Code.gs` 165) | JSON `{hash, expiresAt, tries}` del código vigente. **La gestiona el propio sistema.** | Automática | Interna | No se toca a mano. |
+| `SB_AUTHORIZED_EMAIL` | `PROP_KEY.email` (`Code.gs` ~170) | **ÚNICA** fuente del correo de **seguridad**: código de restablecimiento y los 4 reportes automáticos. | **Sí** — sin ella no se envía nada de eso. | **Secreto / personal** | Con ella: el correo llega al indicado al pedir el código. Sin ella: no sale nada y el log de ejecución avisa (el reset responde igual para no revelar la configuración, pero no gasta el cupo de solicitudes). |
+| `SB_BACKUP_EMAIL` | `PROP_KEY.backupEmail` (`Code.gs` ~171) | Destinatario del **respaldo semanal** (el `.xlsx` del sábado). Para separar «a quién le llega la copia» de «quién recibe los códigos». | **No** — si falta, el respaldo va a `SB_AUTHORIZED_EMAIL`. | **Secreto / personal** | Con ella: el sábado el backup llega a esa dirección. Sin ella: llega a `SB_AUTHORIZED_EMAIL` (comportamiento original). |
+| `SB_BIZ_NAME` | `PROP_KEY.bizName` (`Code.gs` ~172) | Marca que firma los correos del script (asunto y texto). | **No** — si falta, firma «SZ». | Interna | Mira el asunto del correo: debe llevar el nombre del negocio. |
+| `SB_RESET_CODE` | `PROP_KEY.code` (`Code.gs` ~173) | JSON `{hash, expiresAt, tries}` del código vigente. **La gestiona el propio sistema.** | Automática | Interna | No se toca a mano. |
 | `SB_RESET_GRANTS` | `PROP_KEY.grants` (`Code.gs` 166) | JSON `{grantId: {hash, expiresAt, usedAt}}`. **La gestiona el propio sistema.** | Automática | Interna | No se toca a mano. |
 | `SB_RESET_LIMITS` | `PROP_KEY.limits` (`Code.gs` 167) | JSON `{sends:[ms], lockedUntil:ms}` de rate-limiting. **La gestiona el propio sistema.** | Automática | Interna | No se toca a mano. |
 
@@ -333,17 +335,17 @@ saberlo al instalar en otro negocio:
 
 > ✅ **El correo ya NO está escrito en el código.** Antes aparecía en tres
 > sitios (`_sendReportEmail`, `sendWeeklyBackupEmail` y como respaldo del
-> correo de restablecimiento); ahora los tres leen `_authorizedEmail()`,
-> que únicamente consulta la propiedad de script `SB_AUTHORIZED_EMAIL`.
-> Ni `Code.gs` ni el repositorio contienen ninguna dirección de correo.
+> correo de restablecimiento); ahora los tres lo leen de propiedades de
+> script: los códigos de recuperación y los reportes usan
+> `_authorizedEmail()` → `SB_AUTHORIZED_EMAIL`, y el respaldo semanal usa
+> `_backupEmail()` → `SB_BACKUP_EMAIL` si existe, y si no,
+> `SB_AUTHORIZED_EMAIL`. Ni `Code.gs` ni el repositorio contienen ninguna
+> dirección de correo.
 
-> 📌 **La dirección de correo no se reproduce aquí** por ser dato personal; ya
-> está escrita en el propio `Code.gs` (que es código fuente). Búscala en esas
-> tres líneas para reemplazarla por la del negocio que instales.
-
-> ⚠️ **Observación pendiente (no corregida por instrucción).** Para instalar SZ
-> en un negocio distinto hay que cambiar al menos las líneas **908** y **1540**
-> de `Code.gs`, o el sistema enviará reportes y respaldos a esa dirección.
+> 📌 **La dirección de correo no se reproduce aquí** por ser dato personal.
+> Vive en tu cuenta de Google, en **⚙️ Propiedades del proyecto →
+> Propiedades de script** de cada despliegue. Cambiarla no exige editar
+> `Code.gs` ni volver a desplegar.
 
 ### C.4 Constantes de negocio
 
@@ -462,7 +464,8 @@ En **⚙️ → Propiedades del proyecto → Propiedades de script**, agrega:
 | Clave | Valor |
 |---|---|
 | `SB_SYNC_TOKEN` | Un texto **único y largo** (p. ej. 32+ caracteres aleatorios). El mismo que usarás en `VITE_TOKEN`. |
-| `SB_AUTHORIZED_EMAIL` | **Obligatoria.** Tu correo. Sin ella no se envía el código de restablecimiento, ni los reportes automáticos, ni el respaldo semanal. |
+| `SB_AUTHORIZED_EMAIL` | **Obligatoria.** Tu correo. A él llegan el código de restablecimiento y los reportes automáticos. |
+| `SB_BACKUP_EMAIL` | **Opcional.** Otro correo si quieres que la copia semanal de la hoja vaya a otro sitio (una gestoría, el correo personal del dueño…). Si la dejas vacía, el respaldo va a `SB_AUTHORIZED_EMAIL`. |
 | `SB_BIZ_NAME` | Nombre del negocio **en los correos que envía el script** (asunto, cuerpo y tarjeta HTML del código de restablecimiento). No es secreto, pero vive aquí y no en el código: un cliente nuevo cambia de nombre sin editar `Code.gs`. Si falta → «SZ». |
 
 > 🔑 **Nunca** escribas el token dentro de `Code.gs`: el repositorio es público.
@@ -686,7 +689,7 @@ así:
 | Función | Frecuencia | Qué hace |
 |---|---|---|
 | `createDailyBackup` (`Code.gs` 884) | Diario, 23:00 | Copia la hoja a `BACKUP-PROYECTO/Backups/<nombre de la hoja>/` como `<nombre> — Backup yyyy-MM-dd`. **No duplica** si ya existe hoy. Elimina los mayores de **30 días**. |
-| `sendWeeklyBackupEmail` (`Code.gs` 986) | Sábados, 9:00 | Busca el respaldo más reciente, lo exporta a `.xlsx` y lo envía por correo. Destinatario desde `SB_AUTHORIZED_EMAIL`; si falta, se omite y queda aviso en el log. |
+| `sendWeeklyBackupEmail` (`Code.gs` 986) | Sábados, 9:00 | Busca el respaldo más reciente, lo exporta a `.xlsx` y lo envía por correo. Destinatario desde **`SB_BACKUP_EMAIL`** si existe y si no desde `SB_AUTHORIZED_EMAIL`; si faltan las dos, se omite y queda aviso en el log. |
 
 **Instalación (una sola vez):**
 

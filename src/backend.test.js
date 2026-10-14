@@ -175,9 +175,31 @@ function makeSpreadsheet(seed = {}) {
   })
   return {
     _sheets: sheets,
+    getName: () => 'BASE-PRUEBA',
     getSheetByName: (n) => Object.values(sheets).find(s => s.getName() === n) || null,
     getSheets: () => Object.values(sheets),
     insertSheet: (n) => { const s = makeSheet(n); sheets['extra_' + n] = s; return s },
+  }
+}
+
+/* ── Carpetas de Drive simuladas (solo para el backup semanal) ──
+   `sendWeeklyBackupEmail` busca BACKUP-PROYECTO / Backups / <nombre
+   del libro> y de ahí coge el archivo más reciente. Este helper
+   reproduce esa navegación con un árbol declarado en `store.drive`:
+       store.drive = { 'BACKUP-PROYECTO': { 'Backups': {
+           'BASE-PRUEBA': { __files__: [archivo] } } } }
+   Sin árbol, `hasNext()` es false y la función debe fallar con su
+   aviso en el log (eso también se prueba). */
+function makeDriveFolder(nombre, hijos) {
+  const archivos = (hijos && hijos.__files__) || []
+  let i = 0
+  return {
+    getName: () => nombre,
+    getFoldersByName: (n) => {
+      const h = hijos ? hijos[n] : null
+      return { hasNext: () => !!h, next: () => makeDriveFolder(n, h) }
+    },
+    getFiles: () => ({ hasNext: () => i < archivos.length, next: () => archivos[i++] }),
   }
 }
 
@@ -253,6 +275,9 @@ function makeStore() {
     calLookups: [], calDeleted: [], calCreated: [],
     // Libros temporales del Excel adjunto, descargas y papelera.
     books: [], fetched: [], trashed: [],
+    // Árbol de carpetas simulado para sendWeeklyBackupEmail (null = no
+    // hay carpeta de backups, que es el caso por defecto).
+    drive: null,
     failBook: false,   // simula que SpreadsheetApp.create() revienta
     fetchFails: 0,     // cuántas primeras descargas .xlsx responden != 200
     fetchHtmlFails: 0, // cuántas primeras descargas devuelven HTML con código 200
@@ -406,6 +431,12 @@ function runCodeGs(ss, store = makeStore()) {
         getId: () => id,
         setTrashed: (v) => { store.trashed.push({ id, trashed: !!v }); return {} },
       }),
+      // Solo lo usa sendWeeklyBackupEmail: el árbol de carpetas del
+      // backup vive en store.drive (ver makeDriveFolder).
+      getFoldersByName: (n) => {
+        const raiz = store.drive ? store.drive[n] : null
+        return { hasNext: () => !!raiz, next: () => makeDriveFolder(n, raiz) }
+      },
     },
     // Descarga del libro temporal como .xlsx (export de Drive). El export
     // de una hoja RECIÉN creada a veces tarda en estar listo y responde
@@ -2839,6 +2870,100 @@ describe('REPORTE: el correo lleva el Excel adjunto', () => {
     const g2 = env()
     const mail2 = enviar(g2, { type: 'day', day: D }, 'MENSUAL')
     expect(mail2.htmlBody).toContain('Reporte automático mensual')
+  })
+})
+
+
+/* ══════════════════════════════════════════════════════════════
+   BACKUP SEMANAL — A QUIÉN le llega
+   ────────────────────────────────────────────────────────────
+   El backup de la hoja puede ir a un correo DISTINTO del de
+   seguridad, porque el dueño suele querer la copia en su correo
+   personal o en el de una gestoría:
+     · `SB_BACKUP_EMAIL` manda para el backup si está configurada.
+     · Si no está, el backup va a `SB_AUTHORIZED_EMAIL` (como
+       siempre: nadie que no la configure pierde su backup).
+   Lo que NO se toca: los códigos de recuperación y los reportes
+   salen de `SB_AUTHORIZED_EMAIL` siempre.
+   ══════════════════════════════════════════════════════════════ */
+describe('BACKUP SEMANAL — destinatario (SB_BACKUP_EMAIL)', () => {
+  const BACKUP_EMAIL = 'copias@sz.test'
+  const LIBRO = 'BASE-PRUEBA'
+
+  // Árbol de Drive con un backup ya creado: es el que debe adjuntarse.
+  const sembrarBackup = (store) => {
+    store.drive = {
+      'BACKUP-PROYECTO': {
+        Backups: {
+          [LIBRO]: {
+            __files__: [{
+              getId: () => 'archivo-backup',
+              getName: () => 'backup_12-10-2026',
+              getDateCreated: () => new Date('2026-10-12T23:00:00'),
+            }],
+          },
+        },
+      },
+    }
+  }
+
+  const env = () => {
+    const store = makeStore()
+    sembrarBackup(store)
+    return { g: runCodeGs(makeSpreadsheet(), store), store }
+  }
+
+  it('sin SB_BACKUP_EMAIL el backup va a SB_AUTHORIZED_EMAIL (como hasta ahora)', () => {
+    const { g, store } = env()
+    g.call('sendWeeklyBackupEmail')
+    expect(store.mail.length).toBe(1)
+    expect(store.mail[0].to).toBe(AUTHORIZED_EMAIL)
+    expect(store.mail[0].attachments.length).toBe(1)
+  })
+
+  it('con SB_BACKUP_EMAIL el backup va a ese correo, no al de seguridad', () => {
+    const { g, store } = env()
+    store.props.set('SB_BACKUP_EMAIL', BACKUP_EMAIL)
+    g.call('sendWeeklyBackupEmail')
+    expect(store.mail.length).toBe(1)
+    expect(store.mail[0].to).toBe(BACKUP_EMAIL)
+    expect(store.mail[0].attachments.length).toBe(1)
+  })
+
+  it('_backupEmail(): propia → seguridad → vacío (nunca inventa destino)', () => {
+    const { g, store } = env()
+
+    // 1) sin la suya, cae en la de seguridad.
+    expect(g.call('_backupEmail')).toBe(AUTHORIZED_EMAIL)
+
+    // 2) con la suya, manda la suya (y se recortan los espacios).
+    store.props.set('SB_BACKUP_EMAIL', '  ' + BACKUP_EMAIL + '  ')
+    expect(g.call('_backupEmail')).toBe(BACKUP_EMAIL)
+
+    // 3) sin ninguna, devuelve vacío: el caller omite el envío.
+    store.props.delete('SB_BACKUP_EMAIL')
+    store.props.delete('SB_AUTHORIZED_EMAIL')
+    expect(g.call('_backupEmail')).toBe('')
+  })
+
+  it('sin ningún correo no se envía nada y el log pide SB_BACKUP_EMAIL', () => {
+    const { g, store } = env()
+    store.props.delete('SB_AUTHORIZED_EMAIL')
+    g.call('sendWeeklyBackupEmail')
+
+    expect(store.mail.length).toBe(0)
+    expect(JSON.stringify(store.logs)).toContain('SB_BACKUP_EMAIL')
+  })
+
+  it('el código de recuperación sigue yendo a SB_AUTHORIZED_EMAIL', () => {
+    const { g, store } = env()
+    store.props.set('SB_BACKUP_EMAIL', BACKUP_EMAIL)
+
+    // La copia del backup no se cuela en la seguridad.
+    expect(g.call('_authorizedEmail')).toBe(AUTHORIZED_EMAIL)
+    expect(post(g, { action: 'requestResetCode' }).ok).toBe(true)
+    expect(store.mail.length).toBe(1)
+    expect(store.mail[0].to).toBe(AUTHORIZED_EMAIL)
   })
 })
 

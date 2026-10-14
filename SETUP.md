@@ -35,8 +35,13 @@ Vercel (React App)  ←→  Google Apps Script  ←→  Google Sheets + Google C
    - **`SB_SYNC_TOKEN`** → un texto **único y largo** (también lo usarás en
      `VITE_TOKEN`).
    - **`SB_AUTHORIZED_EMAIL`** → tu correo.
-     > ⚠️ **Obligatoria.** Sin ella **no se envía nada**: ni el código de
-     > restablecimiento, ni los reportes automáticos, ni el respaldo semanal.
+     > ⚠️ **Obligatoria.** Sin ella **no se envía nada** de lo que depende
+     > de ella: ni el código de restablecimiento, ni los reportes
+     > automáticos, ni el respaldo semanal.
+   - **`SB_BACKUP_EMAIL`** → *opcional*: otro correo si quieres que la
+     **copia semanal de la hoja** vaya a un sitio distinto (una gestoría,
+     el correo personal…). Si la dejas sin crear, el respaldo va a
+     `SB_AUTHORIZED_EMAIL`.
    - **`SB_BIZ_NAME`** → el nombre del negocio **tal como debe aparecer en
      los correos** que envía el script (código de restablecimiento).
      Opcional: si falta, los correos firman con «SZ» (el nombre por

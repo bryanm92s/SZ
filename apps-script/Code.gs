@@ -150,20 +150,25 @@ function doPost(e) {
    `resetPriceHistory:true` o más de una colección definida.
 
    ── Configuración ──
-   El correo vive ÚNICAMENTE en la propiedad de script
-   `SB_AUTHORIZED_EMAIL` (Editor → Propiedades del proyecto). No hay
-   ningún correo escrito en este archivo ni en el repositorio, que es
-   público. No existe ninguna acción pública que lo modifique.
-
-   Si la propiedad falta, NO se envía nada: el código de
-   restablecimiento se descarta sin consumir intentos (ver
-   _requestResetCode) y el reporte/backups se omiten avisando en el
-   registro de ejecución. Cambiar el correo NO exige tocar código ni
-   el frontend.
+   El correo de SEGURIDAD (códigos de recuperación, reportes y avisos)
+   vive ÚNICAMENTE en la propiedad de script `SB_AUTHORIZED_EMAIL`
+   (Editor → Propiedades del proyecto). El destinatario del BACKUP
+   semanal tiene el suyo: `SB_BACKUP_EMAIL`, para que el dueño pueda
+   elegir a quién le llega la copia de la hoja sin tocar el correo de
+   seguridad. Si `SB_BACKUP_EMAIL` no está, el backup va a
+   `SB_AUTHORIZED_EMAIL` (así un despliegue que no la configure sigue
+   recibiendo el backup donde siempre). Ninguno de los dos correos
+   está escrito en este archivo ni en el repositorio, que es público.
+   No existe ninguna acción pública que los modifique. Si faltan,
+   NO se envía nada: el código de restablecimiento se descarta sin
+   consumir intentos (ver _requestResetCode) y el reporte/backups se
+   omiten avisando en el registro de ejecución. Cambiar cualquiera
+   NO exige tocar código ni el frontend.
 ══════════════════════════════════════════════════════════════ */
 
 const PROP_KEY = {
-  email:  'SB_AUTHORIZED_EMAIL', // ÚNICA fuente del correo autorizado
+  email:  'SB_AUTHORIZED_EMAIL', // ÚNICA fuente del correo de SEGURIDAD
+  backupEmail: 'SB_BACKUP_EMAIL',// destinatario del BACKUP (opcional)
   bizName:'SB_BIZ_NAME',          // marca que firma los correos del script
   code:   'SB_RESET_CODE',        // JSON {hash, expiresAt, tries}
   grants: 'SB_RESET_GRANTS',      // JSON {grantId: {hash, expiresAt, usedAt}}
@@ -186,6 +191,22 @@ function _props() {
 function _authorizedEmail() {
   try { return String(_props().getProperty(PROP_KEY.email) || '').trim(); }
   catch(_) { return ''; }
+}
+
+/* ── Destinatario del backup semanal ──
+   El backup de la hoja puede ir a un correo DISTINTO del de seguridad:
+   el dueño del negocio suele querer la copia en su correo personal o
+   en el de una gestoría, mientras que los códigos de recuperación y
+   los reportes se quedan en SB_AUTHORIZED_EMAIL.
+   Regla: si SB_BACKUP_EMAIL está configurada, esa manda para el
+   backup; si no, se usa SB_AUTHORIZED_EMAIL. Nunca se inventa un
+   destino: si faltan las dos, vuelve '' y el caller omite el envío
+   dejándolo en el log. */
+function _backupEmail() {
+  try {
+    const propio = String(_props().getProperty(PROP_KEY.backupEmail) || '').trim();
+    return propio || _authorizedEmail();
+  } catch(_) { return ''; }
 }
 
 /* ── Marca del negocio ──
@@ -1009,11 +1030,12 @@ function sendWeeklyBackupEmail() {
   try {
     const ss         = SpreadsheetApp.getActiveSpreadsheet();
     const ssName     = ss.getName();
-    // Destinatario desde SB_AUTHORIZED_EMAIL. El catch de esta función
-    // lo deja registrado en el log de ejecución sin tumbar el trigger.
-    const recipient  = _authorizedEmail();
+    // Destinatario: SB_BACKUP_EMAIL si está, si no SB_AUTHORIZED_EMAIL.
+    // El catch de esta función lo deja registrado en el log de ejecución
+    // sin tumbar el trigger.
+    const recipient  = _backupEmail();
     if (!recipient) throw new Error(
-      'Falta la propiedad SB_AUTHORIZED_EMAIL: no hay destinatario para el backup.');
+      'Falta SB_BACKUP_EMAIL (o SB_AUTHORIZED_EMAIL): no hay destinatario para el backup.');
 
     // ── Localizar la carpeta de backups ──────────────────────
     const proyectosIt = DriveApp.getFoldersByName('BACKUP-PROYECTO');

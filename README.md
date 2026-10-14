@@ -460,9 +460,11 @@ Confirmadas en el código, no corregidas:
   a mano.
 - **El correo del destinatario vive solo en Script Properties.** Ni el
   reporte, ni el respaldo semanal, ni el código de restablecimiento tienen
-  una dirección escrita en el código: los tres leen `SB_AUTHORIZED_EMAIL`.
-  **Si falta esa propiedad no se envía nada** (el reset no gasta su cupo de
-  solicitudes y los reportes/backups se omiten avisando en el log).
+  una dirección escrita en el código: códigos y reportes leen
+  `SB_AUTHORIZED_EMAIL`, y el respaldo semanal lee `SB_BACKUP_EMAIL` si
+  existe (para que pueda ir a otro correo) y si no, la misma.
+  **Si faltan esas propiedades no se envía nada** (el reset no gasta su cupo
+  de solicitudes y los reportes/backups se omiten avisando en el log).
 - **El restablecimiento borra todo** (clientes, citas, gastos y eventos de
   Calendar) y **no se puede deshacer**.
 - **`writeSheet` reescribe la hoja completa** en cada guardado: cualquier fila

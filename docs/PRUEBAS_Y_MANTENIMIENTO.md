@@ -463,7 +463,7 @@ Editor → **Registros de ejecución** → busca `ERROR`, `❌`, `not_applied`.
 | Qué | Cómo | Frecuencia | Dónde |
 |---|---|---|---|
 | Hoja completa | `createDailyBackup` (`Code.gs` 884) | Diaria, 23:00 | Drive: `BACKUP-PROYECTO/Backups/<hoja>/` |
-| Último respaldo | `sendWeeklyBackupEmail` (`Code.gs` 986) | Sábados, 9:00 | Correo (destinatario desde `SB_AUTHORIZED_EMAIL`) |
+| Último respaldo | `sendWeeklyBackupEmail` (`Code.gs` 986) | Sábados, 9:00 | Correo (destinatario desde `SB_BACKUP_EMAIL`, o `SB_AUTHORIZED_EMAIL` si no existe) |
 
 - **Retención:** 30 días (se eliminan los mayores).
 - **No duplica** si ya existe un respaldo de hoy.

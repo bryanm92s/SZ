@@ -94,7 +94,7 @@ final puedes borrar ese archivo.
 | # | Artefacto | Dónde se crea | Qué lo hace único |
 |---|---|---|---|
 | 1 | **Google Spreadsheet** | `sheets.google.com` con la cuenta del cliente | Su base de datos |
-| 2 | **Apps Script (Web App)** | `script.google.com` o *Extensiones → Apps Script* desde la hoja | `SB_SYNC_TOKEN` (nueva), `SB_AUTHORIZED_EMAIL`, `SB_BIZ_NAME` |
+| 2 | **Apps Script (Web App)** | `script.google.com` o *Extensiones → Apps Script* desde la hoja | `SB_SYNC_TOKEN` (nueva), `SB_AUTHORIZED_EMAIL`, `SB_BIZ_NAME`, `SB_BACKUP_EMAIL` (opcional) |
 | 3 | **Repo en GitHub** | `github.com` (tu misma cuenta, un repo por cliente) | Código + `package.json` `name` |
 | 4 | **Proyecto en Vercel** | `vercel.com` | `VITE_SCRIPT_URL`, `VITE_TOKEN`, `VITE_BIZ_*`, `VITE_CATALOG`, `VITE_ADMIN_WHATSAPP` |
 | 5 | **Triggers de Apps Script** | Editor → ⏰ | Reportes diario/semanal/mensual/anual y respaldos |
@@ -194,7 +194,8 @@ cliente:
    | Propiedad | Valor | Nota |
    |---|---|---|
    | `SB_SYNC_TOKEN` | Token **nuevo**, largo y aleatorio | **Nunca** reutilices el de otro cliente; debe coincidir con `VITE_TOKEN` |
-   | `SB_AUTHORIZED_EMAIL` | Correo **del cliente** | Obligatoria: a él llegan reportes, respaldos y códigos |
+   | `SB_AUTHORIZED_EMAIL` | Correo **del cliente** | Obligatoria: a él llegan los códigos de recuperación y los reportes |
+   | `SB_BACKUP_EMAIL` | Otro correo (opcional) | Si el cliente quiere la **copia semanal de la hoja** en otro sitio (gestoría, correo personal…). Vacío → el respaldo va a `SB_AUTHORIZED_EMAIL` |
    | `SB_BIZ_NAME` | Nombre del negocio | Es el que firma los correos. Si falta → «SZ» |
 
 5. **Desplegar como Web App** (*Implementar → Nueva implementación*):
@@ -394,8 +395,9 @@ fase D.
    de cliente los rompe, el cambio estaba mal hecho.
 3. **El token del cliente en el código.** Vive en `SB_SYNC_TOKEN`
    (servidor) y `VITE_TOKEN` (Vercel). El repo es público.
-4. **`SB_AUTHORIZED_EMAIL` con el correo de otro cliente.** Los reportes y
-   los respaldos de uno no pueden llegar a la bandeja de otro.
+4. **`SB_AUTHORIZED_EMAIL` (o `SB_BACKUP_EMAIL`) con el correo de otro
+   cliente.** Los reportes, los códigos y los respaldos de uno no pueden
+   llegar a la bandeja de otro.
 5. **No pegues un `Code.gs` de otro cliente encima.** Usa el del repo
    (es único y no lleva datos); solo cambian las propiedades.
 6. **No arrastres personalizaciones de un cliente a otro.** Si a SZ le
@@ -459,7 +461,7 @@ problemas) y [`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) sección F.
 [ ] Cuenta de Google del cliente (decidida y con acceso de soporte)
 [ ] Spreadsheet creado + Apps Script vinculado + manifiesto pegado
 [ ] Code.gs pegado y desplegado como Web App (URL …/exec copiada)
-[ ] Propiedades: SB_SYNC_TOKEN (nueva) · SB_AUTHORIZED_EMAIL · SB_BIZ_NAME
+[ ] Propiedades: SB_SYNC_TOKEN (nueva) · SB_AUTHORIZED_EMAIL · SB_BIZ_NAME · SB_BACKUP_EMAIL (opcional)
 [ ] Triggers: reportes + backup diario + correo semanal
 [ ] Repo nuevo en GitHub (historia propia, `madre` como remote de solo lectura)
 [ ] `package.json` → "name" + `CUSTOMIZACIONES.md` creado
@@ -528,7 +530,8 @@ git --no-pager log --oneline -1    # el sha de la plantilla
 5. ⚙️ → Propiedades del proyecto → **Propiedades de script** — *antes* de
    implementar:
    | `SB_SYNC_TOKEN` | token nuevo: `(New-Guid).ToString('N') + (New-Guid).ToString('N')` |
-   | `SB_AUTHORIZED_EMAIL` | correo del dueño |
+   | `SB_AUTHORIZED_EMAIL` | correo del dueño (códigos y reportes) |
+   | `SB_BACKUP_EMAIL` | otro correo si la copia semanal va a otro sitio (opcional) |
    | `SB_BIZ_NAME` | nombre del negocio (firma los correos) |
 6. **Implementar → Nueva implementación → Aplicación web** →
    *Ejecutar como:* **Yo** · *Quién tiene acceso:* **Cualquier usuario** →
