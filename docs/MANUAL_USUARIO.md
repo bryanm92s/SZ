@@ -103,7 +103,9 @@ En la parte inferior hay 7 botones:
 
 **El Panel muestra:**
 
-- **Citas de Hoy** — la lista de las citas de hoy con su hora y estado.
+- **Citas de Hoy** — la lista de las citas de hoy con su hora, clienta,
+  servicios y precio. Las completadas muestran una etiqueta verde **✓** y las
+  marcadas como no asistió una etiqueta roja **✗ No asistió**.
 - **Citas por recordar** — citas de mañana (u hoy) a las que aún no les has
   mandado recordatorio, con un botón para mandarlo.
 - **Accesos rápidos** — «+ Nueva cita», «Ver calendario», «Finanzas».
@@ -113,7 +115,8 @@ En la parte inferior hay 7 botones:
 
 1. Toca **🏠 Panel**.
 2. Revisa la tarjeta **Citas de Hoy**.
-3. Toca una cita para ver su detalle.
+3. En cada cita, toca **👁 Detalle** para ver todo o **📅 Ir a cita** para
+   saltar a la pestaña Citas.
 
 **Si algo falla:** si el Panel aparece vacío aunque tengas citas, pulsa el
 botón **↻** de la barra superior para recargar.

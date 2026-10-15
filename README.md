@@ -414,7 +414,7 @@ npm run build         # build de producción
 
 | Pestaña | Para qué sirve |
 |---|---|
-| **Panel** | Resumen del día: citas de hoy, citas por recordar, balance neto, accesos. |
+| **Panel** | Resumen del día: citas de hoy (con ✓ completada o ✗ No asistió), citas por recordar, balance neto, accesos. |
 | **Citas** | Crear/editar/eliminar citas, marcar completada o no asistió, enviar WhatsApp. |
 | **Clientes** | Buscar y administrar clientes; ver historial individual. |
 | **Servicios** | Catálogo, precios y duración; el historial de precios se guarda automáticamente. |

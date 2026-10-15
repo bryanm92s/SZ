@@ -196,7 +196,7 @@ App → saveData(payload) → call(URL, {method:'POST', body:{token, ...payload}
 | `Pager` | 753 | Paginación plana **‹ Ant. / Sig. ›** |
 | `CirclePager` | 790 | Paginación anidada con el **número en un círculo** |
 | `GS` | 829 | **Bloque `<style>` global** (tema, modo oscuro, responsive) |
-| `Dashboard` | 1445 | Panel principal |
+| `Dashboard` | 1445 | Panel principal; «Citas de Hoy» muestra ✓ (completada) o píldora «✗ No asistió» (`apptStatus`) |
 | `MonthlyIncomeState` | 1670 | Estado de ingresos por mes |
 | `MonthlyBalance` | 1728 | Balance mensual |
 | `ApptsTab` | 1804 | Lista de citas en acordeones |
