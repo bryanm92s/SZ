@@ -766,8 +766,8 @@ function Modal({msg, onOk, onCancel, okLabel='Eliminar', cancelLabel='Cancelar'}
   )
 }
 
-// Iconos por método de pago (PayModal, tarjeta de cita y etiquetas).
-const PAY_EMOJI = {Efectivo:'💵', Transferencia:'🏦'}
+// Iconos por método de pago (PayModal, tarjeta de cita y etiquetas). Efectivo va sin icono.
+const PAY_EMOJI = {Efectivo:'', Transferencia:'🏦'}
 const PAY_LOGOS = {
   Nequi:'/img/pagos/nequi.png',
   Daviplata:'/img/pagos/daviplata.png',
@@ -777,7 +777,8 @@ const PAY_LOGOS = {
 function PayIcon({m, h=18}) {
   const logo = PAY_LOGOS[m]
   if (logo) return <img src={logo} alt="" style={{height:h, width:'auto', objectFit:'contain', verticalAlign:'middle', marginRight:6}}/>
-  return <span style={{fontSize:h, lineHeight:1, verticalAlign:'middle', marginRight:2}}>{PAY_EMOJI[m]||'💳'}</span>
+  const e = PAY_EMOJI[m] ?? '💳'
+  return e ? <span style={{fontSize:h, lineHeight:1, verticalAlign:'middle', marginRight:2}}>{e}</span> : null
 }
 
 // Pregunta cómo se pagó el servicio al marcar una cita como completada.
