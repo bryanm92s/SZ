@@ -92,8 +92,9 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
   o en curso. La regla la valida **también el backend**, no solo el botón.
 
 ### 💰 Finanzas
-- **Balance neto** (ingresos recibidos − gastos) general y por mes; en la vista
-  **General** del Panel suma el **saldo inicial** del negocio.
+- **Balance neto** (ingresos recibidos − gastos) general y por mes. En el
+  Panel (vista **General**), el saldo inicial **no se mezcla**: va aparte, a
+  la derecha en letra chica («Con saldo inicial …»).
 - **Recibido · Pendiente · Proyectado** (lo cobrado vs. lo que falta por cobrar).
 - Gastos por **categoría** (Insumos, Arriendo, Publicidad…) con colores
   personalizables.
@@ -124,14 +125,16 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 - Toca un día para ver/abrir sus citas.
 
 ### ⚙️ Ajustes
-- **6 paletas de color** (Rosa · Morado · Azul · Verde · Dorado · Fucsia) +
-  **modo claro/oscuro**, guardados en el navegador.
-- **Saldo inicial** del negocio (guardado en el navegador): se suma al Balance
-  Neto del Panel en la vista General.
+- **9 paletas de color** (Rosa · Morado · Azul · Verde · Dorado · Fucsia ·
+  Coral · Salvia · Carbón) + **modo claro/oscuro**, guardados en el navegador.
+- **Saldo inicial** del negocio: guardado en **Google Sheets** (hoja «Config»)
+  y sincronizado entre navegador y celulares (también se puede editar la celda
+  directo en la hoja). El Panel lo muestra **aparte, a la derecha** del Balance
+  Neto en la vista General, nunca mezclado.
 - **Restablecimiento del sistema** protegido por **código enviado al correo**
   del propietario (un solo uso, con vencimiento y límite de intentos), con
-  botón **📥 Descargar Excel de respaldo** (clientes, citas y gastos) antes de
-  confirmar.
+  botón **📥 Descargar Excel de respaldo** (informe Resumen · Movimientos ·
+  Citas de todo el histórico + hoja Clientes) antes de confirmar.
 
 ### 🔔 Extras de experiencia
 - **Recordatorios por WhatsApp con 1 clic** (mensaje pre-escrito con emoji,
@@ -161,7 +164,7 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 | Tests | **Vitest** + **jsdom** | 1.6 |
 | Lint / formato | **ESLint** + **Prettier** | ESLint 8.57 · Prettier 3.3 |
 | Backend | **Google Apps Script** (`apps-script/Code.gs`), runtime V8 | — |
-| Base de datos | **Google Sheets** (5 hojas: Clientes, Servicios, Citas, Gastos, HistorialPrecios) | — |
+| Base de datos | **Google Sheets** (6 hojas: Clientes, Servicios, Citas, Gastos, HistorialPrecios, Config) | — |
 | Agenda | **Google Calendar** (vía Apps Script) | — |
 | Correo | **GmailApp** (reportes automáticos, respaldos y códigos de recuperación) | — |
 | Hosting | **Vercel** (frontend estático) | — |
@@ -188,7 +191,7 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
                                               ▼                            ▼                      ▼
                                        ┌──────────────┐         ┌─────────────────┐    ┌───────────────────┐
                                        │ Google Sheets│         │ Google Calendar │    │ GmailApp          │
-                                       │ (5 hojas/BD) │         │ (eventos cita)  │    │ (reportes+respaldo│
+                                       │ (6 hojas/BD) │         │ (eventos cita)  │    │ (reportes+respaldo│
                                        └──────────────┘         └─────────────────┘    │  +código de reset)│
                                                                                       └───────────────────┘
 ```
@@ -478,10 +481,11 @@ Confirmadas en el código, no corregidas:
   existe (para que pueda ir a otro correo) y si no, la misma.
   **Si faltan esas propiedades no se envía nada** (el reset no gasta su cupo
   de solicitudes y los reportes/backups se omiten avisando en el log).
-- **El restablecimiento borra todo** (clientes, citas, gastos y eventos de
-  Calendar) y **no se puede deshacer**. Mitigación: la pantalla de reset ofrece
-  **📥 descargar un Excel de respaldo** (clientes, citas y gastos) antes de
-  confirmar.
+- **El restablecimiento borra todo** (clientes, citas, gastos, el saldo
+  inicial —hoja «Config»— y los eventos de Calendar) y **no se puede
+  deshacer**. Mitigación: la pantalla de reset ofrece **📥 descargar un Excel
+  de respaldo** (informe Resumen · Movimientos · Citas de todo el histórico +
+  hoja Clientes) antes de confirmar.
 - **`writeSheet` reescribe la hoja completa** en cada guardado: cualquier fila
   que alguien haya escrito a mano **fuera de las columnas esperadas se pierde**.
 

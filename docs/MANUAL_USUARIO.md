@@ -111,9 +111,11 @@ En la parte inferior hay 7 botones:
 - **Citas por recordar** — citas de mañana (u hoy) a las que aún no les has
   mandado recordatorio, con un botón para mandarlo.
 - **Accesos rápidos** — «+ Nueva cita», «Ver calendario», «Finanzas».
-- **Balances** — ingresos del día y del mes, y gastos. El **Balance Neto** de
-  la vista **General** suma tu **saldo inicial** (el dinero con el que abriste
-  el negocio, que se registra en Ajustes).
+- **Balances** — ingresos del día y del mes, y gastos. En la vista **General**,
+  el número grande del **Balance Neto** es solo **Recibido − Gastos** (igual
+  que en Finanzas). Si registraste un **saldo inicial**, a la derecha y en
+  letra chica aparece **«+ Saldo inicial … / Con saldo inicial …»** aparte,
+  nunca mezclado en el total principal.
 
 **Pasos:**
 
@@ -320,7 +322,9 @@ regla, es correcto: la app te está diciendo por qué no puede.
 
 > ⚠️ **No edites las hojas de Google Sheets a mano.** La app guarda la lista
 > completa cada vez; si cambias algo directo en la hoja, se pierde en el
-> siguiente guardado.
+> siguiente guardado. **Única excepción: la hoja «Config»** (clave/valor), que
+> sí puedes editar a mano — por ejemplo la celda `opening_balance` del saldo
+> inicial.
 
 ---
 
@@ -478,19 +482,26 @@ administrador**.
 | **Gastos** | Lo que gastaste en el período |
 | **Balance neto** | Ingresos recibidos **−** gastos |
 
-> 💰 El **Balance Neto** del **Panel** (vista **General**) suma además tu
-> **saldo inicial**: el dinero con el que abriste el negocio, que puedes
-> registrar o corregir en **⚙️ Ajustes → 💰 Saldo inicial**. No cambia el
-> ingreso del mes; solo ensancha el balance general. Puede ser `$0` y nunca
-> puede quedar en negativo.
+> 💰 El **Balance Neto** del **Panel** **no se mezcla** con tu **saldo
+> inicial** (el dinero con el que abriste el negocio, que puedes registrar o
+> corregir en **⚙️ Ajustes → 💰 Saldo inicial**): el total principal siempre
+> es **Recibido − Gastos**, y el saldo inicial se ve **aparte, a la derecha y
+> en letra chica** («Con saldo inicial …») solo en la vista **General**.
+> Se guarda en **Google Sheets** (hoja «Config»): al cambiarlo en
+> **⚙️ Ajustes → 💰 Saldo inicial** aparece un aviso verde **«Saldo inicial
+> guardado y sincronizado»** (se cierra solo) y el valor se actualiza en
+> **todos tus dispositivos**; también puedes editar la celda directo en la
+> hoja (el Panel la refresca solo, en ~30 segundos).
+> Puede ser `$0` y nunca puede quedar en negativo. Al **restablecer el
+> sistema** el saldo inicial se borra y vuelve a `$0`.
 
 ### ¿Cómo se calculan?
 
 - **Ingresos** = citas **Completadas** con su monto.
   - Las **no asistidas NO suman** (solo se cuentan como número).
 - **Gastos** = lo que registres en **«+ Gasto»**.
-- **Balance neto** = ingresos recibidos − gastos (y, en el Panel General,
-  **+ saldo inicial**).
+- **Balance neto** = ingresos recibidos − gastos (el saldo inicial **no se
+  suma aquí**: en el Panel se muestra aparte, a la derecha del total).
 
 ### Registrar un gasto
 
@@ -652,20 +663,22 @@ correo **igual llega**, pero sin adjunto y con un aviso en el cuerpo.
 
 ## 17. Restablecer el sistema ⚠️
 
-> 🚨 **ATENCIÓN: esto BORRA TODO** — clientas, citas, gastos y **todos los
-> eventos de Google Calendar**. **NO SE PUEDE DESHACER.** Hazlo solo si de
-> verdad quieres empezar de cero.
+> 🚨 **ATENCIÓN: esto BORRA TODO** — clientas, citas, gastos, tu **saldo
+> inicial** y **todos los eventos de Google Calendar**. **NO SE PUEDE
+> DESHACER.** Hazlo solo si de verdad quieres empezar de cero.
 
 **Qué NO borra:** tus servicios y tu catálogo (se conservan), y la hoja en
-sí.
+sí (cada hoja queda con sus encabezados; la hoja «Config» se vacía, por eso
+el saldo inicial vuelve a `$0`).
 
 ### Pasos
 
 1. Ve a **⚙️ Ajustes**.
 2. Busca **Restablecer el sistema**.
 3. En la pantalla de advertencia verás un botón
-   **«📥 Descargar Excel de respaldo»**: un Excel con tus **clientes, citas y
-   gastos** actuales. **Aprovéchalo**: es tu red de seguridad antes de borrar.
+   **«📥 Descargar Excel de respaldo»**: un Excel con tu **informe completo
+   de todo el histórico** (Resumen, Movimientos y Citas) más tus **clientes
+   y teléfonos**. **Aprovéchalo**: es tu red de seguridad antes de borrar.
 4. Téclea la **palabra de confirmación** que pide la pantalla.
 5. Toca **«Enviar código»**. SZ mandará un **código de 8 caracteres** a
    **tu correo** (el de la dueña).
@@ -693,9 +706,10 @@ sí.
 | «No se pudo comprobar… revisa la hoja» | El servidor no respondió pero pudo haberse ejecutado. **Revisa Google Sheets** para saber si se borró o no. |
 
 > 💡 **Recomendación:** la propia pantalla de reset ya trae el botón
-> **«📥 Descargar Excel de respaldo»** (clientes, citas y gastos). Úsalo antes
-> de confirmar. Si quieres un respaldo extra, también puedes descargar la hoja
-> completa desde Google Sheets (Archivo → Descargar → Excel).
+> **«📥 Descargar Excel de respaldo»** (informe completo de todo el histórico
+> + clientes). Úsalo antes de confirmar. Si quieres un respaldo extra, también
+> puedes descargar la hoja completa desde Google Sheets (Archivo → Descargar →
+> Excel).
 
 ---
 
@@ -768,7 +782,8 @@ restauración está en [`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) sección G.7.
 ## 19. Buenas prácticas para no perder información
 
 1. **No edites las hojas de Google Sheets a mano.** La app reescribe la hoja
-   completa en cada guardado: lo que cambies a mano **se pierde**.
+   completa en cada guardado: lo que cambies a mano **se pierde**. (Única
+   excepción: la hoja «Config», que sí puedes editar a mano.)
 2. **Marca el estado de las citas** el mismo día (Completada / No asistió).
 3. **No cierres la app** justo mientras dice «⟳ Sincronizando».
 4. **Mira el indicador verde «✓ Sincronizado»** antes de cerrar la pestaña.

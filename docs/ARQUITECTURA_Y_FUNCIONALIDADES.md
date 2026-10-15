@@ -41,8 +41,8 @@ aplica.
 ```mermaid
 flowchart TD
     subgraph Cliente["Navegador (celular o PC)"]
-        UI["src/App.jsx — UI React (~5.120 líneas)"]
-        HLP["src/helpers.js — lógica pura (~857 líneas)"]
+        UI["src/App.jsx — UI React (~5.370 líneas)"]
+        HLP["src/helpers.js — lógica pura (~909 líneas)"]
         API["src/api.js — transporte HTTP"]
         LS[("localStorage<br/>sb_c · sb_s · sb_a · sb_e<br/>sz_palette · sz_hcats · sz_opening_balance")]
         UI --> HLP
@@ -51,8 +51,8 @@ flowchart TD
     end
 
     subgraph Google["Cuenta de Google"]
-        GAS["apps-script/Code.gs<br/>Web App (~2.072 líneas)"]
-        SH[("Google Sheets — 5 hojas")]
+        GAS["apps-script/Code.gs<br/>Web App (~2.235 líneas)"]
+        SH[("Google Sheets — 6 hojas")]
         CAL["Google Calendar"]
         GMAIL["GmailApp<br/>reportes · respaldos · códigos"]
         DRV["Google Drive<br/>BACKUP-PROYECTO/Backups"]
@@ -226,8 +226,10 @@ App → saveData(payload) → call(URL, {method:'POST', body:{token, ...payload}
 
 ### 4.1 Definición canónica en el backend
 
-Están en `Code.gs` **líneas 19–39** (`SHEETS`, `JS_KEYS`, `HEADERS_ES`) y se
+Están en `Code.gs` **líneas 17–53** (`SHEETS`, `JS_KEYS`, `HEADERS_ES`) y se
 repiten en `helpers.js` (`DEFAULT_SERVICES`, `emptyState`). ✅
+La hoja **Config** (clave/valor) no está en `JS_KEYS`: la definen
+`CONFIG_OPENING_KEY` y `_readConfig` / `_writeConfig`. ✅
 
 #### `clients` → hoja **Clientes** (4 columnas)
 
@@ -279,6 +281,20 @@ repiten en `helpers.js` (`DEFAULT_SERVICES`, `emptyState`). ✅
 #### `priceHistory` → hoja **HistorialPrecios** (4 columnas)
 
 `serviceId` · `serviceName` · `price` · `changedAt`
+
+#### `config` → hoja **Config** (clave/valor, fuera de `JS_KEYS`)
+
+| Clave | Valor | Actualizado |
+|---|---|---|
+| `opening_balance` | Saldo inicial ≥ 0 (número) | ISO 8601 del último cambio |
+
+- `doGet` la devuelve como `data.config`; `doPost` la guarda con
+  `{config: {openingBalance}}`. Se lee/escribe **solo la fila de la clave**
+  (`_readConfig` / `_writeConfig`), así que **sí se puede editar a mano** en
+  el Google Sheet: el frontend la relee en cada refresco (≤30 s) y sincroniza
+  todos los dispositivos (localStorage solo queda como caché offline).
+  `_resetData` **sí** la vacía (resetear es eliminar todo): solo queda la
+  cabecera y el saldo inicial vuelve a 0. ✅
 
 ### 4.2 Reglas de snapshot
 
@@ -1098,10 +1114,12 @@ El token **no basta** para destructivos. Se exige un **grant de un solo uso**.
 | 3. Ejecutar | `_resetData` | 472 | `_checkResetAuth` → `_consumeGrant` (273): exige el grant y lo **consume antes de escribir nada**. No se puede repetir. |
 
 > 📦 **Respaldo previo (solo UI):** la pantalla de advertencia del reset
-> ofrece **«📥 Descargar Excel de respaldo»** (`exportBackupXlsx`,
-> `App.jsx`) — hojas Clientes / Citas / Gastos con fecha
-> `respaldo_YYYY-MM-DD.xlsx`. Es una red de seguridad del cliente, **no**
-> cambia el flujo de autorización (el código por correo sigue intacto).
+> ofrece **«📥 Descargar Excel de respaldo»** (`exportBackupXlsx` →
+> `buildReportWorkbook`, `App.jsx`) — el **mismo informe** que los reportes
+> (Resumen / Movimientos / Citas) pero con el **histórico completo**, más la
+> hoja **Clientes**, con fecha `respaldo_YYYY-MM-DD.xlsx`. Es una red de
+> seguridad del cliente, **no** cambia el flujo de autorización (el código
+> por correo sigue intacto).
 
 ### 14.3 ¿Cómo detecta el backend una operación destructiva?
 
@@ -1304,7 +1322,7 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | **FINANZAS** | | | | |
 | 31 | Recibido / pendiente / proyectado | `helpers.js` `reportMetrics` | ✅ | 🧪 |
 | 32 | Balance neto | `helpers.js` `reportMetrics` | ✅ | 🧪 |
-| 32b | **Saldo inicial** (solo vista General del Panel; `localStorage` `sz_opening_balance`, ≥ 0) | `App.jsx` `openingBalance` | ✅ | — |
+| 32b | **Saldo inicial** (vista General del Panel, **aparte y a la derecha** del Balance Neto, nunca mezclado; ≥ 0; persistido en la hoja **Config** de Google Sheets —sincronizado entre dispositivos, editable a mano en la hoja y **se vacía con el reset**—, con aviso verde «guardado y sincronizado» al guardarlo; `sz_opening_balance` es solo caché local) | `App.jsx` `openingBalance` · `Code.gs` `_readConfig`/`_writeConfig` | ✅ | — |
 | 32c | **Aviso de inasistencias por clienta** (historial: «Faltó X de sus últimas Y citas»; wizard: recuadro rojo con 2+ faltas) | `helpers.js` `clientNoShowStats`, `NOSHOW_WINDOW = 7` | ✅ | 🧪 |
 | 33 | No asistido **solo como número** | `helpers.js` `reportLines` | ✅ | 🧪 |
 | 34 | Gastos agrupados si > 8 (**solo texto del reporte**) | `helpers.js` `groupExpensesByCategory` | ✅ | 🧪 |
@@ -1350,7 +1368,7 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 62 | Modo offline con `localStorage` | `App.jsx` 312–332 | ✅ | — |
 | 63 | Escritura optimista (revisión en el próximo polling) | `App.jsx` 372–389 | ✅ | — |
 | 63b | **Franja roja de guardado fallido + «↻ Reintentar»** (`refresh()` protegido mientras `saveFailed`) | `App.jsx` `saveFailed`, `failedSaveRef`, `retrySave` | ✅ | — |
-| 63c | **Excel de respaldo antes del reset** (clientes / citas / gastos, `respaldo_YYYY-MM-DD.xlsx`) | `App.jsx` `exportBackupXlsx` | ✅ | — |
+| 63c | **Excel de respaldo antes del reset** = informe completo (Resumen / Movimientos / Citas, histórico entero) + hoja Clientes, `respaldo_YYYY-MM-DD.xlsx` | `App.jsx` `exportBackupXlsx` · `buildReportWorkbook` | ✅ | — |
 | 64 | Tema y paletas persistentes | `GS` (829), `localStorage` | ✅ | — |
 | 65 | Branding dinámico (`VITE_BIZ_*`) | `App.jsx` 193–196, 293–306 | ✅ | — |
 | 66 | Telemetría / análisis externo | **No existe** | ✅ | ✅ |

@@ -606,8 +606,13 @@ const rawGet = (g, token) =>
   JSON.parse(g.call('doGet', { parameter: token === undefined ? {} : { token } }).json)
 
 // Instantánea de TODAS las hojas: detecta cualquier escritura.
+// OJO: initSheets crea la hoja 'Config' (en el mock: extra_Config) bajo
+// demanda en el primer GET/POST; una hoja RECIÉN creada y vacía no es
+// una escritura de datos, así que se omite para no confundir ambas cosas.
 const sheetSnapshot = (ss) => JSON.stringify(
-  Object.keys(ss._sheets).sort().map(k => [k, ss._sheets[k]._rows()])
+  Object.keys(ss._sheets).sort()
+    .filter(k => !(k === 'extra_Config' && ss._sheets[k]._rows().length === 0))
+    .map(k => [k, ss._sheets[k]._rows()])
 )
 
 // Filas de una hoja sin la cabecera.
@@ -834,8 +839,12 @@ describe('Code.gs — restablecimiento protegido', () => {
   })
 
   // Instantánea de TODAS las hojas: detecta cualquier escritura.
+  // Igual que `sheetSnapshot`: omite la hoja 'Config' recién creada y
+  // vacía por initSheets (crearla no es escribir datos).
   const snapshot = () => JSON.stringify(
-    Object.keys(env.ss._sheets).sort().map(k => [k, env.ss._sheets[k]._rows()])
+    Object.keys(env.ss._sheets).sort()
+      .filter(k => !(k === 'extra_Config' && env.ss._sheets[k]._rows().length === 0))
+      .map(k => [k, env.ss._sheets[k]._rows()])
   )
 
   // Cita futura que usa s1 y, opcionalmente, un evento de Calendar.
@@ -1719,12 +1728,13 @@ describe('TEST-01 — doPost: validaciones y operaciones', () => {
     expect(dataRows(env.ss, 'expenses')).toHaveLength(0)
   })
 
-  it('doGet con token correcto devuelve las 5 colecciones', () => {
+  it('doGet con token correcto devuelve las 5 colecciones + config', () => {
     const out = rawGet(env.g, TOKEN)
     expect(out.ok).toBe(true)
     expect(Object.keys(out.data).sort())
-      .toEqual(['appointments', 'clients', 'expenses', 'priceHistory', 'services'])
+      .toEqual(['appointments', 'clients', 'config', 'expenses', 'priceHistory', 'services'])
     expect(out.data.services.map(s => s.id).sort()).toEqual(['s1', 's2'])
+    expect(out.data.config).toEqual({ openingBalance: 0 })   // hoja vacía → 0
   })
 
   it('doGet con token incorrecto o ausente → "No autorizado"', () => {
@@ -1787,24 +1797,102 @@ describe('TEST-01 — doPost: validaciones y operaciones', () => {
 
   it('initSheets solo crea las hojas que faltan', () => {
     const creadas = []
-    const nombres = ['Clientes', 'Servicios', 'Citas', 'Gastos', 'HistorialPrecios']
+    const nombres = ['Clientes', 'Servicios', 'Citas', 'Gastos', 'HistorialPrecios', 'Config']
     const fake = {
       getSheets: () => nombres.slice(0, 3).map(n => ({ getName: () => n })),
       insertSheet: (n) => { creadas.push(n) },
     }
     env.g.call('initSheets', fake)
-    expect(creadas).toEqual(['Gastos', 'HistorialPrecios'])
+    expect(creadas).toEqual(['Gastos', 'HistorialPrecios', 'Config'])
   })
 
   it('initSheets no hace nada cuando ya existen todas', () => {
     const creadas = []
-    const nombres = ['Clientes', 'Servicios', 'Citas', 'Gastos', 'HistorialPrecios']
+    const nombres = ['Clientes', 'Servicios', 'Citas', 'Gastos', 'HistorialPrecios', 'Config']
     const fake = {
       getSheets: () => nombres.map(n => ({ getName: () => n })),
       insertSheet: (n) => { creadas.push(n) },
     }
     env.g.call('initSheets', fake)
     expect(creadas).toEqual([])
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════
+   Hoja Config — saldo inicial persistido en Google Sheets
+   (Petición de la dueña: cambiarlo en un dispositivo debe verse en
+   todos, y también se puede editar la celda directo en la hoja).
+══════════════════════════════════════════════════════════════ */
+describe('Code.gs — hoja Config (saldo inicial sincronizado)', () => {
+  let env
+  beforeEach(() => { env = makeEnv() })
+
+  // La hoja 'Config' la crea initSheets en el primer GET/POST; el mock
+  // la registra como 'extra_Config' pero getSheetByName la encuentra.
+  const cfgRows = (ss) => {
+    const sh = ss.getSheetByName('Config')
+    return sh ? sh._rows() : []
+  }
+
+  it('doGet devuelve openingBalance 0 con la hoja vacía (y la crea con cabecera)', () => {
+    const out = rawGet(env.g, TOKEN)
+    expect(out.ok).toBe(true)
+    expect(out.data.config).toEqual({ openingBalance: 0 })
+    expect(cfgRows(env.ss)[0]).toEqual(['Clave', 'Valor', 'Actualizado'])
+  })
+
+  it('guardar config escribe en la hoja y el siguiente doGet lo relee', () => {
+    // Payload SOLO con config → no es destructivo (no pide grant) y
+    // responde saved igual que cualquier sync normal.
+    const r = post(env.g, { config: { openingBalance: 500000 } })
+    expect(r.ok).toBe(true)
+    expect(r.data).toEqual({ saved: true, calResult: null })
+
+    const rows = cfgRows(env.ss)
+    expect(rows).toHaveLength(2)
+    expect(rows[1][0]).toBe('opening_balance')
+    expect(rows[1][1]).toBe(500000)
+    expect(String(rows[1][2])).toMatch(/^\d{4}-\d{2}-\d{2}T/)   // Actualizado
+    expect(rawGet(env.g, TOKEN).data.config).toEqual({ openingBalance: 500000 })
+  })
+
+  it('un segundo guardado ACTUALIZA la fila (sin duplicarla)', () => {
+    post(env.g, { config: { openingBalance: 500000 } })
+    post(env.g, { config: { openingBalance: 750000 } })
+    expect(cfgRows(env.ss)).toHaveLength(2)
+    expect(rawGet(env.g, TOKEN).data.config.openingBalance).toBe(750000)
+  })
+
+  it('la edición directa en la hoja (celda a mano) la relee el próximo doGet', () => {
+    post(env.g, { config: { openingBalance: 500000 } })
+    cfgRows(env.ss)[1][1] = '600.000'          // la dueña teclea en Google Sheets
+    expect(rawGet(env.g, TOKEN).data.config.openingBalance).toBe(600000)
+  })
+
+  it('sanea valores: negativos y basura → 0; formatos de miles → número', () => {
+    post(env.g, { config: { openingBalance: -500 } })
+    expect(rawGet(env.g, TOKEN).data.config.openingBalance).toBe(0)
+
+    post(env.g, { config: { openingBalance: '1.234.567' } })
+    expect(rawGet(env.g, TOKEN).data.config.openingBalance).toBe(1234567)
+
+    post(env.g, { config: { openingBalance: 'basura' } })
+    expect(rawGet(env.g, TOKEN).data.config.openingBalance).toBe(0)
+  })
+
+  it('resetData SÍ borra la hoja Config (resetear es eliminar todo)', () => {
+    post(env.g, { config: { openingBalance: 500000 } })
+    const grant = recoveryGrant(env.g)
+    const r = post(env.g, {
+      action: 'resetData', clients: [], appointments: [], expenses: [],
+      services: [{ id: 'n1', name: 'Nuevo', price: '1000', duration: '30' }],
+      resetPriceHistory: true, ...grant,
+    })
+    expect(r.ok).toBe(true)
+    // Solo queda la cabecera: la clave opening_balance desapareció.
+    expect(cfgRows(env.ss)).toEqual([['Clave', 'Valor', 'Actualizado']])
+    // El próximo refresco lo devuelve en 0: el saldo inicial se fue.
+    expect(rawGet(env.g, TOKEN).data.config.openingBalance).toBe(0)
   })
 })
 

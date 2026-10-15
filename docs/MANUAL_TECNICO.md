@@ -49,7 +49,7 @@ entorno nuevo.
 
 | Servicio | Uso en SZ | Dónde se configura |
 |---|---|---|
-| **Google Sheets** | Base de datos (5 hojas) | Vinculado al proyecto de Apps Script |
+| **Google Sheets** | Base de datos (6 hojas) | Vinculado al proyecto de Apps Script |
 | **Google Calendar** | Eventos de cada cita | Calendario por defecto de la cuenta |
 | **Google Drive** | Respaldos automáticos de la hoja | Carpetas `BACKUP-PROYECTO/Backups/…` |
 | **Gmail** | Reportes automáticos, respaldo semanal, código de recuperación | Cuenta del propietario del script |
@@ -130,7 +130,7 @@ npm run preview       # sirve dist/ localmente
 
 | Comando | Resultado |
 |---|---|
-| `npm test` | ✅ **317/317 pruebas pasando** (4 suites) |
+| `npm test` | ✅ **334/334 pruebas pasando** (4 suites) |
 | `npm run lint` | ✅ **0 errores**, 11 *warnings* preexistentes (`no-unused-vars`) |
 | `npm run build` | ✅ Build OK (~5,8 s) |
 
@@ -331,7 +331,7 @@ saberlo al instalar en otro negocio:
 | `'BACKUP-PROYECTO'` y `'Backups'` | `Code.gs` (buscador de carpetas de Drive) | Carpetas de Drive para los respaldos | ❌ Hardcodeado |
 | `'SZ'` (marca por defecto) | `App.jsx` (`BIZ_NAME`) y `Code.gs` (`BIZ_NAME_DEFAULT`) | Nombre con el que arranca la pestaña y con el que firman los correos **cuando no hay nada configurado** | ✅ Sí, sin editar código: `VITE_BIZ_NAME` (app) y `SB_BIZ_NAME` (correos). Es el **único** resto de marca escrita en el código |
 | `'cejas'` (catálogo por defecto) | `src/catalogs.js` (`DEFAULT_CATALOG_KEY`) | Servicios con los que arranca el programa si nadie elige catálogo | ✅ Sí: `VITE_CATALOG` o `VITE_DEFAULT_SERVICES` |
-| `'sb_c'`, `'sb_s'`, `'sb_a'`, `'sb_e'`, `'sz_opening_balance'` | `App.jsx` | Claves de `localStorage` (copia de trabajo offline; `sz_opening_balance` = saldo inicial del negocio) | ❌ Hardcodeado, pero **no es marca**: cada dominio tiene su propio `localStorage`, así que un cliente nuevo nunca las comparte con SZ |
+| `'sb_c'`, `'sb_s'`, `'sb_a'`, `'sb_e'`, `'sz_opening_balance'` | `App.jsx` | Claves de `localStorage` (copia de trabajo offline; `sz_opening_balance` = caché local del saldo inicial, cuya fuente de verdad es la hoja **Config**) | ❌ Hardcodeado, pero **no es marca**: cada dominio tiene su propio `localStorage`, así que un cliente nuevo nunca las comparte con SZ |
 
 > ✅ **El correo ya NO está escrito en el código.** Antes aparecía en tres
 > sitios (`_sendReportEmail`, `sendWeeklyBackupEmail` y como respaldo del
@@ -427,7 +427,7 @@ producción**:
 
 | Scope | Función de SZ que lo necesita |
 |---|---|
-| `spreadsheets` | Leer y escribir las 5 hojas |
+| `spreadsheets` | Leer y escribir las 6 hojas |
 | `calendar` | Crear, actualizar y borrar eventos de cita |
 | `gmail.send` | `GmailApp.sendEmail` (reportes, respaldo semanal, código de reset) |
 | `script.scriptapp` | `ScriptApp.newTrigger` / `deleteTrigger` (triggers automáticos) |
@@ -548,7 +548,7 @@ Cada vez que cambies `Code.gs`:
 
 ### E.1 Estructura de las hojas
 
-`initSheets()` (`Code.gs` 1956) **crea automáticamente** las 5 hojas que falten.
+`initSheets()` (`Code.gs` 2050) **crea automáticamente** las 6 hojas que falten.
 Cada hoja tiene una fila de encabezados en español (`HEADERS_ES`, `Code.gs` 30–39)
 y **todas las celdas se guardan como texto** (`setNumberFormat('@')`).
 
@@ -614,13 +614,32 @@ y **todas las celdas se guardan como texto** (`setNumberFormat('@')`).
 | C | Precio | `price` |
 | D | Fecha Cambio | `changedAt` |
 
+#### `Config` — clave/valor (parámetros del negocio)
+
+| # | Encabezado | Contenido |
+|---|---|---|
+| A | Clave | `opening_balance` (saldo inicial) |
+| B | Valor | Importe ≥ 0 (número) |
+| C | Actualizado | Marca ISO 8601 del último cambio |
+
+- **No usa `writeSheet`**: la leen/escriben `_readConfig` / `_writeConfig`
+  (`Code.gs`), que solo tocan la fila de la clave. Por eso **sí se puede
+  editar la celda a mano** en el Google Sheet (excepción a E.2).
+- `doGet` la devuelve como `data.config`; el frontend la relee en cada
+  refresco (≤30 s), así que un cambio —desde Ajustes o editando la celda
+  directo en la hoja— se propaga a todos los dispositivos.
+- No está en `JS_KEYS` (`readSheet` no la toca), y **se vacía con el reset**:
+  `_resetData` la limpia hasta la cabecera, porque resetear es eliminar todo
+  (el saldo inicial vuelve a 0).
+
 ### E.2 ⚠️ `writeSheet` reescribe la hoja completa
 
 `writeSheet` (`Code.gs` 1983) hace `sh.clearContents()` y **reescribe encabezados
 y todas las filas** en cada guardado. Consecuencias prácticas:
 
 - **No edites las hojas a mano** mientras la app esté en uso: esas filas se
-  pierden en el siguiente guardado.
+  pierden en el siguiente guardado. **Excepción: la hoja `Config`** (clave/valor)
+  sí está pensada para edición manual (véase arriba).
 - Si una hoja tiene **más columnas** de las esperadas, `readSheet` las ignora y
   avisa por consola (`Code.gs` 1972).
 - Si tiene **menos**, los campos faltantes llegan como `''` (línea 1973).

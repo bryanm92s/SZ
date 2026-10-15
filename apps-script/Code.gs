@@ -28,7 +28,7 @@ function _isPayMethod(m) {
   return PAY_METHODS.indexOf(x) !== -1 || LEGACY_PAY_METHODS.indexOf(x) !== -1;
 }
 function _allPayMethods() { return PAY_METHODS.concat(LEGACY_PAY_METHODS); }
-const SHEETS = { clients:'Clientes', services:'Servicios', appointments:'Citas', expenses:'Gastos', priceHistory:'HistorialPrecios' };
+const SHEETS = { clients:'Clientes', services:'Servicios', appointments:'Citas', expenses:'Gastos', priceHistory:'HistorialPrecios', config:'Config' };
 
 const JS_KEYS = {
   clients:      ['id','name','phone','createdAt'],
@@ -64,6 +64,7 @@ function doGet(e) {
       appointments: readSheet(ss,'appointments'),
       expenses:     readSheet(ss,'expenses'),
       priceHistory: readSheet(ss,'priceHistory'),
+      config:       _readConfig(ss),
     });
   } catch(ex) { return err('GET: '+ex.message); }
 }
@@ -126,6 +127,7 @@ function doPost(e) {
     }
     if (b.appointments !== undefined) writeSheet(ss,'appointments',b.appointments);
     if (b.expenses     !== undefined) writeSheet(ss,'expenses',b.expenses);
+    if (b.config       !== undefined && b.config !== null) _writeConfig(ss, b.config);
     let calResult=null;
     if (b.calendarEvent) calResult=createCalEvent(b.calendarEvent);
     lock.releaseLock();
@@ -543,6 +545,13 @@ function _resetData(ss, b, auth) {
   writeSheet(ss, 'expenses', []);
   writeSheet(ss, 'services', services);
   _seedPriceHistory(ss, services);
+
+  // Resetear es eliminar TODO: la hoja Config vuelve a su cabecera
+  // (opening_balance ausente → 0). `_readConfig` no devuelve nada y el
+  // frontend pone su saldo inicial en 0 en el mismo refresco.
+  var cfg = _configSheet(ss);
+  cfg.clearContents();
+  cfg.getRange(1, 1, 1, 3).setValues([CONFIG_HEADERS]);
 
   return { reset: true, deletedEvents: deletedEvents, grantId: auth.grantId };
 }
@@ -2050,6 +2059,75 @@ function initSheets(ss) {
   const names = Object.values(SHEETS);
   const existing = ss.getSheets().map(s=>s.getName());
   names.forEach(n=>{ if(!existing.includes(n)) ss.insertSheet(n); });
+}
+
+/* ── Hoja Config (clave/valor) ──
+   Parámetros del negocio que SÍ viven en Google Sheets para verlos y
+   editarlos desde cualquier dispositivo. Hoy hay una sola clave:
+   `opening_balance` (saldo inicial con el que se abrió la caja).
+   La dueña puede editar la celda directo en la hoja: el frontend la
+   relee en cada refresco (≤30 s) y todos los dispositivos se actualizan.
+   Se vacía CON EL RESET (`_resetData`): resetear es eliminar todo. */
+const CONFIG_OPENING_KEY = 'opening_balance';
+const CONFIG_HEADERS = ['Clave', 'Valor', 'Actualizado'];
+
+function _configSheet(ss) {
+  var sh = ss.getSheetByName(SHEETS.config) || ss.insertSheet(SHEETS.config);
+  if (sh.getLastRow() === 0) sh.getRange(1, 1, 1, 3).setValues([CONFIG_HEADERS]);
+  return sh;
+}
+
+// Tolerante a edición manual: 500000, '500.000', '500,000' o '500.5'
+// → número ≥0; negativos o basura → 0 (misma semántica que clip0).
+function _parseAmount(v) {
+  if (typeof v === 'number') return (v !== v || v < 0) ? 0 : v;
+  var s = String(v === null || v === undefined ? '' : v).trim()
+    .replace(/,/g, '.').replace(/[^\d.-]/g, '');
+  if (!s) return 0;
+  var parts = s.split('.');
+  // '500.000' / '1.234.567' son MILES (3 dígitos finales); '500.5' es decimal.
+  var miles = parts.length > 1 && parts.length < 4 && parts[parts.length - 1].length === 3;
+  var n = Number(miles ? parts.join('') : parts.join('.'));
+  return (n !== n || n < 0) ? 0 : n;
+}
+
+function _readConfig(ss) {
+  var sh = _configSheet(ss);
+  var out = { openingBalance: 0 };
+  var last = sh.getLastRow();
+  if (last < 2) return out;
+  var rows = sh.getRange(2, 1, last - 1, 3).getValues();
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][0]).trim() === CONFIG_OPENING_KEY) {
+      out.openingBalance = _parseAmount(rows[i][1]);
+      break;
+    }
+  }
+  return out;
+}
+
+function _writeConfig(ss, cfg) {
+  if (!cfg || typeof cfg !== 'object') return;
+  var sh = _configSheet(ss);
+  if (cfg.openingBalance !== undefined && cfg.openingBalance !== null) {
+    _setConfigRow(sh, CONFIG_OPENING_KEY, _parseAmount(cfg.openingBalance));
+  }
+}
+
+// Actualiza la fila de una clave o la agrega al final (append sobre la
+// última fila escrita, igual que hace la edición manual en la hoja).
+function _setConfigRow(sh, key, value) {
+  var last = sh.getLastRow();
+  var row = -1;
+  if (last >= 2) {
+    var rows = sh.getRange(2, 1, last - 1, 3).getValues();
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i][0]).trim() === key) { row = 2 + i; break; }
+    }
+  }
+  var data = [String(key), value, new Date().toISOString()];
+  if (row > 0) sh.getRange(row, 1, 1, 3).setValues([data]);
+  else sh.getRange(sh.getLastRow() + 1, 1, 1, 3).setValues([data]);
 }
 
 function readSheet(ss,key) {

@@ -23,7 +23,7 @@ import { resolveCatalog } from './catalogs.js'
 ══════════════════════════════════════════════════════════════ */
 
 /* ── Theme System ── Modern Flat + Neumorphism + Glassmorphism ── */
-const PALETTES = [
+export const PALETTES = [
   { 
     id:'rosa',    
     name:'Rosa',    
@@ -143,6 +143,66 @@ const PALETTES = [
     neoDark:'#ECC8DF',
     neoShadow:'rgba(192, 74, 130, 0.15)',
     neoShadowDark:'rgba(144, 48, 96, 0.2)'
+  },
+  {
+    id:'coral',
+    name:'Coral',
+    emoji:'💅',
+    primary:'#D96A50',
+    pd:'#B04A34',
+    pl:'#FBEAE3',
+    bg:'#FAF3EF',
+    border:'#F2CFC5',
+    t:'#1E0F0A',
+    t2:'#8A6256',
+    gradient:'linear-gradient(135deg, #D96A50 0%, #E88A6E 50%, #F5B098 100%)',
+    gradientSoft:'linear-gradient(135deg, #FBEAE3 0%, #FAF3EF 50%, #F2CFC5 100%)',
+    glass:'rgba(217, 106, 80, 0.12)',
+    glassStrong:'rgba(217, 106, 80, 0.25)',
+    neoLight:'#FFFFFF',
+    neoDark:'#F2CFC5',
+    neoShadow:'rgba(217, 106, 80, 0.15)',
+    neoShadowDark:'rgba(176, 74, 52, 0.2)'
+  },
+  {
+    id:'salvia',
+    name:'Salvia',
+    emoji:'🌿',
+    primary:'#628C70',
+    pd:'#4A6E57',
+    pl:'#EAF2EC',
+    bg:'#F2F6F3',
+    border:'#CFE0D5',
+    t:'#0F1A12',
+    t2:'#5E7468',
+    gradient:'linear-gradient(135deg, #628C70 0%, #82AC8E 50%, #A8C7B2 100%)',
+    gradientSoft:'linear-gradient(135deg, #EAF2EC 0%, #F2F6F3 50%, #CFE0D5 100%)',
+    glass:'rgba(98, 140, 112, 0.12)',
+    glassStrong:'rgba(98, 140, 112, 0.25)',
+    neoLight:'#FFFFFF',
+    neoDark:'#CFE0D5',
+    neoShadow:'rgba(98, 140, 112, 0.15)',
+    neoShadowDark:'rgba(74, 110, 87, 0.2)'
+  },
+  {
+    id:'carbon',
+    name:'Carbón',
+    emoji:'💈',
+    primary:'#4A5560',
+    pd:'#333C46',
+    pl:'#EAEDF0',
+    bg:'#F2F4F6',
+    border:'#CDD4DA',
+    t:'#101418',
+    t2:'#5C6670',
+    gradient:'linear-gradient(135deg, #4A5560 0%, #68747F 50%, #8B97A1 100%)',
+    gradientSoft:'linear-gradient(135deg, #EAEDF0 0%, #F2F4F6 50%, #CDD4DA 100%)',
+    glass:'rgba(74, 85, 96, 0.12)',
+    glassStrong:'rgba(74, 85, 96, 0.25)',
+    neoLight:'#FFFFFF',
+    neoDark:'#CDD4DA',
+    neoShadow:'rgba(74, 85, 96, 0.15)',
+    neoShadowDark:'rgba(51, 60, 70, 0.2)'
   },
 ]
 
@@ -320,6 +380,18 @@ export default function App() {
   // optimistas (ya están en el estado local).
   const failedSaveRef = useRef(null)
 
+  // ── Saldo inicial del negocio (Petición de la dueña) ──
+  // Valor con el que se abrió la caja la primera vez. NO se mezcla en el
+  // Balance Neto: el Panel lo muestra aparte, a la derecha, en letra chica.
+  // Fuente de verdad: la hoja Config de Google Sheets (clave
+  // `opening_balance`), así se sincroniza entre navegador y celulares y la
+  // dueña puede editar la celda directo en la hoja. localStorage solo queda
+  // como caché local (offline o si el servidor aún no la devuelve).
+  // Nunca negativo.
+  const [openingBalance,setOpeningBalanceRaw] = useState(()=>{
+    try { const v = Number(localStorage.getItem('sz_opening_balance')); return Number.isFinite(v) && v > 0 ? v : 0 } catch { return 0 }
+  })
+
   const refresh = useCallback((silent=false) => {
     if (savingRef.current) return  // ← skip if a save is in progress (prevents race condition)
     // Con un guardado fallido pendiente, el refresco NO pisa el estado
@@ -335,6 +407,14 @@ export default function App() {
       setA(Array.isArray(d.appointments)?d.appointments:[])
       setE(Array.isArray(d.expenses)?d.expenses:[])
       setPH(Array.isArray(d.priceHistory)?d.priceHistory:[])
+      // Saldo inicial desde la hoja Config (si el backend aún no la
+      // devuelve, p.ej. Code.gs sin desplegar, se conserva la caché local).
+      if (d.config && typeof d.config==='object') {
+        const ob = Number(d.config.openingBalance)
+        const n = Number.isFinite(ob) && ob > 0 ? Math.round(ob) : 0
+        setOpeningBalanceRaw(n)
+        try { localStorage.setItem('sz_opening_balance', String(n)) } catch {}
+      }
       setSt('ok'); setLS(new Date())
     }).catch(e => {
       setEM(e.message); setSt('error')
@@ -413,7 +493,13 @@ export default function App() {
   const sync = useCallback(async (payload, setter, value) => {
     if (setter) setter(value)
     const km={clients:'sb_c',services:'sb_s',appointments:'sb_a',expenses:'sb_e'}
-    Object.entries(payload).forEach(([k,v])=>{if(km[k])try{localStorage.setItem(km[k],JSON.stringify(v))}catch{}})
+    Object.entries(payload).forEach(([k,v])=>{
+      if(km[k]) { try{localStorage.setItem(km[k],JSON.stringify(v))}catch{} }
+      // Caché del saldo inicial (hoja Config): solo el valor, en crudo.
+      else if(k==='config'&&v&&typeof v==='object'&&v.openingBalance!==undefined){
+        try{localStorage.setItem('sz_opening_balance',String(Math.max(0,Number(v.openingBalance)||0)))}catch{}
+      }
+    })
     setSt('saving')
     savingRef.current = true
     try {
@@ -439,6 +525,13 @@ export default function App() {
   const SS = useCallback((v,x={})=>sync({services:v,...x},    setS,v),[sync])
   const SA = useCallback((v,x={})=>sync({appointments:v,...x},setA,v),[sync])
   const SE = useCallback((v,x={})=>sync({expenses:v,...x},    setE,v),[sync])
+  // Guarda el saldo inicial en Google Sheets (hoja Config): misma
+  // canalización que las colecciones → escritura optimista, banner de
+  // reintento si falla y refresco en todos los dispositivos (≤30 s).
+  const setOpeningBalance = useCallback((v)=>{
+    const n = Math.max(0, Number(v) || 0)
+    return sync({config:{openingBalance:n}}, setOpeningBalanceRaw, n)
+  },[sync])
 
   const confirm  = (msg, onOk) => setModal({type:'confirm', msg, onOk})
   const infoModal= (msg)       => setModal({type:'info', msg})
@@ -470,9 +563,15 @@ export default function App() {
     setSt('saving')
 
     // Estado local coherente con lo que el servidor ya no tiene.
+    // Resetear es eliminar TODO: también el saldo inicial (el backend
+    // vacía la hoja Config) y su caché local.
     const aplicarLocal = () => {
       setC([]); setA([]); setE([]); setS(DEFAULT_SERVICES); setPH([])
-      try { ['sb_c','sb_a','sb_e','sb_s'].forEach(k=>localStorage.removeItem(k)) } catch {}
+      setOpeningBalanceRaw(0)
+      try {
+        ['sb_c','sb_a','sb_e','sb_s'].forEach(k=>localStorage.removeItem(k))
+        localStorage.removeItem('sz_opening_balance')
+      } catch {}
     }
 
     try {
@@ -557,19 +656,9 @@ export default function App() {
     )
   }
 
-  // ── Saldo inicial del negocio (Petición de la dueña) ──
-  // Valor con el que se abrió la caja la primera vez. Se suma al Balance
-  // Neto del Panel (vista General). Vive en localStorage (mismo patrón
-  // que la paleta): es un dato de CONFIGURACIÓN de un solo usuario, no
-  // una colección que viaje al backend. Nunca negativo.
-  const [openingBalance,setOpeningBalanceRaw] = useState(()=>{
-    try { const v = Number(localStorage.getItem('sz_opening_balance')); return Number.isFinite(v) && v > 0 ? v : 0 } catch { return 0 }
-  })
-  const setOpeningBalance = useCallback((v)=>{
-    const n = Math.max(0, Number(v) || 0)
-    setOpeningBalanceRaw(n)
-    try { localStorage.setItem('sz_opening_balance', String(n)) } catch {}
-  },[])
+  // ── Saldo inicial ──
+  // El estado y su setter viven arriba, junto a `refresh` (la fuente de
+  // verdad es la hoja Config de Google Sheets; ver comentario ahí).
 
   const p = {clients,services,appts,expenses,SC,SS,SA,SE,sync,deleteAppt,setTab,confirm,infoModal,tabExtra,resetAll,requestResetCode,themePalette,setThemePalette,priceHistory,openingBalance,setOpeningBalance}
 
@@ -1491,6 +1580,7 @@ function GS() { return <style>{`
   @keyframes remindPing{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(181,82,74,.4)}50%{transform:scale(1.03);box-shadow:0 0 0 8px rgba(181,82,74,0)}}
   @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
   .slide-in{animation:slideDown .18s ease forwards}
+  @keyframes toastUp{from{opacity:0;transform:translate(-50%,18px)}to{opacity:1;transform:translate(-50%,0)}}
   
   /* ── Gradient text utility ── */
   .gradient-text{
@@ -1576,10 +1666,12 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
   const aNoShow  = isMonth?mA.filter(a=>a.completed==='noshow'):allNoShow
   // Citas que componen el «Proyectado» (excluye 'noshow', igual que el importe)
   const aAll     = (isMonth?mA:safeA).filter(a=>a.completed!=='noshow')
-  // El saldo inicial solo suma en la vista General: es el capital con el
-  // que abrió el negocio, no un ingreso de un mes concreto.
-  const aNetoAdj = isMonth ? aNeto : aNeto + toN(openingBalance)
-  const netoPos  = aNetoAdj>=0
+  // El saldo inicial NO se mezcla en el Balance Neto: el número grande es
+  // Recibido − Gastos (igual en todos los navegadores), y el total con el
+  // saldo inicial se muestra aparte, a la derecha y en letra chica
+  // (solo en la vista General y si hay saldo).
+  const conInit = !isMonth && toN(openingBalance) > 0 ? aNeto + toN(openingBalance) : null
+  const netoPos  = aNeto>=0
 
   return <>
     {/* ── Detalle de una cita del Panel (solo lectura) ──
@@ -1654,9 +1746,17 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
           </div>
           <span style={{fontSize:10,color:'rgba(255,255,255,0.6)'}}>Ver finanzas {'\u2192'}</span>
         </div>
-        <div style={{fontFamily:'Georgia,serif',fontSize:30,fontWeight:700,color:'white'}}>{fmtM(aNetoAdj)}</div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:12}}>
+          <div style={{fontFamily:'Georgia,serif',fontSize:30,fontWeight:700,color:'white'}}>{fmtM(aNeto)}</div>
+          {conInit!==null&&(
+            <div style={{fontSize:10,color:'rgba(255,255,255,0.7)',textAlign:'right',lineHeight:1.5,whiteSpace:'nowrap'}}>
+              + Saldo inicial {fmtM(openingBalance)}<br/>
+              <b style={{fontSize:12,color:'rgba(255,255,255,0.92)'}}>Con saldo inicial {fmtM(conInit)}</b>
+            </div>
+          )}
+        </div>
         <div style={{fontSize:11,color:'rgba(255,255,255,0.65)',marginTop:4}}>
-          Recibido {fmtM(aRevDone)} {'\u2212'} Gastos {fmtM(aExp)}{!isMonth&&toN(openingBalance)>0?` + Saldo inicial ${fmtM(openingBalance)}`:''}
+          Recibido {fmtM(aRevDone)} {'\u2212'} Gastos {fmtM(aExp)}
         </div>
       </div>
 
@@ -3854,110 +3954,18 @@ function ReportTab({appts,expenses,services,setTab}) {
 
   // ─── Exportar a Excel (.xlsx) ──────────────────────────────────
   const exportExcel = async () => {
-    // Sin filas exportables no hay nada que generar: evita rangos
+    // Sin filas exportables no hay nada que generar (comportamiento
+    // histórico: no se abre ningún archivo). Evita además rangos
     // invertidos como SUM(F2:F1) en la hoja Movimientos.
     if (!movsRanges(ledger.rows.length)) return
-    const XLSX = await import('xlsx')
-    const wb = XLSX.utils.book_new()
-    const peso = '"$"#,##0'
-
-    // ── Hoja Movimientos: una fila por cita completada y por gasto ──
-    // Columnas: A Fecha, B Hora, C Tipo, D Cliente/Categoría, E Detalle,
-    //           F Servicios, G Domicilio, H Ingreso (=F+G), I Gasto, J Método de pago
-    const movs = [['Fecha','Hora','Tipo','Cliente / Categoría','Detalle (servicios / gasto)','Servicios','Domicilio','Ingreso (total cita)','Gasto','Método de pago']]
-    ledger.rows.forEach((r, i) => {
-      const n = i + 2
-      movs.push(r.kind==='in'
-        ? [r.date, r.time, 'Ingreso', r.who, r.detail,
-           {t:'n', v:r.service, z:peso}, {t:'n', v:r.delivery, z:peso},
-           {t:'n', f:`F${n}+G${n}`, v:r.amount, z:peso}, '', r.payMethod || 'Sin registrar']
-        : [r.date, r.time, 'Gasto', r.who, r.detail, '', '', '', {t:'n', v:r.amount, z:peso}, ''])
-    })
-    const rng = movsRanges(ledger.rows.length)
-    const { first, last, tRow } = rng
-    const sumCell = (col, v) => ({t:'n', f:`SUM(${col}${first}:${col}${last})`, v, z:peso})
-    movs.push([])
-    movs.push(['','','','','TOTAL',
-      sumCell('F', ledger.totalService), sumCell('G', ledger.totalDelivery),
-      sumCell('H', ledger.totalIncome),  sumCell('I', ledger.totalExpenses)])
-    movs.push(['','','','','NETO (Ingreso − Gasto)','','',
-      {t:'n', f:`H${tRow}-I${tRow}`, v:ledger.neto, z:peso}])
-    const wsM = XLSX.utils.aoa_to_sheet(movs)
-    wsM['!cols'] = [{wch:11},{wch:7},{wch:9},{wch:22},{wch:40},{wch:13},{wch:13},{wch:18},{wch:13},{wch:16}]
-
-    // ── Hoja Resumen: todo apunta a los totales de Movimientos ──
-    const link = (col, v) => ({t:'n', f:`Movimientos!${col}${tRow}`, v, z:peso})
-    const resumen = [
-      ['REPORTE DE ACTIVIDAD'],
-      ['Período', periodLabel()],
-      ['Generado', new Date().toLocaleString('es-CO')],
-      [''],
-      ['Métrica', 'Valor'],
-      ['Citas creadas (registradas en el período)', created],
-      ['Citas agendadas para el período', scheduled],
-      ['Citas completadas', completed],
-      ['Citas pendientes', pending],
-      ['No asistió', noshow],
-      [''],
-      ['Ingresos por servicios', link('F', ledger.totalService)],
-      ['Ingresos por domicilios', link('G', ledger.totalDelivery)],
-      ['TOTAL INGRESOS', null],
-      ['Gastos del período', link('I', totalExpenses)],
-      ['NETO (ingresos − gastos)', null],
-      [''],
-      ['Domicilios (cantidad de citas)', domicilios],
-      ['Ingresos proyectados (con pendientes, incl. domicilios)', {t:'n', v:projected, z:peso}],
-      [''],
-      // 4 métodos actuales + el heredado «Transferencia» (dato anterior) +
-      // total de transferencias + sin método. Mismo orden que el Excel del
-      // correo (Code.gs, _buildReportXlsx) — filas 21–27.
-      ['Cobrado en efectivo', null],
-      ['Cobrado por transferencia (Nequi)', null],
-      ['Cobrado por transferencia (Daviplata)', null],
-      ['Cobrado por transferencia (Bancolombia)', null],
-      ['Cobrado por transferencia (dato anterior)', null],
-      ['TRANSFERENCIAS (total)', null],
-      ['Cobrado sin método registrado', {t:'n', f:`SUMIF(Movimientos!J${first}:J${last},"Sin registrar",Movimientos!H${first}:H${last})`, v:ledger.totalNoMethod, z:peso}],
-    ]
-    const iTot = resumen.findIndex(r => r[0]==='TOTAL INGRESOS')
-    resumen[iTot][1] = {t:'n', f:`B${iTot-1}+B${iTot}`, v:revenue, z:peso}
-    const iNeto = resumen.findIndex(r => r[0]==='NETO (ingresos − gastos)')
-    resumen[iNeto][1] = {t:'n', f:`B${iTot+1}-B${iNeto}`, v:neto, z:peso}
-    const metodoFilas = ['Efectivo','Nequi','Daviplata','Bancolombia','Transferencia']
-    const iEfe = resumen.findIndex(r => r[0]==='Cobrado en efectivo')
-    metodoFilas.forEach((m, i) => {
-      resumen[iEfe + i][1] = {t:'n', f:`SUMIF(Movimientos!J${first}:J${last},"${m}",Movimientos!H${first}:H${last})`, v:ledger.byMethod[m]||0, z:peso}
-    })
-    // TRANSFERENCIAS (total) = Nequi + Daviplata + Bancolombia + dato anterior.
-    resumen[iEfe + metodoFilas.length][1] = {t:'n', f:`B${iEfe+2}+B${iEfe+3}+B${iEfe+4}+B${iEfe+5}`, v:ledger.totalTransfer||0, z:peso}
-    const wsR = XLSX.utils.aoa_to_sheet(resumen)
-    wsR['!cols'] = [{wch:52},{wch:18}]
-
-    // ── Hoja Citas: todas (también pendientes y no-show) para consulta ──
+    // El libro lo construye buildReportWorkbook (fuente única del
+    // formato: la misma que usa el respaldo previo al reset).
     const detailSet = new Map()
     apptsInPeriod.forEach(a => detailSet.set(a.id, a))
     createdInPeriod.forEach(a => { if (!detailSet.has(a.id)) detailSet.set(a.id, a) })
-    const citasRows = [['Fecha','Hora','Cliente','Teléfono','Servicios','Valor servicios','Valor domicilio','Total','Domicilio','Dirección','Estado','Método de pago','Creada el']]
-    Array.from(detailSet.values()).slice().sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date))).forEach(a => {
-      const status = a.completed==='noshow' ? 'No asistió'
-                   : bool(a.completed)      ? 'Completada'
-                   :                          'Pendiente'
-      const tot = toN(a.totalPrice||a.servicePrice||0)
-      const dv  = bool(a.domicilio) ? Math.min(toN(a.domicilioPrice||0), tot) : 0
-      citasRows.push([
-        cleanDate(a.date), cleanTime(a.time), a.clientName||'', a.clientPhone||'',
-        a.serviceNames||'', tot-dv, dv, tot,
-        bool(a.domicilio) ? 'Sí' : 'No', a.address||'', status,
-        bool(a.completed) && a.completed!=='noshow' ? (payMethodOf(a) || 'Sin registrar') : '',
-        (a.createdAt||'').slice(0,19).replace('T',' ')
-      ])
+    const { XLSX, wb } = await buildReportWorkbook({
+      M, label: periodLabel(), detailAppts: Array.from(detailSet.values()),
     })
-    const wsC = XLSX.utils.aoa_to_sheet(citasRows)
-    wsC['!cols'] = [{wch:10},{wch:6},{wch:20},{wch:14},{wch:30},{wch:14},{wch:14},{wch:12},{wch:10},{wch:30},{wch:12},{wch:16},{wch:20}]
-
-    XLSX.utils.book_append_sheet(wb, wsR, 'Resumen')
-    XLSX.utils.book_append_sheet(wb, wsM, 'Movimientos')
-    XLSX.utils.book_append_sheet(wb, wsC, 'Citas')
     const name = `reporte_${mode==='day'?day:mode==='month'?month:mode==='year'?year:`${from}_${to}`}.xlsx`
     XLSX.writeFile(wb, name)
   }
@@ -4307,52 +4315,145 @@ function IncomeDetail({appts,setTab,tabExtra}) {
 /* ══════════════════════════════════════════════════════════════
    SETTINGS TAB — Zona de peligro / Reset total
 ══════════════════════════════════════════════════════════════ */
-/* ── Respaldo Excel de TODOS los datos (antes del reset) ───────────
-   Tres hojas planas (Clientes / Citas / Gastos) con lo que hay HOY en
-   el dispositivo. No reemplaza el respaldo automático a Drive: es la
-   red de seguridad que pide la dueña justo antes de borrar todo. */
-const exportBackupXlsx = async (clients, appts, expenses) => {
+/* ══════════════════════════════════════════════════════════════
+   LIBRO EXCEL DEL INFORME — Resumen · Movimientos · Citas
+   FUENTE ÚNICA del formato: lo usa el botón «📥 Excel» de Reportes
+   (con el período elegido) y el respaldo previo al reset (histórico
+   completo). Mismas hojas, mismas fórmulas (SUM / SUMIF y referencias
+   cruzadas) y mismas columnas que el Excel del correo
+   (_buildReportXlsx en Code.gs). Devuelve { XLSX, wb } para que el
+   llamador agregue hojas extra (p. ej. Clientes) y escriba el archivo.
+══════════════════════════════════════════════════════════════ */
+export const buildReportWorkbook = async ({ M, label, detailAppts }) => {
+  const ledger = M.ledger
   const XLSX = await import('xlsx')
   const wb = XLSX.utils.book_new()
   const peso = '"$"#,##0'
+  // Histórico sin movimientos (cero completadas y cero gastos): no hay
+  // rangos de SUM válidos, así que los totales salen como VALORES
+  // planos en vez de fórmulas invertidas como SUM(F2:F1).
+  const rng = movsRanges(ledger.rows.length)
+  const { first, last, tRow } = rng || { first: 0, last: 0, tRow: 0 }
+  const cell = (f, v) => (rng ? { t:'n', f, v, z:peso } : { t:'n', v, z:peso })
 
+  // ── Hoja Movimientos: una fila por cita completada y por gasto ──
+  // Columnas: A Fecha, B Hora, C Tipo, D Cliente/Categoría, E Detalle,
+  //           F Servicios, G Domicilio, H Ingreso (=F+G), I Gasto, J Método de pago
+  const movs = [['Fecha','Hora','Tipo','Cliente / Categoría','Detalle (servicios / gasto)','Servicios','Domicilio','Ingreso (total cita)','Gasto','Método de pago']]
+  ledger.rows.forEach((r, i) => {
+    const n = i + 2
+    movs.push(r.kind==='in'
+      ? [r.date, r.time, 'Ingreso', r.who, r.detail,
+         {t:'n', v:r.service, z:peso}, {t:'n', v:r.delivery, z:peso},
+         {t:'n', f:`F${n}+G${n}`, v:r.amount, z:peso}, '', r.payMethod || 'Sin registrar']
+      : [r.date, r.time, 'Gasto', r.who, r.detail, '', '', '', {t:'n', v:r.amount, z:peso}, ''])
+  })
+  if (rng) {
+    const sumCell = (col, v) => cell(`SUM(${col}${first}:${col}${last})`, v)
+    movs.push([])
+    movs.push(['','','','','TOTAL',
+      sumCell('F', ledger.totalService), sumCell('G', ledger.totalDelivery),
+      sumCell('H', ledger.totalIncome),  sumCell('I', ledger.totalExpenses)])
+    movs.push(['','','','','NETO (Ingreso − Gasto)','','',
+      {t:'n', f:`H${tRow}-I${tRow}`, v:ledger.neto, z:peso}])
+  }
+  const wsM = XLSX.utils.aoa_to_sheet(movs)
+  wsM['!cols'] = [{wch:11},{wch:7},{wch:9},{wch:22},{wch:40},{wch:13},{wch:13},{wch:18},{wch:13},{wch:16}]
+
+  // ── Hoja Resumen: todo apunta a los totales de Movimientos ──
+  const link = (col, v) => cell(`Movimientos!${col}${tRow}`, v)
+  const resumen = [
+    ['REPORTE DE ACTIVIDAD'],
+    ['Período', label],
+    ['Generado', new Date().toLocaleString('es-CO')],
+    [''],
+    ['Métrica', 'Valor'],
+    ['Citas creadas (registradas en el período)', M.created],
+    ['Citas agendadas para el período', M.scheduled],
+    ['Citas completadas', M.completed],
+    ['Citas pendientes', M.pending],
+    ['No asistió', M.noshow],
+    [''],
+    ['Ingresos por servicios', link('F', ledger.totalService)],
+    ['Ingresos por domicilios', link('G', ledger.totalDelivery)],
+    ['TOTAL INGRESOS', null],
+    ['Gastos del período', link('I', M.totalExpenses)],
+    ['NETO (ingresos − gastos)', null],
+    [''],
+    ['Domicilios (cantidad de citas)', M.domicilios],
+    ['Ingresos proyectados (con pendientes, incl. domicilios)', {t:'n', v:M.projected, z:peso}],
+    [''],
+    // 4 métodos actuales + el heredado «Transferencia» (dato anterior) +
+    // total de transferencias + sin método. Mismo orden que el Excel del
+    // correo (Code.gs, _buildReportXlsx) — filas 21–27.
+    ['Cobrado en efectivo', null],
+    ['Cobrado por transferencia (Nequi)', null],
+    ['Cobrado por transferencia (Daviplata)', null],
+    ['Cobrado por transferencia (Bancolombia)', null],
+    ['Cobrado por transferencia (dato anterior)', null],
+    ['TRANSFERENCIAS (total)', null],
+    ['Cobrado sin método registrado', cell(`SUMIF(Movimientos!J${first}:J${last},"Sin registrar",Movimientos!H${first}:H${last})`, ledger.totalNoMethod)],
+  ]
+  const iTot = resumen.findIndex(r => r[0]==='TOTAL INGRESOS')
+  resumen[iTot][1] = {t:'n', f:`B${iTot-1}+B${iTot}`, v:M.revenue, z:peso}
+  const iNeto = resumen.findIndex(r => r[0]==='NETO (ingresos − gastos)')
+  resumen[iNeto][1] = {t:'n', f:`B${iTot+1}-B${iNeto}`, v:M.neto, z:peso}
+  const metodoFilas = ['Efectivo','Nequi','Daviplata','Bancolombia','Transferencia']
+  const iEfe = resumen.findIndex(r => r[0]==='Cobrado en efectivo')
+  metodoFilas.forEach((m, i) => {
+    resumen[iEfe + i][1] = cell(`SUMIF(Movimientos!J${first}:J${last},"${m}",Movimientos!H${first}:H${last})`, ledger.byMethod[m]||0)
+  })
+  // TRANSFERENCIAS (total) = Nequi + Daviplata + Bancolombia + dato anterior.
+  resumen[iEfe + metodoFilas.length][1] = {t:'n', f:`B${iEfe+2}+B${iEfe+3}+B${iEfe+4}+B${iEfe+5}`, v:ledger.totalTransfer||0, z:peso}
+  const wsR = XLSX.utils.aoa_to_sheet(resumen)
+  wsR['!cols'] = [{wch:52},{wch:18}]
+
+  // ── Hoja Citas: todas (también pendientes y no-show) para consulta ──
+  const citasRows = [['Fecha','Hora','Cliente','Teléfono','Servicios','Valor servicios','Valor domicilio','Total','Domicilio','Dirección','Estado','Método de pago','Creada el']]
+  ;(Array.isArray(detailAppts) ? detailAppts : []).slice()
+    .sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date))).forEach(a => {
+    const status = a.completed==='noshow' ? 'No asistió'
+                 : bool(a.completed)      ? 'Completada'
+                 :                          'Pendiente'
+    const tot = toN(a.totalPrice||a.servicePrice||0)
+    const dv  = bool(a.domicilio) ? Math.min(toN(a.domicilioPrice||0), tot) : 0
+    citasRows.push([
+      cleanDate(a.date), cleanTime(a.time), a.clientName||'', a.clientPhone||'',
+      a.serviceNames||'', tot-dv, dv, tot,
+      bool(a.domicilio) ? 'Sí' : 'No', a.address||'', status,
+      bool(a.completed) && a.completed!=='noshow' ? (payMethodOf(a) || 'Sin registrar') : '',
+      (a.createdAt||'').slice(0,19).replace('T',' ')
+    ])
+  })
+  const wsC = XLSX.utils.aoa_to_sheet(citasRows)
+  wsC['!cols'] = [{wch:10},{wch:6},{wch:20},{wch:14},{wch:30},{wch:14},{wch:14},{wch:12},{wch:10},{wch:30},{wch:12},{wch:16},{wch:20}]
+
+  XLSX.utils.book_append_sheet(wb, wsR, 'Resumen')
+  XLSX.utils.book_append_sheet(wb, wsM, 'Movimientos')
+  XLSX.utils.book_append_sheet(wb, wsC, 'Citas')
+  return { XLSX, wb }
+}
+
+/* ── Respaldo Excel de TODOS los datos (antes del reset) ───────────
+   El MISMO informe que los reportes (Resumen · Movimientos · Citas)
+   pero con el HISTÓRICO COMPLETO, no un período, más la hoja Clientes
+   (los contactos son lo más valioso si se borra todo). No reemplaza
+   el respaldo automático a Drive: es la red de seguridad que pide la
+   dueña justo antes de borrar todo. */
+const exportBackupXlsx = async (clients, appts, expenses) => {
+  // Sin filtro de fechas: entra TODO el histórico (el informe "que llevo").
+  const M = reportMetrics({ appts, expenses, inPeriod: () => true, from: '', to: '9999-12-31' })
+  const { XLSX, wb } = await buildReportWorkbook({
+    M, label: 'Histórico completo (todo el tiempo)',
+    detailAppts: Array.isArray(appts) ? appts : [],
+  })
   const clientesRows = [['Nombre','Teléfono','Cliente desde']]
   ;(Array.isArray(clients)?clients:[]).forEach(c => clientesRows.push([
     c.name||'', c.phone||'', cleanDate(c.createdAt)||'',
   ]))
   const wsCl = XLSX.utils.aoa_to_sheet(clientesRows)
   wsCl['!cols'] = [{wch:28},{wch:14},{wch:12}]
-
-  const citasRows = [['Fecha','Hora','Cliente','Teléfono','Servicios','Valor servicios','Valor domicilio','Total','Domicilio','Dirección','Estado','Método de pago','Creada el']]
-  ;(Array.isArray(appts)?appts:[]).slice()
-    .sort((a,b)=>`${cleanDate(a.date)}${cleanTime(a.time)}`.localeCompare(`${cleanDate(b.date)}${cleanTime(b.time)}`))
-    .forEach(a => {
-      const status = apptStatus(a)==='noshow' ? 'No asistió' : apptStatus(a)==='done' ? 'Completada' : 'Pendiente'
-      const tot = toN(a.totalPrice||a.servicePrice||0)
-      const dv  = bool(a.domicilio) ? Math.min(toN(a.domicilioPrice||0), tot) : 0
-      citasRows.push([
-        cleanDate(a.date), cleanTime(a.time), a.clientName||'', a.clientPhone||'',
-        a.serviceNames||'', {t:'n',v:tot-dv,z:peso}, {t:'n',v:dv,z:peso}, {t:'n',v:tot,z:peso},
-        bool(a.domicilio)?'Sí':'No', a.address||'', status,
-        payMethodOf(a)||'Sin registrar',
-        String(a.createdAt||'').slice(0,19).replace('T',' '),
-      ])
-    })
-  const wsCi = XLSX.utils.aoa_to_sheet(citasRows)
-  wsCi['!cols'] = [{wch:10},{wch:6},{wch:20},{wch:14},{wch:30},{wch:14},{wch:14},{wch:12},{wch:10},{wch:28},{wch:12},{wch:16},{wch:20}]
-
-  const gastosRows = [['Fecha','Categoría','Descripción','Valor']]
-  ;(Array.isArray(expenses)?expenses:[]).slice()
-    .sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date)))
-    .forEach(e => gastosRows.push([
-      cleanDate(e.date), e.category||'', e.description||'', {t:'n',v:toN(e.amount||0),z:peso},
-    ]))
-  const wsGa = XLSX.utils.aoa_to_sheet(gastosRows)
-  wsGa['!cols'] = [{wch:12},{wch:18},{wch:30},{wch:14}]
-
   XLSX.utils.book_append_sheet(wb, wsCl, 'Clientes')
-  XLSX.utils.book_append_sheet(wb, wsCi, 'Citas')
-  XLSX.utils.book_append_sheet(wb, wsGa, 'Gastos')
   XLSX.writeFile(wb, `respaldo_${todayStr()}.xlsx`)
 }
 
@@ -4369,13 +4470,39 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
   // que el reset sí se ejecutó (el error de transporte era falso).
   const [confirmado, setConfirmado] = useState(false)
   // Saldo inicial: texto en bruto mientras se escribe; se guarda
-  // (clampeado a ≥0) al salir del campo (onBlur). Mismo patrón de
-  // persistencia que la paleta: localStorage, un solo dispositivo.
+  // (clampeado a ≥0) al salir del campo (onBlur). Viaja a la hoja
+  // Config de Google Sheets → se sincroniza en todos los dispositivos
+  // (y el refresco de 30 s trae cambios hechos en otro).
   const [saldoStr, setSaldoStr] = useState(() => String(Math.max(0, Number(openingBalance) || 0)))
-  const saveSaldo = () => {
+  // El campo sigue al estado real: si el saldo cambia desde fuera (otro
+  // dispositivo, el refresco de 30 s o un restablecimiento) se muestra el
+  // valor verdadero y nunca se reescribe un número viejo por accidente.
+  // Solo se dispara cuando cambia openingBalance, no mientras se teclea.
+  useEffect(() => {
+    setSaldoStr(String(Math.max(0, Number(openingBalance) || 0)))
+  }, [openingBalance])
+  // Aviso «guardado y sincronizado» (toast verde con auto-cierre):
+  // la marca de tiempo se usa como key para reiniciar la animación y el
+  // temporizador en cada guardado (0 = oculto).
+  const [saldoToast, setSaldoToast] = useState(0)
+  const saldoRef = useRef({ n: null, t: 0 })
+  useEffect(() => {
+    if (!saldoToast) return
+    const tm = setTimeout(() => setSaldoToast(0), 3600)
+    return () => clearTimeout(tm)
+  }, [saldoToast])
+  const saveSaldo = async () => {
     const n = Math.max(0, Number(String(saldoStr).replace(/[^\d]/g, '')) || 0)
     setSaldoStr(String(n))
-    setOpeningBalance?.(n)
+    // El blur del campo y el clic en «Guardar» llegan juntos: un solo
+    // guardado (y un solo aviso) por interacción.
+    const now = Date.now()
+    if (saldoRef.current.n === n && now - saldoRef.current.t < 700) return
+    saldoRef.current = { n, t: now }
+    const r = await setOpeningBalance?.(n)
+    // OK → toast verde. Si falla, no toast: ya aparece la franja roja
+    // de «No se pudo guardar» con su botón de reintento.
+    if (r) setSaldoToast(Date.now())
   }
 
   const totalClients  = Array.isArray(clients) ? clients.length : 0
@@ -4419,7 +4546,13 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
           Esto eliminará <strong>permanentemente</strong>:<br/>
           <span style={{color:'var(--red)',fontWeight:700}}>
             {totalClients} cliente{totalClients!==1?'s':''} · {totalAppts} cita{totalAppts!==1?'s':''} · {totalExpenses} gasto{totalExpenses!==1?'s':''}
-          </span><br/>
+          </span>
+          {Number(openingBalance)>0 && (
+            <span style={{color:'var(--red)',fontWeight:700,display:'block'}}>
+              y el saldo inicial de {fmtM(openingBalance)}
+            </span>
+          )}
+          <br/>
           <span style={{fontSize:12,color:'var(--t2)',marginTop:4,display:'block'}}>Esta acción no se puede deshacer.</span>
         </div>
         {/* Red de seguridad pedida por la dueña: respaldo Excel ANTES de
@@ -4427,7 +4560,7 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
         <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'12px 14px',marginBottom:16,textAlign:'left'}}>
           <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>📦 Recomendación: descarga un respaldo</div>
           <div style={{fontSize:12,color:'var(--t2)',lineHeight:1.5,marginBottom:10}}>
-            Un Excel con tus clientes, citas y gastos actuales, por si luego lo necesitas.
+            Un Excel con tu histórico completo (Resumen, Movimientos y Citas) más tus clientes y teléfonos, por si luego lo necesitas.
           </div>
           <button className="btn" style={{width:'100%'}}
             onClick={()=>exportBackupXlsx(clients, appts, expenses).catch(()=>infoModal('No se pudo generar el respaldo. Revisa la conexión e intenta de nuevo.'))}>
@@ -4465,6 +4598,9 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
           </div>
           <div className="card-glass" style={{padding:'12px 16px',marginBottom:20,fontSize:13,color:'var(--t2)'}}>
             🗑️ Se eliminarán <strong style={{color:'var(--red)'}}>{totalClients} clientes, {totalAppts} citas y {totalExpenses} gastos</strong>
+            {Number(openingBalance)>0 && (
+              <strong style={{color:'var(--red)'}}> y el saldo inicial de {fmtM(openingBalance)}</strong>
+            )}
           </div>
 
           {phase==='word' ? (
@@ -4561,6 +4697,23 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
   )
   return (
     <div>
+      {/* Aviso de saldo inicial guardado — toast verde, no bloquea el uso */}
+      {saldoToast > 0 && (
+        <div key={saldoToast}
+          style={{position:'fixed',left:'50%',bottom:'calc(24px + env(safe-area-inset-bottom, 0px))',
+            transform:'translateX(-50%)',zIndex:400,background:'var(--green)',color:'#FFFFFF',
+            borderRadius:18,padding:'12px 18px',display:'flex',alignItems:'center',gap:10,
+            border:'1px solid rgba(255,255,255,0.35)',
+            boxShadow:'0 12px 32px rgba(46,125,82,0.35), 0 4px 12px rgba(0,0,0,0.12)',
+            backdropFilter:'var(--glass-blur-sm)',WebkitBackdropFilter:'var(--glass-blur-sm)',
+            maxWidth:'min(92vw, 420px)',animation:'toastUp .22s ease forwards'}}>
+          <span style={{fontSize:18,fontWeight:800,lineHeight:1}}>✓</span>
+          <span style={{lineHeight:1.35}}>
+            <b style={{fontSize:13.5,display:'block'}}>Saldo inicial guardado y sincronizado</b>
+            <span style={{fontSize:11.5,opacity:.92}}>Ya está en Google Sheets: se ve en todos tus dispositivos.</span>
+          </span>
+        </div>
+      )}
       <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',marginBottom:20}}>⚙️ Ajustes</div>
 
       {/* ── Paleta ── */}
@@ -4585,7 +4738,7 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
       <div className="card-glass" style={{marginBottom:14}}>
         <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>💰 Saldo inicial</div>
         <div style={{fontSize:12,color:'var(--t2)',lineHeight:1.5,marginBottom:12}}>
-          El dinero con el que abriste el negocio. Se suma al <strong>Balance Neto</strong> del Panel (vista General). No puede ser negativo.
+          El dinero con el que abriste el negocio. El Panel lo muestra <strong>aparte</strong>, a la derecha del Balance Neto (vista General), nunca mezclado. No puede ser negativo. Se guarda en <strong>Google Sheets</strong> (hoja «Config»): al cambiarlo aquí se actualiza en todos tus dispositivos, y también puedes editar la celda directo en la hoja.
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           <span style={{fontSize:18,fontWeight:700,color:'var(--t2)'}}>$</span>

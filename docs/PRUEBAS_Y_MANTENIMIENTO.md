@@ -50,7 +50,7 @@ npm run format        # Prettier — formatea src/**
 
 | Comando | Resultado |
 |---|---|
-| `npm test` | ✅ **317/317 pruebas pasando** — 4 suites (≈6 s) |
+| `npm test` | ✅ **334/334 pruebas pasando** — 4 suites (≈3 s) |
 | `npm run lint` | ✅ **0 errores**, 11 *warnings* |
 | `npm run build` | ✅ OK (≈6 s) |
 
@@ -66,8 +66,8 @@ npm run format        # Prettier — formatea src/**
 
 | Suite | Pruebas | Qué cubre |
 |---|---:|---|
-| `src/helpers.test.js` | **165** | Toda la lógica pura de `helpers.js` |
-| `src/backend.test.js` | **131** | Ejecuta el `Code.gs` **real** en un sandbox |
+| `src/helpers.test.js` | **171** | Toda la lógica pura de `helpers.js` |
+| `src/backend.test.js` | **142** | Ejecuta el `Code.gs` **real** en un sandbox |
 | `src/api.test.js` | **7** | Transporte HTTP y mensajes de error |
 | `src/catalogs.test.js` | **14** | Catálogo inicial por tipo de negocio (`VITE_CATALOG` / `VITE_DEFAULT_SERVICES`) |
 
@@ -104,7 +104,10 @@ Cubre:
 - **Seguridad**: `_requestResetCode`, `_verifyResetCode`, `_resetData`,
   grant de un solo uso, rate-limiting, hash, comparación en tiempo lineal.
 - **Sheets**: `readSheet`, `writeSheet`, `initSheets`, `sanitizePayload`,
-  `trackPriceChanges`, `seedPriceHistory`.
+  `trackPriceChanges`, `seedPriceHistory`, y la hoja **Config**
+  (`_readConfig`/`_writeConfig`: saldo inicial sincronizado entre
+  dispositivos, edición manual de la celda, saneado y **borrado** por
+  `resetData`).
 - **Calendar**: `createCalEvent`, `updateCalEvent`, `deleteCalEvent`,
   verificación post-escritura, idempotencia.
 - **Reportes**: `_buildReport`, `_groupExpenses`, `_xlsxName`, períodos.
@@ -187,7 +190,7 @@ Genera `dist/`. Salida esperada (aprox.):
 | Archivo | Tamaño |
 |---|---|
 | `dist/assets/index-*.css` | ~0,28 kB |
-| `dist/assets/index-*.js` | ~334 kB (gzip ~91 kB) |
+| `dist/assets/index-*.js` | ~352 kB (gzip ~97 kB) |
 | `dist/assets/xlsx-*.js` | ~429 kB (gzip ~143 kB) — **carga diferida** |
 | `dist/assets/logo-*.png` | ~285 kB |
 
