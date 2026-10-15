@@ -1650,6 +1650,7 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab}) 
                 <div style={{fontSize:12,color:'var(--t2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.serviceNames}</div>
               </div>
               {bool(a.completed)&&<span className="tag-g" style={{flexShrink:0,fontSize:11}}>{'\u2713'}</span>}
+              {apptStatus(a)==='noshow'&&<span style={{flexShrink:0,fontSize:11,display:'inline-block',background:'#FFF0EC',color:'var(--red)',borderRadius:'999px',padding:'4px 10px',fontWeight:600}}>✗ No asistió</span>}
               <div style={{fontWeight:700,color:'var(--primary)',fontSize:14,flexShrink:0}}>{fmtM(a.totalPrice||a.servicePrice)}</div>
             </div>
             {/* Acciones explícitas e independientes entre sí. */}
