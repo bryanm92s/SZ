@@ -767,11 +767,21 @@ function Modal({msg, onOk, onCancel, okLabel='Eliminar', cancelLabel='Cancelar'}
 }
 
 // Iconos por método de pago (PayModal, tarjeta de cita y etiquetas).
-const PAY_ICONS = {Efectivo:'💵', Transferencia:'🏦', Nequi:'📱', Daviplata:'📲', Bancolombia:'🏧'}
+const PAY_EMOJI = {Efectivo:'💵', Transferencia:'🏦'}
+const PAY_LOGOS = {
+  Nequi:'/img/pagos/nequi.png',
+  Daviplata:'/img/pagos/daviplata.png',
+  Bancolombia:'/img/pagos/bancolombia.png',
+}
+
+function PayIcon({m, h=18}) {
+  const logo = PAY_LOGOS[m]
+  if (logo) return <img src={logo} alt="" style={{height:h, width:'auto', objectFit:'contain', verticalAlign:'middle', marginRight:6}}/>
+  return <span style={{fontSize:h, lineHeight:1, verticalAlign:'middle', marginRight:2}}>{PAY_EMOJI[m]||'💳'}</span>
+}
 
 // Pregunta cómo se pagó el servicio al marcar una cita como completada.
 function PayModal({appt, onPick, onCancel}) {
-  const icons = PAY_ICONS
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}} onClick={onCancel}>
       <div style={{background:'rgba(255,255,255,0.97)',borderRadius:24,padding:28,maxWidth:360,width:'100%',maxHeight:'calc(100dvh - 40px)',overflowY:'auto',textAlign:'center',boxShadow:'0 10px 40px rgba(0,0,0,.2)'}} onClick={e=>e.stopPropagation()}>
@@ -780,7 +790,7 @@ function PayModal({appt, onPick, onCancel}) {
         <div style={{fontSize:12,color:'var(--t2)',marginBottom:18}}>{appt.clientName} · {fmtM(appt.totalPrice||appt.servicePrice)}</div>
         <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:14}}>
           {PAYMENT_METHODS.map(m=>(
-            <button key={m} className="btn" style={{width:'100%'}} onClick={()=>onPick(m)}>{icons[m]} {m}</button>
+            <button key={m} className="btn" style={{width:'100%'}} onClick={()=>onPick(m)}><PayIcon m={m} h={20}/>{m}</button>
           ))}
         </div>
         <button className="btn-o" style={{width:'100%'}} onClick={onCancel}>Cancelar</button>
@@ -2328,7 +2338,7 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
         {dom && <span className="tag-gold" style={{fontSize:11}}>🛵 Domicilio</span>}
         {status==='done'   && <span className="tag-g"    style={{fontSize:11}}>✓ Completada</span>}
         {status==='done'   && (payMethodOf(appt)
-          ? <span className="tag-g" style={{fontSize:11,cursor:onChangePay?'pointer':'default'}} title="Cambiar método de pago" onClick={onChangePay}>{PAY_ICONS[payMethodOf(appt)]||'💳'} {payMethodOf(appt)}</span>
+          ? <span className="tag-g" style={{fontSize:11,cursor:onChangePay?'pointer':'default'}} title="Cambiar método de pago" onClick={onChangePay}><PayIcon m={payMethodOf(appt)} h={14}/>{payMethodOf(appt)}</span>
           : <span className="tag-gold" style={{fontSize:11,cursor:onChangePay?'pointer':'default'}} title="Registrar método de pago" onClick={onChangePay}>💳 Sin método de pago · registrar</span>)}
         {status==='noshow' && <span style={{display:'inline-block',background:'#FFF0EC',color:'var(--red)',borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>✗ No asistió</span>}
         {status==='pending'&& past && <span className="tag-past" style={{fontSize:11}}>● Pasada</span>}
