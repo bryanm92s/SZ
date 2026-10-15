@@ -3520,7 +3520,7 @@ function ClientHistory({appts,services,setTab,tabExtra}) {
                 </div>
                 <div style={{textAlign:'right',flexShrink:0}}>
                   <div style={{fontSize:13,fontWeight:700,color:stCfg.col,textDecoration:st==='noshow'?'line-through':''}}>{fmtM(a.totalPrice||a.servicePrice)}</div>
-                  <div style={{background:stCfg.bg,color:stCfg.col,borderRadius:20,padding:'1px 8px',fontSize:10,fontWeight:700,marginTop:2}}>{stCfg.lbl}{st==='done'&&payMethodOf(a)?' · '+payMethodOf(a):''}</div>
+                  <div style={{background:stCfg.bg,color:stCfg.col,borderRadius:20,padding:'1px 8px',fontSize:10,fontWeight:700,marginTop:2,display:'flex',alignItems:'center'}}>{stCfg.lbl}{st==='done'&&payMethodOf(a)&&<> · <PayIcon m={payMethodOf(a)} h={12}/>{payMethodOf(a)}</>}</div>
                 </div>
               </div>
             )
@@ -4300,7 +4300,7 @@ function IncomeDetail({appts,setTab,tabExtra}) {
             </div>
             <div style={{flexShrink:0,textAlign:'right'}}>
               <div style={{fontWeight:700,color:bool(a.completed)?'var(--green)':'var(--gold)',fontSize:13}}>{fmtM(a.totalPrice||a.servicePrice)}</div>
-              <div style={{fontSize:10,color:bool(a.completed)?'var(--green)':'var(--gold)'}}>{bool(a.completed)?('✓ Recibido'+(payMethodOf(a)?' · '+payMethodOf(a):'')):'Pendiente'}</div>
+              <div style={{fontSize:10,color:bool(a.completed)?'var(--green)':'var(--gold)'}}>{bool(a.completed)?(<>✓ Recibido{payMethodOf(a)&&<> · <PayIcon m={payMethodOf(a)} h={12}/>{payMethodOf(a)}</>}</>):'Pendiente'}</div>
             </div>
           </div>)}
           {/* Números en círculo: solo si el día tiene más de 5 citas. */}
@@ -5143,7 +5143,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--t)' }}>{a.clientName}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: status.color, background: status.bg, borderRadius: 6, padding: '2px 7px' }}>{status.label}{done && payMethodOf(a) ? ' · ' + payMethodOf(a) : ''}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: status.color, background: status.bg, borderRadius: 6, padding: '2px 7px', display: 'inline-flex', alignItems: 'center' }}>{status.label}{done && payMethodOf(a) && <> · <PayIcon m={payMethodOf(a)} h={12}/>{payMethodOf(a)}</>}</span>
             </div>
             <div style={{ fontSize: 12, color: 'var(--t2)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.serviceNames}</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)', marginTop: 5 }}>{fmtM(a.totalPrice || a.servicePrice)}</div>
