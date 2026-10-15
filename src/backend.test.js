@@ -3244,7 +3244,9 @@ describe('Utilities.formatDate del sandbox', () => {
   })
 
   it('los literales entrecomillados quedan intactos', () => {
-    // Es el patrón de _fmtDayLabel: el `d` de «de» NO es el día.
+    // Patrón histórico de _fmtDayLabel (hoy el label se arma con tablas
+    // propias, pero el mock sigue soportando literales entrecomillados):
+    // el `d` de «de» NO es el día.
     expect(formatearFecha(d, "EEE, d 'de' MMM yyyy")).toBe('lun, 5 de ene 2026')
   })
 
@@ -3253,5 +3255,32 @@ describe('Utilities.formatDate del sandbox', () => {
     expect(formatearFecha(d, 'MMM')).toBe('ene')
     expect(formatearFecha(d, 'dd')).toBe('05')
     expect(formatearFecha(d, 'd')).toBe('5')
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════
+   Día del reporte en ESPAÑOL — _fmtDayLabel
+   ────────────────────────────────────────────────────────────
+   Bug real: Utilities.formatDate formatea con la JVM locale
+   por defecto (en-US), así que en producción el asunto salía
+   «[REPORTE DIARIO] Actividad - Thu, 15 de Oct 2026». El mock
+   del sandbox maquillaba el español y no lo delataba; por eso
+   estas pruebas llaman _fmtDayLabel y el asunto DIRECTAMENTE.
+   ══════════════════════════════════════════════════════════════ */
+describe('Etiqueta del reporte en español (_fmtDayLabel)', () => {
+  let env
+  beforeEach(() => { env = makeEnv() })
+
+  it('arma «lun, 5 de ene 2026» sin depender del locale de la JVM', () => {
+    expect(env.g.call('_fmtDayLabel', '2026-01-05')).toBe('lun, 5 de ene 2026')   // lunes
+    expect(env.g.call('_fmtDayLabel', '2026-10-15')).toBe('jue, 15 de oct 2026')  // jueves
+    expect(env.g.call('_fmtDayLabel', 'basura')).toBe('basura')                   // fallback
+  })
+
+  it('el asunto del reporte diario lleva el día en español', () => {
+    env.g.call('_sendReportEmail', { type: 'day', day: '2026-01-05' }, 'DIARIO')
+    const m = lastMail(env.store)
+    expect(m.subject).toContain('[REPORTE DIARIO] Actividad - lun, 5 de ene 2026')
+    expect(m.subject).not.toMatch(/Mon|Jan/)
   })
 })

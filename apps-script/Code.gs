@@ -1230,16 +1230,23 @@ function _lastDayOfMonth(y, m) {
   return y + '-' + p(m) + '-' + p(d.getDate());
 }
 
-// 'YYYY-MM-DD' → 'vie, 14 ago 2026' (es-CO vía Utilities.formatDate).
+// Etiqueta de un día en español SIEMPRE: 'lun, 5 de ene 2026'.
+// OJO: NO se usa Utilities.formatDate para los nombres — esa función
+// formatea con la JVM locale por defecto (en-US en Apps Script) y en
+// producción el asunto salía «Mon, 5 de Jan 2026». Los nombres salen
+// de estas tablas, igual que _monthLabel y que fmtDate (helpers.js)
+// en el frontend.
+var DIAS_CORTOS  = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+var MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 function _fmtDayLabel(dateStr) {
-  return Utilities.formatDate(
-    new Date(dateStr + 'T00:00:00'),
-    Session.getScriptTimeZone(),
-    "EEE, d 'de' MMM yyyy"
-  );
+  var p = String(dateStr || '').split('-');
+  var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  if (p.length !== 3 || isNaN(d.getTime())) return String(dateStr || '');
+  return DIAS_CORTOS[d.getDay()] + ', ' + d.getDate() + ' de ' +
+         MESES_CORTOS[d.getMonth()] + ' ' + d.getFullYear();
 }
 
-// 'YYYY-MM-DD','YYYY-MM-DD' → 'Lun 10 a Dom 16 ago 2026'
+// 'YYYY-MM-DD','YYYY-MM-DD' → 'lun, 10 de ago 2026 a dom, 16 de ago 2026'
 function _fmtRangeLabel(from, to) {
   return _fmtDayLabel(from) + ' a ' + _fmtDayLabel(to);
 }
