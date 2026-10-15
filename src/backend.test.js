@@ -2492,7 +2492,14 @@ describe('REPORTE: el correo del trigger = el WhatsApp del admin', () => {
     expect(body).toContain('• Domicilios: *$10.000*')
     expect(body).toContain('• Total recibido: *$540.000*')
     expect(body).toContain('   - Efectivo: *$360.000*')
-    expect(body).toContain('   - Transferencia: *$180.000*')
+    // La cita antigua en «Transferencia» sigue contando (dato heredado)…
+    expect(body).toContain('   - · Transferencia (dato anterior): *$180.000*')
+    // …y las transferencias se resumen en SU renglón.
+    expect(body).toContain('   - Transferencias: *$180.000*')
+    // Los cuatro métodos actuales salen siempre, aunque estén en $0.
+    expect(body).toContain('   - Nequi: *$0*')
+    expect(body).toContain('   - Daviplata: *$0*')
+    expect(body).toContain('   - Bancolombia: *$0*')
     // Proyectado = completadas + pendiente ($130.000); la no asistida no suma.
     expect(body).toContain('• Proyectado: *$670.000*')
     expect(body).toContain('💳 *Neto*: *$510.000*')    // 540.000 − 30.000
@@ -2683,9 +2690,15 @@ describe('REPORTE: el correo lleva el Excel adjunto', () => {
     expect(f['14,2']).toBe('=B12+B13')             // TOTAL INGRESOS
     expect(f['15,2']).toBe('=Movimientos!I7')      // Gastos del período
     expect(f['16,2']).toBe('=B14-B15')             // NETO
+    // Los 4 métodos actuales + el heredado «Transferencia» (filas 21–25),
+    // el total de transferencias (26) y «Sin registrar» (27).
     expect(f['21,2']).toBe('=SUMIF(Movimientos!J2:J5,"Efectivo",Movimientos!H2:H5)')
-    expect(f['22,2']).toBe('=SUMIF(Movimientos!J2:J5,"Transferencia",Movimientos!H2:H5)')
-    expect(f['23,2']).toBe('=SUMIF(Movimientos!J2:J5,"Sin registrar",Movimientos!H2:H5)')
+    expect(f['22,2']).toBe('=SUMIF(Movimientos!J2:J5,"Nequi",Movimientos!H2:H5)')
+    expect(f['23,2']).toBe('=SUMIF(Movimientos!J2:J5,"Daviplata",Movimientos!H2:H5)')
+    expect(f['24,2']).toBe('=SUMIF(Movimientos!J2:J5,"Bancolombia",Movimientos!H2:H5)')
+    expect(f['25,2']).toBe('=SUMIF(Movimientos!J2:J5,"Transferencia",Movimientos!H2:H5)')
+    expect(f['26,2']).toBe('=B22+B23+B24+B25')
+    expect(f['27,2']).toBe('=SUMIF(Movimientos!J2:J5,"Sin registrar",Movimientos!H2:H5)')
   })
 
   it('Citas trae las del período (completadas y pendientes) con su estado', () => {

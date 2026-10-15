@@ -181,10 +181,16 @@ export const getSlots = (date, _taken, allAppts, excludeId = null, duration = SE
 }
 
 // Métodos de pago al completar una cita. Citas antiguas no tienen el dato → ''.
-export const PAYMENT_METHODS = ['Efectivo', 'Transferencia']
+// «Transferencia» se RETIRÓ de la lista: las citas viejas lo conservan
+// (LEGACY) y siguen contando en reportes y Excel, pero ya no se puede elegir.
+// Nequi, Daviplata y Bancolombia son transferencias (hay total aparte).
+export const PAYMENT_METHODS = ['Efectivo', 'Nequi', 'Daviplata', 'Bancolombia']
+export const LEGACY_PAYMENT_METHODS = ['Transferencia']
+export const TRANSFER_METHODS = ['Nequi', 'Daviplata', 'Bancolombia']
+export const READABLE_PAYMENT_METHODS = [...PAYMENT_METHODS, ...LEGACY_PAYMENT_METHODS]
 export const payMethodOf = a => {
   const m = String((a && a.paymentMethod) || '').trim()
-  return PAYMENT_METHODS.includes(m) ? m : ''
+  return READABLE_PAYMENT_METHODS.includes(m) ? m : ''
 }
 
 // ── Estado de la cita (fuente única para la UI) ──────────────────────
@@ -221,6 +227,39 @@ export const canRemindAppt = (a, now = new Date(), graceMin = 10) => {
   if (isNaN(h)) return false
   const start = new Date(now); start.setHours(h, m, 0, 0)
   return (now.getTime() - start.getTime()) <= graceMin * 60000
+}
+
+/* ── Inasistencias por clienta ──────────────────────────────────────
+   Lo usan el historial del cliente (aviso arriba de la lista) y el
+   asistente de nueva cita (aviso al elegir clienta).
+   • `phone` se compara SOLO por dígitos (mismo criterio que phoneMatch).
+   • «Decididas» = completadas o no asistió; las pendientes no cuentan.
+   • `recent` = las últimas NOSHOW_WINDOW decididas, más reciente
+     primero; `windowNoshow` cuenta cuántas de esas fueron no-show.
+   • `warn` = patrón frecuente (faltó 2+ de sus últimas decididas):
+     ese es el umbral del aviso al agendar.                       */
+export const NOSHOW_WINDOW = 7
+export const clientNoShowStats = (appts, phone) => {
+  const dig = String(phone || '').replace(/\D/g, '')
+  const A = Array.isArray(appts) ? appts : []
+  const mine = dig
+    ? A.filter(a => String(a && a.clientPhone || '').replace(/\D/g, '') === dig)
+    : []
+  const noshow = mine.filter(a => a && a.completed === 'noshow')
+  const decided = mine
+    .filter(a => a && (a.completed === 'noshow' || bool(a.completed)))
+    .sort((a, b) =>
+      `${cleanDate(b.date)}${cleanTime(b.time)}`.localeCompare(`${cleanDate(a.date)}${cleanTime(a.time)}`))
+  const recent = decided.slice(0, NOSHOW_WINDOW)
+  const windowNoshow = recent.filter(a => a.completed === 'noshow').length
+  return {
+    total: mine.length,
+    noshow: noshow.length,
+    decided: decided.length,
+    recent,
+    windowNoshow,
+    warn: windowNoshow >= 2,
+  }
 }
 
 /**
@@ -604,14 +643,20 @@ export const periodLedger = (appts, expenses, from, to) => {
   const totalDelivery = incomes.reduce((s, r) => s + r.delivery, 0)
   const totalExpenses = outs.reduce((s, r) => s + r.amount, 0)
   const sumBy = m => incomes.filter(r => r.payMethod === m).reduce((s, r) => s + r.amount, 0)
-  const totalCash = sumBy('Efectivo')
-  const totalTransfer = sumBy('Transferencia')
-  const totalNoMethod = totalIncome - totalCash - totalTransfer // citas completadas antes de existir el método
+  // Totales por método: los 4 actuales + el heredado «Transferencia»,
+  // en ese orden (el reporte y el Excel reparten con esta misma lista).
+  const byMethod = {}
+  READABLE_PAYMENT_METHODS.forEach(m => { byMethod[m] = sumBy(m) })
+  const totalCash = byMethod.Efectivo
+  // Nequi + Daviplata + Bancolombia + las citas viejas en «Transferencia».
+  const totalTransfer = TRANSFER_METHODS.reduce((s, m) => s + byMethod[m], 0) + byMethod.Transferencia
+  const totalKnown = READABLE_PAYMENT_METHODS.reduce((s, m) => s + byMethod[m], 0)
+  const totalNoMethod = totalIncome - totalKnown // citas completadas antes de existir el método
   const rows = [...incomes, ...outs].sort((a, b) =>
     a.date.localeCompare(b.date) || a.time.localeCompare(b.time) || (a.kind === b.kind ? 0 : a.kind === 'in' ? -1 : 1))
   return {
     incomes, outs, rows, totalIncome, totalService, totalDelivery, totalExpenses,
-    totalCash, totalTransfer, totalNoMethod, neto: totalIncome - totalExpenses,
+    byMethod, totalCash, totalTransfer, totalNoMethod, neto: totalIncome - totalExpenses,
   }
 }
 
@@ -720,8 +765,15 @@ export const reportLines = ({ label, m, topByDemand, stamp }) => {
     `• Servicio(s): *${money(L.totalService)}*`,
     `• Domicilios: *${money(L.totalDelivery)}*`,
     `• Total recibido: *${money(L.totalIncome)}*`,
-    `   - Efectivo: *${money(L.totalCash)}*`,
-    `   - Transferencia: *${money(L.totalTransfer)}*`,
+    // Los 4 métodos actuales salen SIEMPRE (aunque en $0), y debajo el
+    // total de transferencias; el heredado «Transferencia» solo aparece
+    // si hay citas viejas con ese método. El correo automático replica
+    // esta lista en el mismo orden (paridad).
+    ...PAYMENT_METHODS.map(m => `   - ${m}: *${money(L.byMethod[m] || 0)}*`),
+    ...(L.byMethod.Transferencia > 0
+      ? [`   - · Transferencia (dato anterior): *${money(L.byMethod.Transferencia)}*`]
+      : []),
+    `   - Transferencias: *${money(L.totalTransfer || 0)}*`,
     ...(L.totalNoMethod > 0 ? [`   - Sin método registrado: *${money(L.totalNoMethod)}*`] : []),
     `• Proyectado: *${money(m.projected)}*`,
     '',

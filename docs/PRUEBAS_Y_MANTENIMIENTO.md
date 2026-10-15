@@ -266,7 +266,12 @@ Haz esta lista **antes** de cada publicación importante. Usa un
 ### 5.4 Finanzas y reportes
 
 - [ ] Marcar una cita **Completada** con **Efectivo** → suma en ingresos.
-- [ ] Marcar otra con **Transferencia** → aparece en su rubro.
+- [ ] Marcar otra con **Nequi** → aparece en su rubro **y** suma en
+      **Transferencias** (mismo criterio con **Daviplata** y **Bancolombia**).
+- [ ] En el reporte salen siempre **Efectivo, Nequi, Daviplata y
+      Bancolombia**, el renglón **Transferencias** (total) y, si hay citas
+      viejas en «Transferencia», el renglón heredado *«· Transferencia
+      (dato anterior)»*.
 - [ ] Marcar una **No asistió** → cuenta como **número**, no como dinero.
 - [ ] Registrar varios gastos (**más de 8**) → el detalle se agrupa por
       categoría pero **el total suma todo**.

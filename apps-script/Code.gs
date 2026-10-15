@@ -14,6 +14,20 @@
    no se confunda con un token malo.                                */
 const TOKEN_PROP_KEY = 'SB_SYNC_TOKEN';
 
+/* Métodos de pago: la MISMA lista, en el MISMO orden, que
+   PAYMENT_METHODS en src/helpers.js (los reportes la recorren entera
+   por paridad FE↔BE; el test de paridad falla si se desalinean). */
+const PAY_METHODS = ['Efectivo', 'Nequi', 'Daviplata', 'Bancolombia'];
+// «Transferencia» se retiró de la UI: las citas viejas lo conservan y siguen
+// contando en reportes y Excel, pero ya no se puede elegir al completar.
+const LEGACY_PAY_METHODS = ['Transferencia'];
+const TRANSFER_PAY_METHODS = ['Nequi', 'Daviplata', 'Bancolombia']; // son transferencias
+
+function _isPayMethod(m) {
+  var x = String(m || '').trim();
+  return PAY_METHODS.indexOf(x) !== -1 || LEGACY_PAY_METHODS.indexOf(x) !== -1;
+}
+function _allPayMethods() { return PAY_METHODS.concat(LEGACY_PAY_METHODS); }
 const SHEETS = { clients:'Clientes', services:'Servicios', appointments:'Citas', expenses:'Gastos', priceHistory:'HistorialPrecios' };
 
 const JS_KEYS = {
@@ -1270,7 +1284,11 @@ function _buildReport(period) {
   // total de la cita, así que aquí se separa. Con esto el correo sale
   // con los MISMOS números que el WhatsApp que se manda a mano.
   var incomes = apptsInPeriod.filter(function(a){ return _boolV(a.completed); });
-  var totalIncome = 0, totalService = 0, totalDelivery = 0, totalCash = 0, totalTransfer = 0;
+  var totalIncome = 0, totalService = 0, totalDelivery = 0;
+  // Totales por método: los 4 actuales + el heredado «Transferencia»
+  // (réplica de periodLedger del frontend: `byMethod`).
+  var byMethod = {};
+  _allPayMethods().forEach(function(m){ byMethod[m] = 0; });
   incomes.forEach(function(a){
     var amount   = _toN(a.totalPrice || a.servicePrice || 0);
     var isDom    = a.domicilio === true || a.domicilio === 'true';
@@ -1279,11 +1297,16 @@ function _buildReport(period) {
     totalDelivery += delivery;
     totalService  += amount - delivery;
     var m = String(a.paymentMethod || '').trim();
-    if (m === 'Efectivo') totalCash += amount;
-    else if (m === 'Transferencia') totalTransfer += amount;
+    if (byMethod.hasOwnProperty(m)) byMethod[m] += amount;
   });
   var revenue      = totalIncome;                      // «Total recibido»
-  var totalNoMethod = totalIncome - totalCash - totalTransfer;  // citas de antes del método
+  var totalKnown = 0;
+  _allPayMethods().forEach(function(m){ totalKnown += byMethod[m]; });
+  var totalNoMethod = totalIncome - totalKnown;  // citas de antes del método
+  var totalCash = byMethod.Efectivo;             // compat. con lecturas previas
+  var totalTransfer = 0;                         // Nequi + Daviplata + Bancolombia + heredadas
+  TRANSFER_PAY_METHODS.forEach(function(m){ totalTransfer += byMethod[m]; });
+  totalTransfer += byMethod.Transferencia;
   var projected = apptsInPeriod
     .reduce(function(s,a){ return a.completed === 'noshow' ? s : s + _toN(a.totalPrice || a.servicePrice || 0); }, 0);
 
@@ -1326,7 +1349,7 @@ function _buildReport(period) {
       kind: 'in', date: _cleanDate(a.date), time: _cleanTime(a.time),
       who: a.clientName || '', detail: a.serviceNames || '',
       service: amount - delivery, delivery: delivery, amount: amount,
-      payMethod: (m === 'Efectivo' || m === 'Transferencia') ? m : 'Sin registrar'
+      payMethod: _isPayMethod(m) ? m : 'Sin registrar'
     });
   });
   expensesInPeriod.forEach(function(e){
@@ -1366,7 +1389,7 @@ function _buildReport(period) {
       dom: isDom ? 'Sí' : 'No', address: a.address || '',
       status: falta ? 'No asistió' : (done ? 'Completada' : 'Pendiente'),
       payMethod: (done && !falta)
-        ? ((m === 'Efectivo' || m === 'Transferencia') ? m : 'Sin registrar') : '',
+        ? (_isPayMethod(m) ? m : 'Sin registrar') : '',
       createdAt: String(a.createdAt || '').slice(0, 19).replace('T', ' ')
     });
   };
@@ -1395,6 +1418,7 @@ function _buildReport(period) {
     pending: pending, noshow: noshow, completionRate: completionRate,
     revenue: revenue, projected: projected,
     totalService: totalService, totalDelivery: totalDelivery,
+    byMethod: byMethod,
     totalCash: totalCash, totalTransfer: totalTransfer, totalNoMethod: totalNoMethod,
     expenseItems: expenseItems,
     totalExpenses: totalExpenses, neto: neto,
@@ -1517,10 +1541,15 @@ function _buildReportXlsx(period, r) {
       ['Domicilios (cantidad de citas)', r.domicilios],
       ['Ingresos proyectados (con pendientes, incl. domicilios)', r.projected],
       ['', ''],
+    ].concat([
       ['Cobrado en efectivo', ''],
-      ['Cobrado por transferencia', ''],
+      ['Cobrado por transferencia (Nequi)', ''],
+      ['Cobrado por transferencia (Daviplata)', ''],
+      ['Cobrado por transferencia (Bancolombia)', ''],
+      ['Cobrado por transferencia (dato anterior)', ''],   // «Transferencia», heredado
+      ['TRANSFERENCIAS (total)', ''],
       ['Cobrado sin método registrado', ''],
-    ];
+    ]);
     wsR.getRange(1, 1, resumen.length, 2).setValues(resumen);
 
     // filaDe() devuelve el NÚMERO DE FILA de Excel (el índice 0-based
@@ -1544,13 +1573,19 @@ function _buildReportXlsx(period, r) {
     wsR.getRange(fGas,  2).setFormula('=Movimientos!I' + tRow);
     wsR.getRange(fNeto, 2).setFormula('=B' + fTot + '-B' + fGas);
     var fEfe = filaDe('Cobrado en efectivo');
-    wsR.getRange(fEfe,     2).setFormula(sumif('Efectivo'));
-    wsR.getRange(fEfe + 1, 2).setFormula(sumif('Transferencia'));
-    wsR.getRange(fEfe + 2, 2).setFormula(sumif('Sin registrar'));
+    var metodoFilas = ['Efectivo', 'Nequi', 'Daviplata', 'Bancolombia', 'Transferencia'];
+    metodoFilas.forEach(function(m, i){
+      wsR.getRange(fEfe + i, 2).setFormula(sumif(m));
+    });
+    // TRANSFERENCIAS (total) = Nequi + Daviplata + Bancolombia + dato anterior.
+    var fTrans = fEfe + metodoFilas.length;
+    wsR.getRange(fTrans, 2).setFormula(
+      '=B' + (fEfe + 1) + '+B' + (fEfe + 2) + '+B' + (fEfe + 3) + '+B' + (fEfe + 4));
+    wsR.getRange(fTrans + 1, 2).setFormula(sumif('Sin registrar'));
     wsR.getRange(fServ, 2, fNeto - fServ + 1, 1).setNumberFormat(PESO);
     wsR.getRange(filaDe('Ingresos proyectados (con pendientes, incl. domicilios)'), 2)
        .setNumberFormat(PESO);
-    wsR.getRange(fEfe, 2, 3, 1).setNumberFormat(PESO);
+    wsR.getRange(fEfe, 2, metodoFilas.length + 2, 1).setNumberFormat(PESO);
     anchosDe(wsR, [52, 18]);
 
     // ── Hoja Citas ────────────────────────────────────────────
@@ -1719,8 +1754,16 @@ function _sendReportEmail(period, kind) {
   lines.push(BULLET + ' Servicio(s): *' + fmtM(r.totalService) + '*');
   lines.push(BULLET + ' Domicilios: *' + fmtM(r.totalDelivery) + '*');
   lines.push(BULLET + ' Total recibido: *' + fmtM(r.revenue) + '*');
-  lines.push('   - Efectivo: *' + fmtM(r.totalCash) + '*');
-  lines.push('   - Transferencia: *' + fmtM(r.totalTransfer) + '*');
+  // Los 4 métodos actuales salen SIEMPRE (aunque en $0), y debajo el
+  // total de transferencias; el heredado «Transferencia» solo aparece
+  // si hay citas viejas con ese método. Replica reportLines del frontend.
+  PAY_METHODS.forEach(function(m){
+    var v = (r.byMethod && r.byMethod[m]) || 0;
+    lines.push('   - ' + m + ': *' + fmtM(v) + '*');
+  });
+  var legacyTr = (r.byMethod && r.byMethod.Transferencia) || 0;
+  if (legacyTr > 0) lines.push('   - \u00b7 Transferencia (dato anterior): *' + fmtM(legacyTr) + '*');
+  lines.push('   - Transferencias: *' + fmtM(r.totalTransfer || 0) + '*');
   if (r.totalNoMethod > 0) lines.push('   - Sin m\u00e9todo registrado: *' + fmtM(r.totalNoMethod) + '*');
   lines.push(BULLET + ' Proyectado: *' + fmtM(r.projected) + '*');
   lines.push('');
@@ -1780,8 +1823,13 @@ function _sendReportEmail(period, kind) {
   hlines.push(hBULLET + ' Servicio(s): <b>' + esc(fmtM(r.totalService)) + '</b>');
   hlines.push(hBULLET + ' Domicilios: <b>' + esc(fmtM(r.totalDelivery)) + '</b>');
   hlines.push(hBULLET + ' Total recibido: <b>' + esc(fmtM(r.revenue)) + '</b>');
-  hlines.push('   - Efectivo: <b>' + esc(fmtM(r.totalCash)) + '</b>');
-  hlines.push('   - Transferencia: <b>' + esc(fmtM(r.totalTransfer)) + '</b>');
+  PAY_METHODS.forEach(function(m){
+    var v = (r.byMethod && r.byMethod[m]) || 0;
+    hlines.push('   - ' + m + ': <b>' + esc(fmtM(v)) + '</b>');
+  });
+  var legacyTrH = (r.byMethod && r.byMethod.Transferencia) || 0;
+  if (legacyTrH > 0) hlines.push('   - \u00b7 Transferencia (dato anterior): <b>' + esc(fmtM(legacyTrH)) + '</b>');
+  hlines.push('   - Transferencias: <b>' + esc(fmtM(r.totalTransfer || 0)) + '</b>');
   if (r.totalNoMethod > 0) hlines.push('   - Sin m\u00e9todo registrado: <b>' + esc(fmtM(r.totalNoMethod)) + '</b>');
   hlines.push(hBULLET + ' Proyectado: <b>' + esc(fmtM(r.projected)) + '</b>');
   hlines.push('');

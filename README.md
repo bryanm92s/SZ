@@ -64,8 +64,11 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 - **Cita a domicilio** con valor adicional y dirección opcional.
 - **Múltiples servicios por cita** (combo) con cálculo automático del total.
 - Estados: **Pendiente · Completada · No asistió**, con **método de pago**
-  (Efectivo / Transferencia) al completar.
-- Agrupación en acordeón: **Hoy · Mañana · Próximas · No asistió · Pasadas**.
+  (Efectivo / Nequi / Daviplata / Bancolombia — las tres últimas son
+  transferencias) al completar. Las citas antiguas pagadas en
+  **«Transferencia»** siguen contando en el reporte, con su renglón heredado.
+- Agrupación en acordeón: **Hoy · Mañana · Próximas · No asistió · Pasadas**
+  (el grupo **Pasadas** se pagina de **20 en 20**).
 - **Solo las citas pendientes** se pueden editar o eliminar (regla compartida
   por la pestaña Citas y el Calendario).
 - Edición de cita preservando el **precio que tenía al momento de crearla**
@@ -75,7 +78,10 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 
 ### 👥 Clientes
 - Base de clientes con **búsqueda por celular** (sufijo primero, luego subcadena).
-- **Historial de cada cliente**: citas, montos, última visita.
+- **Historial de cada cliente**: citas, montos, última visita y **aviso de
+  inasistencias** («Faltó X de sus últimas Y citas»).
+- **Aviso de inasistencias al agendar**: si la clienta faltó 2+ veces en sus
+  últimas citas, el asistente muestra un recuadro rojo al elegirla.
 - Registro automático al agendar (no hay que dar de alta al cliente antes).
 
 ### ✂️ Servicios
@@ -86,7 +92,8 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
   o en curso. La regla la valida **también el backend**, no solo el botón.
 
 ### 💰 Finanzas
-- **Balance neto** (ingresos recibidos − gastos) general y por mes.
+- **Balance neto** (ingresos recibidos − gastos) general y por mes; en la vista
+  **General** del Panel suma el **saldo inicial** del negocio.
 - **Recibido · Pendiente · Proyectado** (lo cobrado vs. lo que falta por cobrar).
 - Gastos por **categoría** (Insumos, Arriendo, Publicidad…) con colores
   personalizables.
@@ -119,8 +126,12 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 ### ⚙️ Ajustes
 - **6 paletas de color** (Rosa · Morado · Azul · Verde · Dorado · Fucsia) +
   **modo claro/oscuro**, guardados en el navegador.
+- **Saldo inicial** del negocio (guardado en el navegador): se suma al Balance
+  Neto del Panel en la vista General.
 - **Restablecimiento del sistema** protegido por **código enviado al correo**
-  del propietario (un solo uso, con vencimiento y límite de intentos).
+  del propietario (un solo uso, con vencimiento y límite de intentos), con
+  botón **📥 Descargar Excel de respaldo** (clientes, citas y gastos) antes de
+  confirmar.
 
 ### 🔔 Extras de experiencia
 - **Recordatorios por WhatsApp con 1 clic** (mensaje pre-escrito con emoji,
@@ -130,7 +141,9 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 - **Sincronización automática cada 30 s**, pausada cuando la pestaña no está
   visible.
 - **Modo sin conexión**: si falla la red, se sigue trabajando con respaldo en
-  `localStorage`.
+  `localStorage`. Si el fallo es al **guardar**, aparece una **franja roja con
+  botón «↻ Reintentar guardar»** que reenvía lo pendiente; el Panel no se
+  refresca por su cuenta mientras ese aviso esté visible.
 - **Branding dinámico**: nombre, subtítulo, emoji y logo del negocio desde
   variables de entorno (título y favicon se actualizan en runtime).
 - **Respaldo automático** de la hoja en Google Drive (diario, 30 días de
@@ -466,7 +479,9 @@ Confirmadas en el código, no corregidas:
   **Si faltan esas propiedades no se envía nada** (el reset no gasta su cupo
   de solicitudes y los reportes/backups se omiten avisando en el log).
 - **El restablecimiento borra todo** (clientes, citas, gastos y eventos de
-  Calendar) y **no se puede deshacer**.
+  Calendar) y **no se puede deshacer**. Mitigación: la pantalla de reset ofrece
+  **📥 descargar un Excel de respaldo** (clientes, citas y gastos) antes de
+  confirmar.
 - **`writeSheet` reescribe la hoja completa** en cada guardado: cualquier fila
   que alguien haya escrito a mano **fuera de las columnas esperadas se pierde**.
 

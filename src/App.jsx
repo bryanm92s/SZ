@@ -11,7 +11,7 @@ import {
   bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots, monthLedger,
   svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, openWhatsApp, PAYMENT_METHODS, payMethodOf,
   apptStatus, canModifyAppt, canRemindAppt, checkSlot, confirmOutcome, projectedIncome, movsRanges,
-  serviceDeletionCheck, apptGroup, reportMetrics, isResetOutcome, domBreakdown,
+  serviceDeletionCheck, apptGroup, reportMetrics, isResetOutcome, domBreakdown, clientNoShowStats, NOSHOW_WINDOW,
   reportLines, apptServiceIds, apptServiceRefs, topServicesByDemand,
 } from './helpers.js'
 // Catálogo de servicios inicial, elegible por variable de entorno
@@ -315,9 +315,18 @@ export default function App() {
   // useRef persists across renders (unlike a plain `{current}` literal that
   // would be recreated every render, defeating the guard below).
   const savingRef = useRef(false)
+  // Payload del último guardado que FALLÓ: se guarda tal cual para poder
+  // reenviarlo con «Reintentar guardar» sin volver a aplicar los cambios
+  // optimistas (ya están en el estado local).
+  const failedSaveRef = useRef(null)
 
   const refresh = useCallback((silent=false) => {
     if (savingRef.current) return  // ← skip if a save is in progress (prevents race condition)
+    // Con un guardado fallido pendiente, el refresco NO pisa el estado
+    // local: los cambios sin guardar solo existen aquí, y traer los datos
+    // del servidor los haría desaparecer de la pantalla. El banner rojo
+    // ofrece «Reintentar guardar» para volver a la normalidad.
+    if (failedSaveRef.current) return
     if (!import.meta.env.VITE_SCRIPT_URL) { setSt('noconfig'); return }
     if (!silent) setSt('loading')
     loadData().then(d => {
@@ -339,6 +348,31 @@ export default function App() {
   }, [])
 
   const [themePalette,setThemePalette]= useState(()=>{ try{return localStorage.getItem('sz_palette')||'rosa'}catch{return 'rosa'} })
+
+  // Aviso de guardado fallido (banner rojo pegajoso): mientras esté
+  // activo, los cambios SOLO viven en este dispositivo. Se limpia cuando
+  // un reintento (o la siguiente escritura) vuelve a guardar con éxito.
+  const [saveFailed, setSaveFailed] = useState(false)
+  const [saveErr,    setSaveErr]    = useState('')
+
+  // Reenvía el payload que falló. No vuelve a aplicar los cambios al
+  // estado local: ya están aplicados (se hicieron de forma optimista).
+  const retrySave = useCallback(async () => {
+    const payload = failedSaveRef.current
+    if (!payload || savingRef.current) return
+    setSt('saving'); savingRef.current = true
+    try {
+      await saveData(payload)
+      failedSaveRef.current = null
+      setSaveFailed(false); setSaveErr('')
+      setSt('ok'); setLS(new Date())
+      savingRef.current = false
+      setTimeout(() => refresh(true), 1500)
+    } catch(e) {
+      savingRef.current = false
+      setSaveErr(e.message); setSt('error')
+    }
+  }, [refresh])
 
   useEffect(()=>{
     applyTheme(themePalette)
@@ -391,7 +425,13 @@ export default function App() {
     }
     catch(e) {
       savingRef.current = false
-      setEM(e.message); setSt('error'); setTimeout(()=>setSt('ok'),5000); return null
+      // El guardado NO llegó al servidor: se recuerda el payload para el
+      // botón «Reintentar guardar» del banner, y el estado queda en
+      // 'error' SIN autocorrección a los 5 s (antes se disfrazaba de ok).
+      failedSaveRef.current = payload
+      setSaveErr(e.message); setSaveFailed(true)
+      setEM(e.message); setSt('error')
+      return null
     }
   }, [refresh])
 
@@ -517,7 +557,21 @@ export default function App() {
     )
   }
 
-  const p = {clients,services,appts,expenses,SC,SS,SA,SE,sync,deleteAppt,setTab,confirm,infoModal,tabExtra,resetAll,requestResetCode,themePalette,setThemePalette,priceHistory}
+  // ── Saldo inicial del negocio (Petición de la dueña) ──
+  // Valor con el que se abrió la caja la primera vez. Se suma al Balance
+  // Neto del Panel (vista General). Vive en localStorage (mismo patrón
+  // que la paleta): es un dato de CONFIGURACIÓN de un solo usuario, no
+  // una colección que viaje al backend. Nunca negativo.
+  const [openingBalance,setOpeningBalanceRaw] = useState(()=>{
+    try { const v = Number(localStorage.getItem('sz_opening_balance')); return Number.isFinite(v) && v > 0 ? v : 0 } catch { return 0 }
+  })
+  const setOpeningBalance = useCallback((v)=>{
+    const n = Math.max(0, Number(v) || 0)
+    setOpeningBalanceRaw(n)
+    try { localStorage.setItem('sz_opening_balance', String(n)) } catch {}
+  },[])
+
+  const p = {clients,services,appts,expenses,SC,SS,SA,SE,sync,deleteAppt,setTab,confirm,infoModal,tabExtra,resetAll,requestResetCode,themePalette,setThemePalette,priceHistory,openingBalance,setOpeningBalance}
 
   if (status==='loading') return <Cent><div style={{fontSize:52,animation:'pulse 2s ease-in-out infinite'}}>{BIZ_EMOJI}</div></Cent>
   if (status==='noconfig') return <Cent><div style={{fontSize:36,marginBottom:8}}>⚙️</div><p style={{fontSize:16,fontWeight:600}}>Configura VITE_SCRIPT_URL y VITE_TOKEN en Vercel</p></Cent>
@@ -566,7 +620,16 @@ export default function App() {
       </div>
 
       <main style={{padding:'16px max(14px, env(safe-area-inset-right, 0px)) 16px max(14px, env(safe-area-inset-left, 0px))',maxWidth:680,margin:'0 auto'}}>
-        {status==='error' && <div className="warn-box">⚠️ Modo sin conexión — {errMsg}</div>}
+        {saveFailed && (
+          <div className="warn-box" style={{background:'var(--red-bg)',border:'1.5px solid var(--red)',color:'var(--red)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+            <span style={{flex:'1 1 auto',minWidth:0}}>
+              ⚠️ <strong>No se pudo guardar.</strong> Tus cambios solo están en este celular.
+              {saveErr ? ` (${saveErr})` : ''}
+            </span>
+            <button className="btn-sm" onClick={retrySave} style={{background:'var(--red)',color:'white',border:'none'}}>↻ Reintentar guardar</button>
+          </div>
+        )}
+        {!saveFailed && status==='error' && <div className="warn-box">⚠️ Modo sin conexión — {errMsg}</div>}
         {tab==='dashboard'     && <Dashboard      {...p}/>}
         {tab==='appointments'  && <ApptsTab       {...p}/>}
         {tab==='clients'       && <ClientsTab     {...p}/>}
@@ -614,9 +677,12 @@ function Modal({msg, onOk, onCancel, okLabel='Eliminar', cancelLabel='Cancelar'}
   )
 }
 
+// Iconos por método de pago (PayModal, tarjeta de cita y etiquetas).
+const PAY_ICONS = {Efectivo:'💵', Transferencia:'🏦', Nequi:'📱', Daviplata:'📲', Bancolombia:'🏧'}
+
 // Pregunta cómo se pagó el servicio al marcar una cita como completada.
 function PayModal({appt, onPick, onCancel}) {
-  const icons = {Efectivo:'💵', Transferencia:'🏦'}
+  const icons = PAY_ICONS
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}} onClick={onCancel}>
       <div style={{background:'rgba(255,255,255,0.97)',borderRadius:24,padding:28,maxWidth:360,width:'100%',maxHeight:'calc(100dvh - 40px)',overflowY:'auto',textAlign:'center',boxShadow:'0 10px 40px rgba(0,0,0,.2)'}} onClick={e=>e.stopPropagation()}>
@@ -746,6 +812,10 @@ function SyncBadge({status,lastSync}) {
 const PAGE_SIZE = 10
 // «Todas las citas» del historial de cliente: 5 por página (Petición del dueño).
 const CLIENT_APPT_PAGE_SIZE = 5
+// «Pasadas» de la pestaña Citas: 20 por página (Petición de la dueña).
+// La lista crece para siempre (el historial NUNCA se borra), así que sin
+// paginación, a los dos años, pintar 1.500 tarjetas traba el celular.
+const PAST_APPT_PAGE_SIZE = 20
 // «Detalle Gastos» e «Detalle Ingresos» pagina DOS listas anidadas con
 // los mismos tamaños (Petición del dueño): los DÍAS de a 7, con el Pager
 // de siempre, y dentro de cada día los gastos/citas de a 5, con el
@@ -1449,7 +1519,7 @@ function GS() { return <style>{`
 /* ══════════════════════════════════════════════════════════════
    DASHBOARD
 ══════════════════════════════════════════════════════════════ */
-function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab}) {
+function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,openingBalance=0}) {
   const [selMonth, setSelMonth] = useState(monthStr)
   const [finTab,   setFinTab]   = useState('general')
   // «👁 Detalle» de «Citas de Hoy»: guarda el ID (no el objeto) y se resuelve
@@ -1506,7 +1576,10 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab}) 
   const aNoShow  = isMonth?mA.filter(a=>a.completed==='noshow'):allNoShow
   // Citas que componen el «Proyectado» (excluye 'noshow', igual que el importe)
   const aAll     = (isMonth?mA:safeA).filter(a=>a.completed!=='noshow')
-  const netoPos  = aNeto>=0
+  // El saldo inicial solo suma en la vista General: es el capital con el
+  // que abrió el negocio, no un ingreso de un mes concreto.
+  const aNetoAdj = isMonth ? aNeto : aNeto + toN(openingBalance)
+  const netoPos  = aNetoAdj>=0
 
   return <>
     {/* ── Detalle de una cita del Panel (solo lectura) ──
@@ -1581,9 +1654,9 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab}) 
           </div>
           <span style={{fontSize:10,color:'rgba(255,255,255,0.6)'}}>Ver finanzas {'\u2192'}</span>
         </div>
-        <div style={{fontFamily:'Georgia,serif',fontSize:30,fontWeight:700,color:'white'}}>{fmtM(aNeto)}</div>
+        <div style={{fontFamily:'Georgia,serif',fontSize:30,fontWeight:700,color:'white'}}>{fmtM(aNetoAdj)}</div>
         <div style={{fontSize:11,color:'rgba(255,255,255,0.65)',marginTop:4}}>
-          Recibido {fmtM(aRevDone)} {'\u2212'} Gastos {fmtM(aExp)}
+          Recibido {fmtM(aRevDone)} {'\u2212'} Gastos {fmtM(aExp)}{!isMonth&&toN(openingBalance)>0?` + Saldo inicial ${fmtM(openingBalance)}`:''}
         </div>
       </div>
 
@@ -1823,6 +1896,9 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
   const [focusId,  setFocusId]  = useState(null)
   // Only "today" open by default — each group toggles independently
   const [open, setOpen] = useState({today:true, tomorrow:false, upcoming:false, noshow:false, past:false})
+  // Página visible del grupo «Pasadas» (el resto de grupos no se pagina:
+  // son listas cortas por naturaleza).
+  const [pastPage, setPastPage] = useState(1)
   const td = todayStr(), tm = tomorrowStr()
 
   const toggle = k => setOpen(p => ({...p, [k]: !p[k]}))
@@ -1906,11 +1982,15 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
     onClose={()=>{ setNew(false); if (tabExtra && tabExtra.origin && setTab) setTab(tabExtra.origin) }}/>
   if (editAppt) return <EditAppt   appt={editAppt} services={services} appts={appts} SA={SA} priceHistory={priceHistory} onClose={()=>setEdit(null)}/>
 
-  const AccGroup = ({label,color,gKey,items}) => {
+  const AccGroup = ({label,color,gKey,items,pageSize,page,onPage}) => {
     if (items.length===0) return null
     const sum     = items.reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
     const doneSum = items.filter(a=>bool(a.completed)&&a.completed!=='noshow').reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
     const isOpen  = open[gKey]
+    // Con `pageSize` solo se pintan las tarjetas de la página visible;
+    // los TOTALES del encabezado salen SIEMPRE de la lista completa.
+    const sorted  = sortG(items)
+    const shown   = pageSize ? sorted.slice((Math.max(1,page)-1)*pageSize, Math.max(1,page)*pageSize) : sorted
     return (
       <div style={{border:`1.5px solid ${color}28`,borderRadius:16,marginBottom:10,overflow:'hidden'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',cursor:'pointer',background:`${color}0E`,userSelect:'none'}} onClick={()=>toggle(gKey)}>
@@ -1926,7 +2006,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
         </div>
         {isOpen && (
           <div className="slide-in" style={{padding:'4px 12px 12px'}}>
-            {sortG(items).map(a=>(
+            {shown.map(a=>(
               <ApptCard key={a.id} appt={a}
                 focused={focusId===a.id}
                 onOpen={()=>setDetailId(a.id)}
@@ -1936,6 +2016,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
                 onDelete={()=>confirm(`¿Eliminar la cita de ${a.clientName}? También se borrará el evento de Google Calendar.`,()=>deleteAppt(a))}
               />
             ))}
+            {pageSize && <Pager page={page} total={items.length} onPage={onPage} label="citas" size={pageSize}/>}
           </div>
         )}
       </div>
@@ -1965,7 +2046,8 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
     <AccGroup label="Mañana"      color="#B8742A" gKey="tomorrow" items={groups.tomorrow}/>
     <AccGroup label="Próximas"    color="#2E6EA6" gKey="upcoming" items={groups.upcoming}/>
     <AccGroup label="No asistió"  color="#B03030" gKey="noshow"   items={groups.noshow}/>
-    <AccGroup label="Pasadas"     color="#888888" gKey="past"     items={groups.past}/>
+    <AccGroup label="Pasadas"     color="#888888" gKey="past"     items={groups.past}
+      pageSize={PAST_APPT_PAGE_SIZE} page={pastPage} onPage={setPastPage}/>
     {appts.length===0 && (
       <div className="card" style={{textAlign:'center',padding:30,color:'var(--t2)'}}>
         No hay citas 🌸<br/><br/>
@@ -2146,7 +2228,7 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
         {dom && <span className="tag-gold" style={{fontSize:11}}>🛵 Domicilio</span>}
         {status==='done'   && <span className="tag-g"    style={{fontSize:11}}>✓ Completada</span>}
         {status==='done'   && (payMethodOf(appt)
-          ? <span className="tag-g" style={{fontSize:11,cursor:onChangePay?'pointer':'default'}} title="Cambiar método de pago" onClick={onChangePay}>{payMethodOf(appt)==='Efectivo'?'💵':'🏦'} {payMethodOf(appt)}</span>
+          ? <span className="tag-g" style={{fontSize:11,cursor:onChangePay?'pointer':'default'}} title="Cambiar método de pago" onClick={onChangePay}>{PAY_ICONS[payMethodOf(appt)]||'💳'} {payMethodOf(appt)}</span>
           : <span className="tag-gold" style={{fontSize:11,cursor:onChangePay?'pointer':'default'}} title="Registrar método de pago" onClick={onChangePay}>💳 Sin método de pago · registrar</span>)}
         {status==='noshow' && <span style={{display:'inline-block',background:'#FFF0EC',color:'var(--red)',borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>✗ No asistió</span>}
         {status==='pending'&& past && <span className="tag-past" style={{fontSize:11}}>● Pasada</span>}
@@ -2684,6 +2766,19 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
         </div>
       </div>
 
+      {/* Aviso de inasistencias frecuentes al agendar (Petición de la dueña):
+          umbral = faltó 2+ de sus últimas citas decididas (clientNoShowStats). */}
+      {(() => {
+        const ns = clientNoShowStats(appts, fc?.phone)
+        if (!ns.warn) return null
+        return (
+          <div className="warn-box" style={{background:'var(--red-bg)',border:'1.5px solid var(--red)',color:'var(--red)',marginBottom:14}}>
+            ⚠️ Esta clienta faltó <strong>{ns.windowNoshow}</strong> de sus últimas{' '}
+            <strong>{Math.min(ns.decided, NOSHOW_WINDOW)}</strong> citas. Considera pedir un anticipo o confirmar por WhatsApp.
+          </div>
+        )
+      })()}
+
       <div style={{fontFamily:'Georgia,serif',fontSize:16,marginBottom:4}}>Seleccionar servicios</div>
       <div style={{fontSize:12,color:'var(--t2)',marginBottom:12}}>Puedes elegir uno o varios</div>
       {(Array.isArray(services)?services:[]).map(s=>(
@@ -3194,6 +3289,9 @@ function ClientHistory({appts,services,setTab,tabExtra}) {
   const done   = cAppts.filter(a=>bool(a.completed)&&a.completed!=='noshow')
   const noshow = cAppts.filter(a=>a.completed==='noshow')
   const pend   = cAppts.filter(a=>!bool(a.completed)&&a.completed!=='noshow'&&!isPastAppt(a))
+  // Inasistencias de ESTA clienta (mismo helper que el aviso del asistente):
+  // «faltó X de sus últimas Y citas», con énfasis si es un patrón frecuente.
+  const ns     = clientNoShowStats(safeAppts, phone)
   const totalSpent  = done.reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
   const totalPend   = pend.reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
   const lastVisit   = done.length ? done[0].date : null
@@ -3236,6 +3334,16 @@ function ClientHistory({appts,services,setTab,tabExtra}) {
           {client.createdAt&&<div style={{fontSize:11,opacity:.65,marginTop:3}}>Clienta desde {fmtDate(client.createdAt)}</div>}
         </div>
       </div>
+
+      {/* Aviso de inasistencias (si las hay): el dato ATADO a la clienta */}
+      {ns.noshow>0 && (
+        <div className="warn-box" style={ns.warn?{background:'var(--red-bg)',border:'1.5px solid var(--red)',color:'var(--red)'}:{}}>
+          {ns.warn?'⚠️':'ℹ️'} Faltó <strong>{ns.windowNoshow}</strong> de sus últimas{' '}
+          <strong>{Math.min(ns.decided, NOSHOW_WINDOW)}</strong> citas decididas{' '}
+          ({ns.noshow} inasistencia{ns.noshow!==1?'s':''} en total)
+          {ns.warn && ' — clienta con faltas frecuentes.'}
+        </div>
+      )}
 
       {/* Stats row */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:14}}>
@@ -3800,14 +3908,28 @@ function ReportTab({appts,expenses,services,setTab}) {
       ['Domicilios (cantidad de citas)', domicilios],
       ['Ingresos proyectados (con pendientes, incl. domicilios)', {t:'n', v:projected, z:peso}],
       [''],
-      ['Cobrado en efectivo', {t:'n', f:`SUMIF(Movimientos!J${first}:J${last},"Efectivo",Movimientos!H${first}:H${last})`, v:ledger.totalCash, z:peso}],
-      ['Cobrado por transferencia', {t:'n', f:`SUMIF(Movimientos!J${first}:J${last},"Transferencia",Movimientos!H${first}:H${last})`, v:ledger.totalTransfer, z:peso}],
+      // 4 métodos actuales + el heredado «Transferencia» (dato anterior) +
+      // total de transferencias + sin método. Mismo orden que el Excel del
+      // correo (Code.gs, _buildReportXlsx) — filas 21–27.
+      ['Cobrado en efectivo', null],
+      ['Cobrado por transferencia (Nequi)', null],
+      ['Cobrado por transferencia (Daviplata)', null],
+      ['Cobrado por transferencia (Bancolombia)', null],
+      ['Cobrado por transferencia (dato anterior)', null],
+      ['TRANSFERENCIAS (total)', null],
       ['Cobrado sin método registrado', {t:'n', f:`SUMIF(Movimientos!J${first}:J${last},"Sin registrar",Movimientos!H${first}:H${last})`, v:ledger.totalNoMethod, z:peso}],
     ]
     const iTot = resumen.findIndex(r => r[0]==='TOTAL INGRESOS')
     resumen[iTot][1] = {t:'n', f:`B${iTot-1}+B${iTot}`, v:revenue, z:peso}
     const iNeto = resumen.findIndex(r => r[0]==='NETO (ingresos − gastos)')
     resumen[iNeto][1] = {t:'n', f:`B${iTot+1}-B${iNeto}`, v:neto, z:peso}
+    const metodoFilas = ['Efectivo','Nequi','Daviplata','Bancolombia','Transferencia']
+    const iEfe = resumen.findIndex(r => r[0]==='Cobrado en efectivo')
+    metodoFilas.forEach((m, i) => {
+      resumen[iEfe + i][1] = {t:'n', f:`SUMIF(Movimientos!J${first}:J${last},"${m}",Movimientos!H${first}:H${last})`, v:ledger.byMethod[m]||0, z:peso}
+    })
+    // TRANSFERENCIAS (total) = Nequi + Daviplata + Bancolombia + dato anterior.
+    resumen[iEfe + metodoFilas.length][1] = {t:'n', f:`B${iEfe+2}+B${iEfe+3}+B${iEfe+4}+B${iEfe+5}`, v:ledger.totalTransfer||0, z:peso}
     const wsR = XLSX.utils.aoa_to_sheet(resumen)
     wsR['!cols'] = [{wch:52},{wch:18}]
 
@@ -4185,7 +4307,56 @@ function IncomeDetail({appts,setTab,tabExtra}) {
 /* ══════════════════════════════════════════════════════════════
    SETTINGS TAB — Zona de peligro / Reset total
 ══════════════════════════════════════════════════════════════ */
-function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, themePalette, setThemePalette}) {
+/* ── Respaldo Excel de TODOS los datos (antes del reset) ───────────
+   Tres hojas planas (Clientes / Citas / Gastos) con lo que hay HOY en
+   el dispositivo. No reemplaza el respaldo automático a Drive: es la
+   red de seguridad que pide la dueña justo antes de borrar todo. */
+const exportBackupXlsx = async (clients, appts, expenses) => {
+  const XLSX = await import('xlsx')
+  const wb = XLSX.utils.book_new()
+  const peso = '"$"#,##0'
+
+  const clientesRows = [['Nombre','Teléfono','Cliente desde']]
+  ;(Array.isArray(clients)?clients:[]).forEach(c => clientesRows.push([
+    c.name||'', c.phone||'', cleanDate(c.createdAt)||'',
+  ]))
+  const wsCl = XLSX.utils.aoa_to_sheet(clientesRows)
+  wsCl['!cols'] = [{wch:28},{wch:14},{wch:12}]
+
+  const citasRows = [['Fecha','Hora','Cliente','Teléfono','Servicios','Valor servicios','Valor domicilio','Total','Domicilio','Dirección','Estado','Método de pago','Creada el']]
+  ;(Array.isArray(appts)?appts:[]).slice()
+    .sort((a,b)=>`${cleanDate(a.date)}${cleanTime(a.time)}`.localeCompare(`${cleanDate(b.date)}${cleanTime(b.time)}`))
+    .forEach(a => {
+      const status = apptStatus(a)==='noshow' ? 'No asistió' : apptStatus(a)==='done' ? 'Completada' : 'Pendiente'
+      const tot = toN(a.totalPrice||a.servicePrice||0)
+      const dv  = bool(a.domicilio) ? Math.min(toN(a.domicilioPrice||0), tot) : 0
+      citasRows.push([
+        cleanDate(a.date), cleanTime(a.time), a.clientName||'', a.clientPhone||'',
+        a.serviceNames||'', {t:'n',v:tot-dv,z:peso}, {t:'n',v:dv,z:peso}, {t:'n',v:tot,z:peso},
+        bool(a.domicilio)?'Sí':'No', a.address||'', status,
+        payMethodOf(a)||'Sin registrar',
+        String(a.createdAt||'').slice(0,19).replace('T',' '),
+      ])
+    })
+  const wsCi = XLSX.utils.aoa_to_sheet(citasRows)
+  wsCi['!cols'] = [{wch:10},{wch:6},{wch:20},{wch:14},{wch:30},{wch:14},{wch:14},{wch:12},{wch:10},{wch:28},{wch:12},{wch:16},{wch:20}]
+
+  const gastosRows = [['Fecha','Categoría','Descripción','Valor']]
+  ;(Array.isArray(expenses)?expenses:[]).slice()
+    .sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date)))
+    .forEach(e => gastosRows.push([
+      cleanDate(e.date), e.category||'', e.description||'', {t:'n',v:toN(e.amount||0),z:peso},
+    ]))
+  const wsGa = XLSX.utils.aoa_to_sheet(gastosRows)
+  wsGa['!cols'] = [{wch:12},{wch:18},{wch:30},{wch:14}]
+
+  XLSX.utils.book_append_sheet(wb, wsCl, 'Clientes')
+  XLSX.utils.book_append_sheet(wb, wsCi, 'Citas')
+  XLSX.utils.book_append_sheet(wb, wsGa, 'Gastos')
+  XLSX.writeFile(wb, `respaldo_${todayStr()}.xlsx`)
+}
+
+function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, themePalette, setThemePalette, openingBalance=0, setOpeningBalance, infoModal}) {
   const [step, setStep] = useState(0)
   const [confirmWord, setConfirmWord] = useState('')
   // Flujo de restablecimiento en 3 pasos, autorizado por el servidor:
@@ -4197,6 +4368,15 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
   // true → el servidor no respondió pero se comprobó leyendo la hoja
   // que el reset sí se ejecutó (el error de transporte era falso).
   const [confirmado, setConfirmado] = useState(false)
+  // Saldo inicial: texto en bruto mientras se escribe; se guarda
+  // (clampeado a ≥0) al salir del campo (onBlur). Mismo patrón de
+  // persistencia que la paleta: localStorage, un solo dispositivo.
+  const [saldoStr, setSaldoStr] = useState(() => String(Math.max(0, Number(openingBalance) || 0)))
+  const saveSaldo = () => {
+    const n = Math.max(0, Number(String(saldoStr).replace(/[^\d]/g, '')) || 0)
+    setSaldoStr(String(n))
+    setOpeningBalance?.(n)
+  }
 
   const totalClients  = Array.isArray(clients) ? clients.length : 0
   const totalAppts    = Array.isArray(appts)   ? appts.length   : 0
@@ -4241,6 +4421,18 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
             {totalClients} cliente{totalClients!==1?'s':''} · {totalAppts} cita{totalAppts!==1?'s':''} · {totalExpenses} gasto{totalExpenses!==1?'s':''}
           </span><br/>
           <span style={{fontSize:12,color:'var(--t2)',marginTop:4,display:'block'}}>Esta acción no se puede deshacer.</span>
+        </div>
+        {/* Red de seguridad pedida por la dueña: respaldo Excel ANTES de
+            poder continuar. No toca el flujo del código por correo. */}
+        <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'12px 14px',marginBottom:16,textAlign:'left'}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>📦 Recomendación: descarga un respaldo</div>
+          <div style={{fontSize:12,color:'var(--t2)',lineHeight:1.5,marginBottom:10}}>
+            Un Excel con tus clientes, citas y gastos actuales, por si luego lo necesitas.
+          </div>
+          <button className="btn" style={{width:'100%'}}
+            onClick={()=>exportBackupXlsx(clients, appts, expenses).catch(()=>infoModal('No se pudo generar el respaldo. Revisa la conexión e intenta de nuevo.'))}>
+            📥 Descargar Excel de respaldo
+          </button>
         </div>
         <div style={{display:'flex',gap:10}}>
           <button className="btn-o" style={{flex:1}} onClick={()=>setStep(0)}>Cancelar</button>
@@ -4386,6 +4578,24 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
               </button>
             )
           })}
+        </div>
+      </div>
+
+      {/* ── Saldo inicial ── */}
+      <div className="card-glass" style={{marginBottom:14}}>
+        <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>💰 Saldo inicial</div>
+        <div style={{fontSize:12,color:'var(--t2)',lineHeight:1.5,marginBottom:12}}>
+          El dinero con el que abriste el negocio. Se suma al <strong>Balance Neto</strong> del Panel (vista General). No puede ser negativo.
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <span style={{fontSize:18,fontWeight:700,color:'var(--t2)'}}>$</span>
+          <input className="inp" type="number" inputMode="numeric" min="0" step="1000"
+            value={saldoStr}
+            onChange={e=>setSaldoStr(e.target.value.replace(/[^\d]/g,''))}
+            onBlur={saveSaldo}
+            onKeyDown={e=>{ if(e.key==='Enter') e.currentTarget.blur() }}
+            placeholder="0" style={{flex:1}}/>
+          <button className="btn-sm" onClick={saveSaldo}>Guardar</button>
         </div>
       </div>
 

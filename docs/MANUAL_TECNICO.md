@@ -331,7 +331,7 @@ saberlo al instalar en otro negocio:
 | `'BACKUP-PROYECTO'` y `'Backups'` | `Code.gs` (buscador de carpetas de Drive) | Carpetas de Drive para los respaldos | ❌ Hardcodeado |
 | `'SZ'` (marca por defecto) | `App.jsx` (`BIZ_NAME`) y `Code.gs` (`BIZ_NAME_DEFAULT`) | Nombre con el que arranca la pestaña y con el que firman los correos **cuando no hay nada configurado** | ✅ Sí, sin editar código: `VITE_BIZ_NAME` (app) y `SB_BIZ_NAME` (correos). Es el **único** resto de marca escrita en el código |
 | `'cejas'` (catálogo por defecto) | `src/catalogs.js` (`DEFAULT_CATALOG_KEY`) | Servicios con los que arranca el programa si nadie elige catálogo | ✅ Sí: `VITE_CATALOG` o `VITE_DEFAULT_SERVICES` |
-| `'sb_c'`, `'sb_s'`, `'sb_a'`, `'sb_e'` | `App.jsx` | Claves de `localStorage` (copia de trabajo offline) | ❌ Hardcodeado, pero **no es marca**: cada dominio tiene su propio `localStorage`, así que un cliente nuevo nunca las comparte con SZ |
+| `'sb_c'`, `'sb_s'`, `'sb_a'`, `'sb_e'`, `'sz_opening_balance'` | `App.jsx` | Claves de `localStorage` (copia de trabajo offline; `sz_opening_balance` = saldo inicial del negocio) | ❌ Hardcodeado, pero **no es marca**: cada dominio tiene su propio `localStorage`, así que un cliente nuevo nunca las comparte con SZ |
 
 > ✅ **El correo ya NO está escrito en el código.** Antes aparecía en tres
 > sitios (`_sendReportEmail`, `sendWeeklyBackupEmail` y como respaldo del
@@ -593,7 +593,7 @@ y **todas las celdas se guardan como texto** (`setNumberFormat('@')`).
 | Q | ID Evento Calendar | `calendarEventId` |
 | R | Completada | `completed` (`true`/`false`/`noshow`) |
 | S | Duración (min) | `duration` |
-| T | Método de pago | `paymentMethod` |
+| T | Método de pago | `paymentMethod` | Valores actuales: `Efectivo` / `Nequi` / `Daviplata` / `Bancolombia` (`PAYMENT_METHODS` en `helpers.js` ≡ `PAY_METHODS` en `Code.gs`, mismo orden). Heredado (solo lectura): `Transferencia` (`LEGACY_*`) — las citas viejas lo conservan, se cuentan en su renglón y en el total de **Transferencias**, pero ya no se puede elegir; vacío → «Sin método» |
 
 #### `Gastos` — 5 columnas
 
@@ -672,6 +672,12 @@ así:
 - **Al restablecer**, los eventos se borran **desde el servidor** dentro de la
   operación ya autorizada (`_resetData`, `Code.gs` 457–476); el frontend no
   borra nada antes de autorizar.
+- **Al fallar un guardado** (`saveData` → `sync`, `App.jsx`): la app mantiene
+  el estado optimista y muestra la **franja roja «⚠️ No se pudo guardar»** con
+  botón **«↻ Reintentar guardar»** (`saveFailed` + `failedSaveRef`), que
+  reenvía el mismo payload. Además `refresh()` **no** reemplaza el estado
+  local mientras ese aviso esté activo (evita perder la mutación pendiente),
+  y el retry limpia el aviso sin re-aplicar cambios optimistas.
 
 ### E.6 Cómo verificar que citas y eventos corresponden
 

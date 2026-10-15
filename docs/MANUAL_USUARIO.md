@@ -82,17 +82,19 @@ En la parte inferior hay 7 botones:
 | ✂️ **Servicios** | Catálogo de servicios y precios |
 | 💰 **Finanzas** | Ingresos, gastos y reportes |
 | 📆 **Calendario** | Vista mensual de las citas |
-| ⚙️ **Ajustes** | Colores, tema y restablecer |
+| ⚙️ **Ajustes** | Colores, tema, saldo inicial y restablecer |
 
 **En la barra de arriba** verás:
 
 - **«✓ Sincronizado»** en verde → todo bien, los datos están guardados.
 - **«⟳ Sincronizando»** → la app está guardando o leyendo.
 - **«⚠»** en rojo y, debajo del menú, una franja **«⚠️ Modo sin conexión —
-  \<motivo\>»** → la app no pudo hablar con el servidor. **No hay cola
-  mágica**: lo que cambies en ese estado queda solo en la pantalla y se
-  pierde si recargas. Vuelve a pulsar **↻** o a guardar cuando vuelva la
-  conexión, y confirma con **«✓ Sincronizado»**.
+  \<motivo\>»** → la app no pudo hablar con el servidor.
+- Si el fallo fue al **guardar** (no al leer), la franja es **ROJA** y dice
+  **«⚠️ No se pudo guardar. Tus cambios solo están en este celular»** con un
+  botón **«↻ Reintentar guardar»**. Tócalo cuando vuelva la conexión: la app
+  reenvía lo que faltó. **Mientras esa franja roja esté visible, no recargues
+  la página**: lo que cambiaste aún no está en el servidor.
 - El nombre del negocio y su emoji (si se configuraron).
 
 ---
@@ -109,7 +111,9 @@ En la parte inferior hay 7 botones:
 - **Citas por recordar** — citas de mañana (u hoy) a las que aún no les has
   mandado recordatorio, con un botón para mandarlo.
 - **Accesos rápidos** — «+ Nueva cita», «Ver calendario», «Finanzas».
-- **Balances** — ingresos del día y del mes, y gastos.
+- **Balances** — ingresos del día y del mes, y gastos. El **Balance Neto** de
+  la vista **General** suma tu **saldo inicial** (el dinero con el que abriste
+  el negocio, que se registra en Ajustes).
 
 **Pasos:**
 
@@ -160,6 +164,9 @@ botón **↻** de la barra superior para recargar.
 - ⚠️ La hora se bloquea si **hay solape** con otra cita. La validación es en el
   teléfono: si alguien más agenda a la vez desde otro celular, puede haber
   choque.
+- ⚠️ Si la clienta elegida **faltó 2 o más veces** en sus últimas citas, verás
+  un aviso rojo **«⚠️ Esta clienta faltó X de sus últimas Y citas»**. Es solo
+  un aviso: decide tú si le pides un anticipo o le confirmas por WhatsApp.
 
 **Si algo falla:**
 
@@ -178,6 +185,9 @@ botón **↻** de la barra superior para recargar.
 2. Las citas están agrupadas en acordeones:
    - **HOY · MAÑANA · PRÓXIMAS · NO ASISTIÓ · PASADAS**
 3. Solo **HOY** está abierto; toca el título de otro grupo para abrirlo.
+   - El grupo **PASADAS** se muestra **de 20 en 20** (‹ Ant. / Sig. ›): el
+     historial está completo, solo se pinta de a poquito para que el celular
+     no se trabe. Los totales del grupo son siempre de la lista completa.
 4. Toca **«👁 Detalle»** en una cita para ver todo: clienta, servicios,
    dirección, total, método de pago y estado.
 
@@ -212,12 +222,16 @@ mano en Google Calendar (abre Calendar, busca el evento y elimínalo).
 | Estado | Significado | ¿Cómo se llega? |
 |---|---|---|
 | 🟡 **Pendiente** | Aún no ocurre o no se ha marcado | Estado inicial |
-| ✅ **Completada** | La clienta asistió y se cobró | Toca **«✓ Completar»** y elige **Efectivo** o **Transferencia** |
+| ✅ **Completada** | La clienta asistió y se cobró | Toca **«✓ Completar»** y elige el método de pago |
 | ❌ **No asistió** | La clienta no fue | Toca **«✗ No asistió»** |
 
 **Al marcar «Completar»** aparece un diálogo para elegir el **método de pago**:
-**Efectivo** o **Transferencia**. Ese dato se usa en Finanzas para separar lo
-cobrado.
+**Efectivo**, **Nequi**, **Daviplata** o **Bancolombia** (las tres últimas son
+**transferencias**). Ese dato se usa en Finanzas y en el reporte para separar
+lo cobrado. Las citas antiguas pagadas en **«Transferencia»** siguen
+contando: el reporte las muestra como *«· Transferencia (dato anterior)»* y
+las suma en el renglón **Transferencias**, pero **ya no se puede elegir** en
+el diálogo.
 
 > 📌 **«No asistió» se cuenta como un número** en los reportes (no como dinero
 > perdido). Nunca se mezcla con los ingresos.
@@ -283,6 +297,10 @@ regla, es correcto: la app te está diciendo por qué no puede.
 
 1. Toca la clienta.
 2. Verás sus **citas**, los **montos** y su **última visita**.
+   - Si la clienta ha **faltado**, arriba aparece un aviso con su historial de
+     inasistencias: **«⚠️ Faltó X de sus últimas Y citas (N en total)»**. Con
+     el aviso **⚠️** (rojo) la app señala faltas **frecuentes**; con **ℹ️** es
+     un dato suelto para tu consulta.
 3. En **🗓️ Todas las citas** la lista sale de la más reciente a la más
    antigua y, si hay **más de 5**, al final aparece **‹ Ant. · 1–5 de 23
    citas · pág. 1 de 5 · Sig. ›**. Los **totales de arriba no cambian** al
@@ -460,12 +478,19 @@ administrador**.
 | **Gastos** | Lo que gastaste en el período |
 | **Balance neto** | Ingresos recibidos **−** gastos |
 
+> 💰 El **Balance Neto** del **Panel** (vista **General**) suma además tu
+> **saldo inicial**: el dinero con el que abriste el negocio, que puedes
+> registrar o corregir en **⚙️ Ajustes → 💰 Saldo inicial**. No cambia el
+> ingreso del mes; solo ensancha el balance general. Puede ser `$0` y nunca
+> puede quedar en negativo.
+
 ### ¿Cómo se calculan?
 
 - **Ingresos** = citas **Completadas** con su monto.
   - Las **no asistidas NO suman** (solo se cuentan como número).
 - **Gastos** = lo que registres en **«+ Gasto»**.
-- **Balance neto** = ingresos recibidos − gastos.
+- **Balance neto** = ingresos recibidos − gastos (y, en el Panel General,
+  **+ saldo inicial**).
 
 ### Registrar un gasto
 
@@ -638,11 +663,14 @@ sí.
 
 1. Ve a **⚙️ Ajustes**.
 2. Busca **Restablecer el sistema**.
-3. Téclea la **palabra de confirmación** que pide la pantalla.
-4. Toca **«Enviar código»**. SZ mandará un **código de 8 caracteres** a
+3. En la pantalla de advertencia verás un botón
+   **«📥 Descargar Excel de respaldo»**: un Excel con tus **clientes, citas y
+   gastos** actuales. **Aprovéchalo**: es tu red de seguridad antes de borrar.
+4. Téclea la **palabra de confirmación** que pide la pantalla.
+5. Toca **«Enviar código»**. SZ mandará un **código de 8 caracteres** a
    **tu correo** (el de la dueña).
-5. Abre el correo, copia el código y **pégalo** en la app.
-6. Confirma. Se borra todo.
+6. Abre el correo, copia el código y **pégalo** en la app.
+7. Confirma. Se borra todo.
 
 ### Reglas de seguridad que protegen este botón
 
@@ -664,8 +692,10 @@ sí.
 | «El código ya se usó» | El reset **ya se ejecutó**. Revisa la app. |
 | «No se pudo comprobar… revisa la hoja» | El servidor no respondió pero pudo haberse ejecutado. **Revisa Google Sheets** para saber si se borró o no. |
 
-> 💡 **Recomendación:** antes de restablecer, haz un **respaldo manual** de la
-> hoja de Google Sheets (Archivo → Descargar → Excel). Así puedes volver atrás.
+> 💡 **Recomendación:** la propia pantalla de reset ya trae el botón
+> **«📥 Descargar Excel de respaldo»** (clientes, citas y gastos). Úsalo antes
+> de confirmar. Si quieres un respaldo extra, también puedes descargar la hoja
+> completa desde Google Sheets (Archivo → Descargar → Excel).
 
 ---
 

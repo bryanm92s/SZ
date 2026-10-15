@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, canRemindAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptServiceRefs, topServicesByDemand, apptGroup, reportMetrics, periodLedger, isResetOutcome, domBreakdown, reportLines, expenseLabel,
-MAX_REPORT_EXPENSES, REPORT_EXPENSE_DETAIL_MAX, groupExpensesByCategory } from './helpers.js'
+MAX_REPORT_EXPENSES, REPORT_EXPENSE_DETAIL_MAX, groupExpensesByCategory, clientNoShowStats, NOSHOW_WINDOW, PAYMENT_METHODS, payMethodOf } from './helpers.js'
 
 // phoneMatch/getSlots depend on todayStr() (local today). Freeze the clock
 // so the tests are deterministic.
@@ -238,6 +238,58 @@ describe('apptStatus / canModifyAppt', () => {
     expect(canModifyAppt({ completed: true })).toBe(false)
     expect(canModifyAppt({ completed: 'noshow' })).toBe(false)
     expect(canModifyAppt({ completed: 'true' })).toBe(false)
+  })
+})
+
+/* -- clientNoShowStats · inasistencias atadas a la clienta ---------
+   Lo usan el historial del cliente y el aviso del asistente al agendar.
+   «Decididas» = completadas o no asistió; el aviso «frecuente» (warn)
+   dispara con faltó 2+ de las últimas NOSHOW_WINDOW decididas. */
+describe('clientNoShowStats', () => {
+  const P = '3001112222'
+  const mk = (id, completed, date, time) =>
+    ({ id, clientPhone: P, completed, date, time })
+  // 7 decididas: 3 no-show + 4 completadas (más reciente primero por fecha).
+  const appts = [
+    mk('a7', 'true',      '2026-01-07', '10:00'),
+    mk('a6', 'noshow',    '2026-01-06', '10:00'),
+    mk('a5', 'true',      '2026-01-05', '10:00'),
+    mk('a4', 'noshow',    '2026-01-04', '10:00'),
+    mk('a3', 'true',      '2026-01-03', '10:00'),
+    mk('a2', 'noshow',    '2026-01-02', '10:00'),
+    mk('a1', 'true',      '2026-01-01', '10:00'),
+    // Pendientes y otras clientas no cuentan.
+    { id: 'p1', clientPhone: P, completed: 'false', date: '2026-01-08', time: '10:00' },
+    { id: 'x1', clientPhone: '3009998888', completed: 'noshow', date: '2026-01-06', time: '11:00' },
+  ]
+
+  it('cuenta solo las inasistencias de ESA clienta (por dígitos del celular)', () => {
+    const s = clientNoShowStats(appts, P)
+    expect(s.noshow).toBe(3)
+    expect(s.total).toBe(8)      // 7 decididas + 1 pendiente
+    expect(s.decided).toBe(7)
+  })
+
+  it('«recent» trae las últimas NOSHOW_WINDOW decididas, más nueva primero', () => {
+    const s = clientNoShowStats(appts, P)
+    expect(s.recent.length).toBe(NOSHOW_WINDOW)
+    expect(s.recent[0].id).toBe('a7')
+    expect(s.recent[NOSHOW_WINDOW - 1].id).toBe('a1')
+  })
+
+  it('warn = faltó 2+ de las últimas decididas (umbral del aviso al agendar)', () => {
+    expect(clientNoShowStats(appts, P).warn).toBe(true)
+    // Solo 1 falta reciente → aviso informativo, sin «frecuente».
+    const una = [mk('b2', 'noshow', '2026-01-02', '10:00'), mk('b1', 'true', '2026-01-01', '10:00')]
+    expect(clientNoShowStats(una, P).warn).toBe(false)
+    expect(clientNoShowStats(una, P).windowNoshow).toBe(1)
+  })
+
+  it('sin celular o sin citas devuelve todo en cero (nunca revienta)', () => {
+    expect(clientNoShowStats(appts, '')).toEqual(
+      { total: 0, noshow: 0, decided: 0, recent: [], windowNoshow: 0, warn: false })
+    expect(clientNoShowStats(null, P).noshow).toBe(0)
+    expect(clientNoShowStats([], P).warn).toBe(false)
   })
 })
 
@@ -1481,7 +1533,9 @@ describe('reportLines — reporte de actividad', () => {
     expect(out).toContain('• Domicilios: *$10.000*')
     expect(out).toContain('• Total recibido: *$360.000*')
     expect(out).toContain('   - Efectivo: *$360.000*')
-    expect(out).toContain('   - Transferencia: *$0*')
+    expect(out).toContain('   - Transferencias: *$0*')
+    // Sin citas viejas en «Transferencia» no sale el renglón heredado.
+    expect(out.some(l => l.startsWith('   - · Transferencia'))).toBe(false)
     expect(out).toContain('• Proyectado: *$490.000*')
     expect(out).toContain('💳 *Neto*: *$330.000*')   // 360.000 − 30.000
   })
@@ -1495,6 +1549,55 @@ describe('reportLines — reporte de actividad', () => {
       expenses, inPeriod: d => d === D, from: D, to: D,
     })
     expect(lines(m)).toContain('   - Sin método registrado: *$50.000*')
+  })
+
+  it('los cuatro métodos salen siempre, con el total de Transferencias debajo', () => {
+    const out = lines()
+    // Los cuatro renglones actuales, en el orden de PAYMENT_METHODS (paridad
+    // con el correo), y siempre el total de transferencias. En la base solo
+    // hay $360.000 en efectivo; el resto sale en $0.
+    expect(out).toContain('   - Efectivo: *$360.000*')
+    PAYMENT_METHODS.slice(1).forEach(m => expect(out).toContain(`   - ${m}: *$0*`))
+    expect(idx(out, '   - Efectivo:')).toBeLessThan(idx(out, '   - Nequi:'))
+    expect(idx(out, '   - Nequi:')).toBeLessThan(idx(out, '   - Daviplata:'))
+    expect(idx(out, '   - Daviplata:')).toBeLessThan(idx(out, '   - Bancolombia:'))
+    expect(idx(out, '   - Bancolombia:')).toBeLessThan(idx(out, '   - Transferencias:'))
+    expect(out).toContain('   - Transferencias: *$0*')
+    // Una cita pagada con Nequi cae en SU renglón y en el total de
+    // transferencias, no en «Sin método».
+    const m = reportMetrics({
+      appts: [...appts, { id: 'an', date: D, time: '15:00', completed: 'true',
+        domicilio: 'false', servicePrice: '80000', totalPrice: '80000',
+        paymentMethod: 'Nequi', serviceNames: 'Esmalte' }],
+      expenses, inPeriod: d => d === D, from: D, to: D,
+    })
+    expect(lines(m)).toContain('   - Nequi: *$80.000*')
+    expect(lines(m)).toContain('   - Transferencias: *$80.000*')
+    expect(m.ledger.byMethod.Nequi).toBe(80000)
+    expect(m.ledger.totalTransfer).toBe(80000)
+    expect(m.ledger.totalNoMethod).toBe(0)
+  })
+
+  it('las citas viejas en «Transferencia» siguen contando (dato heredado)', () => {
+    const m = reportMetrics({
+      appts: [...appts, { id: 'at', date: D, time: '16:00', completed: 'true',
+        domicilio: 'false', servicePrice: '90000', totalPrice: '90000',
+        paymentMethod: 'Transferencia', serviceNames: 'Masaje' }],
+      expenses, inPeriod: d => d === D, from: D, to: D,
+    })
+    const out = lines(m)
+    // Aparece el renglón heredado y además suma en el total de transferencias.
+    expect(out).toContain('   - · Transferencia (dato anterior): *$90.000*')
+    expect(out).toContain('   - Transferencias: *$90.000*')
+    expect(m.ledger.byMethod.Transferencia).toBe(90000)
+    expect(m.ledger.totalTransfer).toBe(90000)
+    // NO cae en «Sin método»: sigue siendo un cobro con método conocido.
+    expect(m.ledger.totalNoMethod).toBe(0)
+    expect(out.some(l => l.includes('Sin método registrado'))).toBe(false)
+    // Y la UI la sigue mostrando (payMethodOf acepta el valor heredado).
+    expect(payMethodOf({ paymentMethod: 'Transferencia' })).toBe('Transferencia')
+    // …pero la lista de opciones ya no la ofrece.
+    expect(PAYMENT_METHODS).not.toContain('Transferencia')
   })
 
   it('el detalle de gastos conserva el orden de la hoja Gastos', () => {
