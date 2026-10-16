@@ -67,7 +67,7 @@ a propósito:
 
 | Tipo de paso | Quién | Qué pasa |
 |---|---|---|
-| **🤖 Automático** | El script | Copia la plantilla a la carpeta del cliente (sin `.git`, `node_modules`, `dist`, `.env` ni `logo.png`), renombra la marca en los docs, `git init` con historia propia, `package.json` → `name`, `.env`, tu `logo.png`, `CUSTOMIZACIONES.md`, remote `madre`, `npm install` + **317 pruebas** + build, y **genera un token nuevo** para `SB_SYNC_TOKEN` / `VITE_TOKEN` |
+| **🤖 Automático** | El script | Copia la plantilla a la carpeta del cliente (sin `.git`, `node_modules`, `dist`, `.env` ni `logo.png`), renombra la marca en los docs, `git init` con historia propia, `package.json` → `name`, `.env`, tu `logo.png`, `CUSTOMIZACIONES.md`, remote `madre`, `npm install` + **339 pruebas** + build, y **genera un token nuevo** para `SB_SYNC_TOKEN` / `VITE_TOKEN` |
 | **🧑 Manual** | Tú | Google, GitHub y Vercel: el script **imprime el paso completo** (con las rutas y valores ya rellenados) y espera tu respuesta |
 | **✅ Verificación** | Tú | Los 9 chequeos de la fase D, uno por uno, con la causa probable si algo falla |
 
@@ -245,7 +245,7 @@ git fetch madre
 
 # 5. Identidad interna (package.json → "name") y validación
 npm install
-npm test      # debe pasar: 317 tests
+npm test      # debe pasar: 339 tests
 npm run build
 ```
 
@@ -319,11 +319,11 @@ git apply fix.patch
 # C) a mano: copiar SOLO los archivos que el cliente NO personalizó
 ```
 
-Después, **siempre**: `npm test` (317 en verde) y el checklist de la
+Después, **siempre**: `npm test` (339 en verde) y el checklist de la
 fase D.
 
 > ⚠️ **La trampa real de los repos independientes no es git, es
-> `App.jsx`** (4.490 líneas). Si en ABC personalizaste esa pantalla y
+> `App.jsx`** (~5.500 líneas). Si en ABC personalizaste esa pantalla y
 > copias encima el `App.jsx` de SZ, **borras su personalización** y ni
 > siquiera hay un conflicto de git que te avise. Por eso:
 >
@@ -391,7 +391,7 @@ fase D.
 1. **La lógica de `Code.gs` y de `src/`.** Las reglas de negocio son el
    producto; si el cliente necesita una regla distinta, es una
    personalización, no un onboarding.
-2. **Los tests.** `npm test` debe pasar siempre (317 tests). Si un cambio
+2. **Los tests.** `npm test` debe pasar siempre (339 tests). Si un cambio
    de cliente los rompe, el cambio estaba mal hecho.
 3. **El token del cliente en el código.** Vive en `SB_SYNC_TOKEN`
    (servidor) y `VITE_TOKEN` (Vercel). El repo es público.
@@ -465,7 +465,7 @@ problemas) y [`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) sección F.
 [ ] Triggers: reportes + backup diario + correo semanal
 [ ] Repo nuevo en GitHub (historia propia, `madre` como remote de solo lectura)
 [ ] `package.json` → "name" + `CUSTOMIZACIONES.md` creado
-[ ] npm test en verde (317) + npm run build
+[ ] npm test en verde (339) + npm run build
 [ ] Vercel: proyecto nuevo + 7 variables de la fase A + 2 críticas
 [ ] Deploy → checklist de la sección 5 completo
 [ ] Anotado en el gestor de contraseñas: token y correo del cliente
@@ -507,7 +507,7 @@ git remote -v                     # ✅ origin (NOMBRE) + madre (SZ)
 
 # 5. Validar (ver aviso de PowerShell arriba, sección 4)
 npm install
-npm test        # ✅ 317 pruebas
+npm test        # ✅ 339 pruebas
 npm run build   # ✅ built in ~3s
 
 # 6. SZ intacto

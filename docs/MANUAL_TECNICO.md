@@ -119,7 +119,7 @@ Abre **http://localhost:5173**.
 ### B.5 Pruebas, lint y build
 
 ```bash
-npm test              # 317 pruebas, una sola ejecución
+npm test              # 339 pruebas, una sola ejecución
 npm run test:watch    # modo observador
 npm run lint          # ESLint sobre src/
 npm run build         # build de producción en dist/
@@ -130,7 +130,7 @@ npm run preview       # sirve dist/ localmente
 
 | Comando | Resultado |
 |---|---|
-| `npm test` | ✅ **334/334 pruebas pasando** (4 suites) |
+| `npm test` | ✅ **339/339 pruebas pasando** (5 suites) |
 | `npm run lint` | ✅ **0 errores**, 11 *warnings* preexistentes (`no-unused-vars`) |
 | `npm run build` | ✅ Build OK (~5,8 s) |
 
@@ -389,7 +389,7 @@ hoja automáticamente:
 
 | Archivo | Origen | Contenido |
 |---|---|---|
-| `Code.gs` | Pegar el contenido de `apps-script/Code.gs` | Toda la lógica (~2.072 líneas) |
+| `Code.gs` | Pegar el contenido de `apps-script/Code.gs` | Toda la lógica (~2.250 líneas) |
 | `appsscript.json` | Pegar el contenido de `apps-script/appsscript.json` | Manifiesto: zona horaria y scopes |
 
 > 💡 El editor por defecto **no muestra el manifiesto**. Actívalo en

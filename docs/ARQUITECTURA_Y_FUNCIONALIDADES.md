@@ -8,7 +8,7 @@ aplica.
 >
 > - ✅ **Verificado en código** — se leyó la implementación en este repositorio.
 > - 🧪 **Verificado en pruebas automatizadas** — existe un test que lo cubre
->   (317 pruebas, ejecutadas y en verde en esta ronda de documentación).
+>   (339 pruebas, ejecutadas y en verde en esta ronda de documentación).
 > - 🔎 **No verificado en producción** — la regla existe en el código pero no
 >   se probó en el entorno real de Google/Vercel.
 
@@ -177,44 +177,46 @@ App → saveData(payload) → call(URL, {method:'POST', body:{token, ...payload}
 | Archivo | Líneas | Responsabilidad | ¿Testeado? |
 |---|---:|---|:---:|
 | `src/main.jsx` | 10 | Punto de entrada de React (`StrictMode`) | — |
-| `src/App.jsx` | 5.120 | **Toda la UI** + estado global + orquestación de guardado | — (componentes no unit-testeados) |
-| `src/helpers.js` | 857 | **Lógica pura**: fechas, slots, duraciones, estados, finanzas, reportes, servicio a domicilio, clasificación de citas | ✅ 165 tests |
+| `src/App.jsx` | 5.502 | **Toda la UI** + estado global + orquestación de guardado | — (componentes no unit-testeados) |
+| `src/helpers.js` | 909 | **Lógica pura**: fechas, slots, duraciones, estados, finanzas, reportes, servicio a domicilio, clasificación de citas | ✅ 171 tests |
 | `src/api.js` | 83 | Transporte HTTP y mensajes de error | ✅ 7 tests |
-| `apps-script/Code.gs` | 2.072 | Backend completo: API, seguridad, Sheets, Calendar, reportes, respaldos | ✅ 127 tests (en sandbox `node:vm`) |
-| `src/backend.test.js` | 2.985 | Ejecuta `Code.gs` **real** con mocks de Apps Script | — |
-| `src/helpers.test.js` | 1.664 | Pruebas unitarias de `helpers.js` | — |
+| `apps-script/Code.gs` | 2.249 | Backend completo: API, seguridad, Sheets, Calendar, reportes, respaldos | ✅ 144 tests (en sandbox `node:vm`) |
+| `src/backend.test.js` | 3.286 | Ejecuta `Code.gs` **real** con mocks de Apps Script | — |
+| `src/helpers.test.js` | 1.767 | Pruebas unitarias de `helpers.js` | — |
 | `src/api.test.js` | 108 | Pruebas del transporte | — |
+| `src/excel.test.js` | 88 | Pruebas del libro Excel de reportes y respaldos (`buildReportWorkbook`) | — |
 
 ### 3.1 Componentes de `src/App.jsx`
 
 | Componente | Línea | Responsabilidad |
 |---|---:|---|
-| `Modal` | 595 | Diálogo de confirmación genérico |
-| `PayModal` | 611 | Selección de método de pago al completar |
-| `NavIcon` | 633 | Iconos SVG de la navegación |
-| `SyncBadge` | 704 | Indicador de sincronización |
-| `Pager` | 753 | Paginación plana **‹ Ant. / Sig. ›** |
-| `CirclePager` | 790 | Paginación anidada con el **número en un círculo** |
-| `GS` | 829 | **Bloque `<style>` global** (tema, modo oscuro, responsive) |
-| `Dashboard` | 1445 | Panel principal; «Citas de Hoy» muestra ✓ (completada) o píldora «✗ No asistió» (`apptStatus`) |
-| `MonthlyIncomeState` | 1670 | Estado de ingresos por mes |
-| `MonthlyBalance` | 1728 | Balance mensual |
-| `ApptsTab` | 1804 | Lista de citas en acordeones |
-| `ApptDetail` | 1974 | Detalle de una cita |
-| `ApptCard` | 2087 | Tarjeta de cita reutilizable |
-| `EditAppt` | 2172 | Formulario de edición |
-| `NewWizard` | 2473 | Asistente de nueva cita (4 pasos) |
-| `ClientsTab` | 2802 | Clientas y búsqueda |
-| `ServicesTab` | 2903 | Catálogo de servicios |
-| `FinancesTab` | 2982 | Finanzas (tarjetas y secciones) |
-| `ClientHistory` | 3171 | Historial de clienta |
-| `MonthComparison` | 3311 | Comparación de meses |
-| `TopServices` | 3442 | Top servicios |
-| `ReportTab` | 3606 | Reportes y exportación |
-| `IncomeDetail` | 4050 | Detalle de ingresos |
-| `SettingsTab` | 4180 | Ajustes y restablecimiento |
-| `ExpenseDetail` | 4427 | Detalle de gastos |
-| `CalendarView` | 4591 | Vista de calendario |
+| `Modal` | 754 | Diálogo de confirmación genérico |
+| `PayIcon` | 777 | Icono del método de pago: logo en `public/img/pagos/` (Nequi/Daviplata/Bancolombia), emoji (Efectivo sin icono, Transferencia 🏦) o `💳` de respaldo |
+| `PayModal` | 785 | Selección de método de pago al completar |
+| `NavIcon` | 806 | Iconos SVG de la navegación |
+| `SyncBadge` | 877 | Indicador de sincronización |
+| `Pager` | 930 | Paginación plana **‹ Ant. / Sig. ›** |
+| `CirclePager` | 967 | Paginación anidada con el **número en un círculo** |
+| `GS` | 1006 | **Bloque `<style>` global** (tema, modo oscuro, responsive) |
+| `Dashboard` | 1623 | Panel principal; «Citas de Hoy» muestra ✓ (completada) o píldora «✗ No asistió» (`apptStatus`) |
+| `MonthlyIncomeState` | 1862 | Estado de ingresos por mes |
+| `MonthlyBalance` | 1920 | Balance mensual |
+| `ApptsTab` | 1996 | Lista de citas en acordeones |
+| `ApptDetail` | 2175 | Detalle de una cita |
+| `ApptCard` | 2288 | Tarjeta de cita reutilizable |
+| `EditAppt` | 2373 | Formulario de edición |
+| `NewWizard` | 2674 | Asistente de nueva cita (4 pasos) |
+| `ClientsTab` | 3016 | Clientas y búsqueda |
+| `ServicesTab` | 3117 | Catálogo de servicios |
+| `FinancesTab` | 3196 | Finanzas (tarjetas y secciones) |
+| `ClientHistory` | 3385 | Historial de clienta |
+| `MonthComparison` | 3538 | Comparación de meses |
+| `TopServices` | 3669 | Top servicios |
+| `ReportTab` | 3833 | Reportes y exportación |
+| `IncomeDetail` | 4199 | Detalle de ingresos |
+| `SettingsTab` | 4471 | Ajustes y restablecimiento |
+| `ExpenseDetail` | 4809 | Detalle de gastos |
+| `CalendarView` | 4973 | Vista de calendario |
 
 > 📌 **Nota de diseño:** `App.jsx` concentra la UI en un archivo único
 > **a propósito** (documentado en el `README.md`). La lógica reutilizable vive
@@ -655,7 +657,7 @@ CSV **ambiguo**: un servicio puede llamarse
 >
 > Réplica obligatoria en **`Code.gs` → `_recoverSnapshotNames`** (ES5),
 > cubierta por el test de **paridad frontend↔backend**. Si se toca un lado
-> sin el otro, los 317 tests se caen.
+> sin el otro, los 339 tests se caen.
 
 ---
 
@@ -720,7 +722,7 @@ explícitamente:
 |---|---|---|
 | Búsqueda | `phoneMatch` (`helpers.js` 50) + `ClientsTab` (`App.jsx` 2829) | **Sufijo** del celular primero, luego **subcadena** del nombre |
 | Alta al agendar | `NewWizard` (`App.jsx` 2546) | Si el nombre no existe → se crea con `uid()` |
-| Historial | `ClientHistory` (3171) | Citas, montos, última visita |
+| Historial | `ClientHistory` (3385) | Citas, montos, última visita |
 | Reutilización | — | ⚠️ Si **2 clientas** comparten celular, **no** se fusionan |
 
 ### 11.2 Servicios
@@ -882,7 +884,7 @@ Hay **dos familias** de control, definidas en `App.jsx` junto a
 | **🧾 Movimientos del período** | `ReportTab` | cambiar de **período** (`mode`, `day`, `month`, `year`, `from`, `to`) o de **filtro** (`mvFilter`) |
 | **💚 Detalle Ingresos** — lista de **días** | `IncomeDetail` | cambiar de **mes** o de **filtro** (`filter`: Todo / Recibido / Pendiente / No asistió) |
 | **📤 Detalle Gastos** — lista de **días** | `ExpenseDetail` | cambiar de **mes** |
-| **🗓️ Todas las citas** (historial de cliente) | `ClientHistory` | cambiar de **cliente** — el componente se desmonta y `apptPage` vuelve a 1 (no hace falta `useEffect`, `App.jsx` 3174–3178) |
+| **🗓️ Todas las citas** (historial de cliente) | `ClientHistory` | cambiar de **cliente** — el componente se desmonta y `apptPage` vuelve a 1 (no hace falta `useEffect`, `App.jsx` 3388–3392) |
 
 **Reglas del control `Pager`:**
 
@@ -892,7 +894,7 @@ Hay **dos familias** de control, definidas en `App.jsx` junto a
 | Muestra el rango y la posición: `1–7 de 20 días · pág. 1 de 3` | `first`/`last` calculados sobre el total, **no** sobre la página |
 | El rango se **recorta siempre** dentro de `[1, pages]` | `Math.min(Math.max(1,page),pages)` — una lista que encoge nunca deja la vista vacía |
 | **‹ Ant.** deshabilitado en la primera página, **Sig. ›** en la última | `disabled` + opacidad 0,4 |
-| El estado lo lleva el **padre**, no el propio `Pager` | `expPage` (2992) / `apptPage` (3178) / `mvPage` (3639) / `incPage` (4058) / `dayPage` (4434) + `useEffect` de reinicio |
+| El estado lo lleva el **padre**, no el propio `Pager` | `expPage` (3206) / `apptPage` (3392) / `mvPage` (3866) / `incPage` (4207) / `dayPage` (4816) + `useEffect` de reinicio |
 | Acepta tamaño propio con `size` | `size={DAY_PAGE_SIZE}` (7) o `size={CLIENT_APPT_PAGE_SIZE}` (5) — sin `size` sigue en 10 |
 
 #### 12.5.2 Familia ANIDADA — `CirclePager` (número dentro de un círculo)
@@ -1276,7 +1278,7 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 10 | **Dos clientas con el mismo celular no se fusionan** | — |
 | 11 | **Lógica duplicada** frontend ↔ backend (revelada por las pruebas de paridad) | `helpers.js` / `Code.gs` |
 | 12 | **Los `VITE_*` requieren rebuild** — no cambian en caliente | Vite |
-| 13 | **`App.jsx` es monolítico** (~5.120 líneas) — decisión deliberada, documentada | `App.jsx` |
+| 13 | **`App.jsx` es monolítico** (~5.500 líneas) — decisión deliberada, documentada | `App.jsx` |
 | 14 | ~~`VITE_BIZ_SUBTITLE` no llegaba al `<title>` de la pestaña~~ → **CORREGIDO**: había **dos** `useEffect` de branding y el segundo (`App.jsx` 341–351, deps `[]`) pisaba al primero (293–306). React ejecuta los efectos en orden de declaración, así que ganaba el segundo y se perdía el subtítulo — **solo en la pestaña**, porque en el encabezado (533) sí se veía, y por eso el fallo pasaba inadvertido. Ahora **solo existe el de 293–306**, único escritor del `document.title` (294, formato `NOMBRE · SUBTITULO`), del favicon (297–299) y del `apple-touch-icon` (302–304); el hueco donde estaba el segundo lleva un comentario que prohíbe reañadirlo. | `App.jsx` 293–306 |
 
 ---
@@ -1311,7 +1313,7 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | **CLIENTES** | | | | |
 | 22 | Búsqueda por sufijo/subcadena | `helpers.js` `phoneMatch`, `App.jsx` 2829 | ✅ | 🧪 |
 | 23 | Alta automática al agendar | `App.jsx` 2546 | ✅ | — |
-| 24 | Historial de clienta | `ClientHistory` (3171) | ✅ | — |
+| 24 | Historial de clienta | `ClientHistory` (3385) | ✅ | — |
 | **SERVICIOS** | | | | |
 | 25 | Catálogo con precio y duración | `ServicesTab` (2903) | ✅ | 🧪 |
 | 26 | Historial de precios | `Code.gs` `trackPriceChanges` (1912) | ✅ | 🧪 |

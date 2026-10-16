@@ -9,7 +9,7 @@ React 18 + Vite · Google Apps Script + Sheets + Calendar · Deploy en Vercel
 
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=white)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
-[![Tests](https://img.shields.io/badge/Tests-317_passing-brightgreen)](#-testing)
+[![Tests](https://img.shields.io/badge/Tests-339_passing-brightgreen)](#-testing)
 [![Deploy](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)](https://vercel.com)
 [![Backend](https://img.shields.io/badge/Backend-Google_Apps_Script-34A853?logo=googleapps&logoColor=white)](https://script.google.com)
 
@@ -220,6 +220,9 @@ SZ/
 ├── .env.example               # Plantilla de variables de entorno
 ├── logo.png                   # Logo / apple-touch-icon
 │
+├── public/                    # Assets estáticos (Vite los copia a dist/ tal cual)
+│   └── img/pagos/             # Logos de métodos de pago (nequi, daviplata, bancolombia)
+│
 ├── README.md                  # ← Estás aquí
 ├── SETUP.md                   # Guía de despliegue original (preexistente)
 ├── SESION_2026-08-04.md       # Bitácora de desarrollo (preexistente)
@@ -235,18 +238,19 @@ SZ/
 │
 ├── src/
 │   ├── main.jsx               # Entry point de React
-│   ├── App.jsx                # 🟡 Toda la UI (~4.490 líneas): componentes y estado
+│   ├── App.jsx                # 🟡 Toda la UI (~5.500 líneas): componentes y estado
 │   ├── api.js                 # load/save contra el Web App de Apps Script
-│   ├── helpers.js             # Funciones puras (~857 líneas) — la fuente de las reglas
+│   ├── helpers.js             # Funciones puras (~900 líneas) — la fuente de las reglas
 │   ├── catalogs.js            # Catálogos por tipo de negocio (VITE_CATALOG)
 │   ├── index.css              # Reset mínimo
 │   ├── api.test.js            # Tests del módulo de transporte
 │   ├── helpers.test.js        # Tests unitarios de helpers
 │   ├── catalogs.test.js       # Tests de los catálogos iniciales
+│   ├── excel.test.js          # Tests del libro Excel de reportes y respaldos
 │   └── backend.test.js        # Ejecuta el Code.gs REAL dentro de un sandbox
 │
 └── apps-script/               # 🟢 Backend (desplegar en Google Apps Script)
-    ├── Code.gs                # Lógica completa (~2.072 líneas)
+    ├── Code.gs                # Lógica completa (~2.250 líneas)
     ├── appsscript.json        # Manifiesto ACTIVO (scopes + zona horaria)
     └── appsscript.json.txt    # Manifiesto alternativo (preexistente; ver docs)
 ```
@@ -404,15 +408,16 @@ Detalle completo en [`docs/MANUAL_TECNICO.md`](docs/MANUAL_TECNICO.md) sección 
 
 ## 🧪 Testing
 
-Hay **317 pruebas** en 4 suites, ejecutadas y verificadas en esta ronda de
+Hay **339 pruebas** en 5 suites, ejecutadas y verificadas en esta ronda de
 documentación:
 
 | Suite | Pruebas | Qué cubre |
 |---|---:|---|
-| `src/helpers.test.js` | 165 | Lógica pura: fechas, slots, teléfono, duraciones, estados, finanzas, reportes |
-| `src/backend.test.js` | 131 | **Ejecuta el `Code.gs` real** en un sandbox (`node:vm`): API, reset, Calendar, reportes, Excel, paridad correo/WhatsApp y marca de los correos (`SB_BIZ_NAME`) |
+| `src/helpers.test.js` | 171 | Lógica pura: fechas, slots, teléfono, duraciones, estados, finanzas, reportes |
+| `src/backend.test.js` | 144 | **Ejecuta el `Code.gs` real** en un sandbox (`node:vm`): API, reset, Calendar, reportes, Excel, paridad correo/WhatsApp y marca de los correos (`SB_BIZ_NAME`) |
 | `src/catalogs.test.js` | 14 | Catálogo inicial por tipo de negocio (`VITE_CATALOG` / `VITE_DEFAULT_SERVICES`) |
 | `src/api.test.js` | 7 | Transporte: mensajes de error, `loadData`/`saveData`, restablecimiento |
+| `src/excel.test.js` | 3 | Libro Excel (`buildReportWorkbook`): Resumen/Movimientos/Citas, hoja Clientes y las 9 paletas |
 
 ```bash
 npm test              # una vez
