@@ -392,6 +392,11 @@ hoja automáticamente:
 | `Code.gs` | Pegar el contenido de `apps-script/Code.gs` | Toda la lógica (~2.250 líneas) |
 | `appsscript.json` | Pegar el contenido de `apps-script/appsscript.json` | Manifiesto: zona horaria y scopes |
 
+> 🔒 **`apps-script/` es solo local** (está en `.gitignore` y **no se sube
+> a GitHub**): contiene el backend completo. Existe en tu disco y en
+> Apps Script, no en el repo remoto. En un clone nuevo hay que copiar
+> esa carpeta desde la plantilla (los tests la leen en local).
+
 > 💡 El editor por defecto **no muestra el manifiesto**. Actívalo en
 > **⚙️ → Mostrar archivo de manifiesto**.
 

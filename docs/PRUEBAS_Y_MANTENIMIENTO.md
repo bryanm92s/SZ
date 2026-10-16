@@ -98,6 +98,10 @@ Cubre sin depender de React ni del navegador:
 > con **`node:vm`** y lo ejecuta con **mocks de Apps Script** (`SpreadsheetApp`,
 > `CalendarApp`, `GmailApp`, `ScriptApp`, `UrlFetchApp`, `Utilities`,
 > `PropertiesService`, `LockService`, `Session`).
+>
+> 🔒 `apps-script/` está en `.gitignore` (no va a GitHub): el test lo lee
+> **del disco local**. Tras un `git clone` nuevo, copia la carpeta
+> `apps-script/` desde la plantilla o los tests fallarán con «ENOENT».
 
 Cubre:
 

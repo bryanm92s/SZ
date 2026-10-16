@@ -249,11 +249,16 @@ SZ/
 │   ├── excel.test.js          # Tests del libro Excel de reportes y respaldos
 │   └── backend.test.js        # Ejecuta el Code.gs REAL dentro de un sandbox
 │
-└── apps-script/               # 🟢 Backend (desplegar en Google Apps Script)
+└── apps-script/               # 🟢 Backend (SOLO LOCAL, en .gitignore: NO va a GitHub)
     ├── Code.gs                # Lógica completa (~2.250 líneas)
-    ├── appsscript.json        # Manifiesto ACTIVO (scopes + zona horaria)
-    └── appsscript.json.txt    # Manifiesto alternativo (preexistente; ver docs)
+    └── appsscript.json        # Manifiesto ACTIVO (scopes + zona horaria)
 ```
+
+> **Nota de seguridad:** `apps-script/` contiene el backend (token,
+> reglas de negocio del servidor) y **no se sube a GitHub**: vive solo en
+> tu disco y en Apps Script. Los tests sí lo leen en local
+> (`src/backend.test.js`), así que en un clone nuevo hay que copiar esa
+> carpeta desde la plantilla antes de correr `npm test`.
 
 > **Nota de diseño:** `App.jsx` concentra toda la UI en un solo archivo a
 > propósito, para mantenerlo simple de navegar y modificar; la lógica

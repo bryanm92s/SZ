@@ -4,3 +4,10 @@ dist
 .env.local
 .DS_Store
 SZ-ROLES
+
+# Backend de Google Apps Script: solo existe en LOCAL.
+# No se publica en GitHub (es el código del servidor: seguridad y lógica).
+# · Para desplegarlo: pega su contenido en Apps Script (ver SETUP.md).
+# · Los tests (src/backend.test.js) lo leen del disco: en un clone nuevo
+#   hay que copiar esta carpeta desde la plantilla antes de correr npm test.
+apps-script/

@@ -86,6 +86,12 @@ final puedes borrar ese archivo.
 > ⚠️ El script **solo lee** de la carpeta de SZ: escribe únicamente en la
 > carpeta del cliente y en su carpeta de estado local. La copia usa
 > robocopy **sin `/MIR`**, así que nada se borra.
+>
+> 🔒 **`apps-script/` viaja en la copia pero no a GitHub:** el backend se
+> copia a la carpeta del cliente (hace falta pegarlo en Apps Script y
+> porque los tests lo leen en local), pero el `.gitignore` que también se
+> copia lo excluye del commit: cada repo mantiene su backend fuera de
+> GitHub.
 
 ---
 
@@ -229,6 +235,8 @@ con SZ. Es lo que quieres si cada negocio va a evolucionar por su lado.
 #    /XF .env es OBLIGATORIO: sin él, el repo del cliente arrancaría con el
 #    token de SZ apuntando a la base de datos de SZ. Tampoco se hereda
 #    logo.png (cada cliente tiene el suyo) ni .env.local.
+#    apps-script/ SÍ se copia (los tests lo necesitan en local), pero el
+#    .gitignore que viene con la copia lo excluye del commit: no va a GitHub.
 robocopy "SZ" "nombre-del-cliente" /E /XD .git node_modules dist coverage .zcode /XF .env .env.local logo.png /NFL /NDL /NJH
 
 # 2. Entra y crea una historia NUEVA (nada que ver con la de SZ)
