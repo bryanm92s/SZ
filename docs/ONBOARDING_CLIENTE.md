@@ -117,7 +117,7 @@ requiere tocar el código.
 | `VITE_BIZ_NAME` | Nombre del negocio (pestaña, encabezado, pie y mensajes) | `Uñas de Valentina` |
 | `VITE_BIZ_SUBTITLE` | Subtítulo corto (`NOMBRE · SUBTITULO` en la pestaña) | `Spa de uñas` |
 | `VITE_BIZ_EMOJI` | Emoji de favicon, encabezado y cierre del WhatsApp | `💅` |
-| `VITE_BIZ_LOGO` | URL **absoluta** del logo (opcional; sustituye al emoji) | `https://…/logo.png` |
+| `VITE_BIZ_LOGO` | URL **absoluta** del logo (opcional; sustituye al emoji) | `https://raw.githubusercontent.com/bryanm92s/LOGOS/main/LOGO-<CLIENTE>/logo.png` |
 | `VITE_ADMIN_WHATSAPP` | Número del admin para el botón «💬 WhatsApp admin» | `573001234567` |
 | `VITE_CATALOG` | Catálogo inicial: `cejas` \| `unas` \| `peluqueria` \| `barberia` \| `depilacion` \| `masajes` \| `estetica` \| `maquillaje` | `unas` |
 | `VITE_DEFAULT_SERVICES` | Catálogo en JSON si no encaja en un preset | `[{"name":"Corte","price":45000,"duration":60}]` |
@@ -133,6 +133,13 @@ requiere tocar el código.
 > define `VITE_BIZ_LOGO` con la URL de **su** logo o reemplaza el archivo
 > `logo.png` en su repo. El favicon de la pestaña sí se pinta solo, con
 > `VITE_BIZ_EMOJI`.
+>
+> 🔓 **Repos privados → repo LOGOS público.** Si el repo del cliente es
+> privado, una URL que apunte a **ese** repo deja de servir el logo.
+> Sube el logo a [github.com/bryanm92s/LOGOS](https://github.com/bryanm92s/LOGOS)
+> (público, con sus URLs raw listas en el README) y usa esa URL en
+> `VITE_BIZ_LOGO`. El `logo.png` del build (raíz del repo) **no se
+> afecta**: lo sirve Vercel, no GitHub.
 
 **Catálogo — elige entre 8 categorías** (`src/catalogs.js`):
 
