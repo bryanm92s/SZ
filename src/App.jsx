@@ -2257,7 +2257,7 @@ function ApptDetail({appt,services,onClose,onEdit,onDelete}) {
           <Row label="📅 Fecha">{fmtDate(appt.date)}</Row>
           <Row label="🕐 Hora">{fmtTime(appt.time)} – {fmtTime(endTime(appt.time,dur))}</Row>
           <Row label="⏱ Duración">{fmtDuration(dur)}</Row>
-          {bool(appt.paymentMethod) && <Row label="💳 Pago">{payMethodOf(appt)}</Row>}
+          {bool(appt.paymentMethod) && <Row label="💳 Pago"><PayIcon m={payMethodOf(appt)} h={14}/>{payMethodOf(appt)}</Row>}
           {dom && <Row label="🛵 Domicilio">{fmtM(appt.domicilioPrice)}</Row>}
           {dom && appt.address && <Row label="📍 Dirección">{appt.address}</Row>}
           <div style={{display:'flex',justifyContent:'space-between',gap:12,padding:'8px 0',fontSize:14}}>
@@ -4152,7 +4152,7 @@ function ReportTab({appts,expenses,services,setTab}) {
               <div style={{flexShrink:0,width:46,fontSize:11,color:'var(--t2)',fontWeight:600}}>{r.date.slice(8)}/{r.date.slice(5,7)}</div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.kind==='in'?r.who:r.detail}</div>
-                <div style={{fontSize:11,color:'var(--t2)'}}>{r.kind==='in'?r.detail:r.who}{r.delivery>0?` · 🛵 ${fmtM(r.delivery)} dom. + ${fmtM(r.service)} serv.`:''}</div>
+                <div style={{fontSize:11,color:'var(--t2)'}}>{r.kind==='in'?r.detail:r.who}{r.delivery>0?` · 🛵 ${fmtM(r.delivery)} dom. + ${fmtM(r.service)} serv.`:''}{r.kind==='in'&&r.payMethod?<> · <PayIcon m={r.payMethod} h={12}/>{r.payMethod}</>:null}</div>
               </div>
               <div style={{flexShrink:0,fontWeight:700,color:r.kind==='in'?'var(--green)':'var(--red)'}}>{r.kind==='in'?'+':'−'}{fmtM(r.amount)}</div>
             </div>
