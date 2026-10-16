@@ -224,8 +224,12 @@ con SZ. Es lo que quieres si cada negocio va a evolucionar por su lado.
 ```powershell
 # Estás en la carpeta que CONTIENE a SZ (p. ej. C:\...\PROYECTOS GITHUB)
 
-# 1. Copia TODO excepto .git, node_modules y dist (robocopy: código 0–7 = OK)
-robocopy "SZ" "nombre-del-cliente" /E /XD .git node_modules dist /NFL /NDL /NJH
+# 1. Copia TODO excepto .git, node_modules, dist… y SIN secretos ni el logo
+#    de la plantilla (robocopy: código 0–7 = OK).
+#    /XF .env es OBLIGATORIO: sin él, el repo del cliente arrancaría con el
+#    token de SZ apuntando a la base de datos de SZ. Tampoco se hereda
+#    logo.png (cada cliente tiene el suyo) ni .env.local.
+robocopy "SZ" "nombre-del-cliente" /E /XD .git node_modules dist coverage .zcode /XF .env .env.local logo.png /NFL /NDL /NJH
 
 # 2. Entra y crea una historia NUEVA (nada que ver con la de SZ)
 cd nombre-del-cliente
@@ -234,19 +238,23 @@ git init -b main
 git add .
 git commit -m "chore: base de nombre-del-cliente (copia de SZ @ $(git -C ..\SZ rev-parse --short HEAD))"
 
-# 3. Crea el repo VACÍO en github.com y conecta
+# 3. Identidad interna: package.json y package-lock.json → "name": <cliente>
+
+# 4. TU entorno local (nada que ver con el de SZ): copia .env.example a .env
+#    y rellena VITE_SCRIPT_URL y VITE_TOKEN con las del cliente (luego,
+#    en Vercel, las mismas). Verifica con pruebas y build:
+npm install
+npm test      # debe pasar: 339 tests (o: npx vitest run --environment node)
+npm run build
+
+# 5. Crea el repo VACÍO en github.com y conecta
 git remote add origin https://github.com/TU_USUARIO/nombre-del-cliente.git
 git push -u origin main
 
-# 4. (Muy recomendado) La madre queda como remote de SOLO LECTURA:
+# 6. (Muy recomendado) La madre queda como remote de SOLO LECTURA:
 #    no sincroniza nada, solo te permite comparar y portar arreglos.
 git remote add madre https://github.com/TU_USUARIO/SZ.git
 git fetch madre
-
-# 5. Identidad interna (package.json → "name") y validación
-npm install
-npm test      # debe pasar: 339 tests
-npm run build
 ```
 
 > ⚠️ **Windows + PowerShell (pasó en la práctica):** si `npm` revienta con
