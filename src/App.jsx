@@ -4825,6 +4825,25 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
   const [openCat,setOpenCat]=useState(null)
   const [catPage,setCatPage]=useState(1)
   useEffect(()=>{ setCatPage(1) },[openCat,month])
+  // Al ABRIR una categoría, su tarjeta nace debajo de «Por categoría» y,
+  // con la lista de días larga, queda fuera de pantalla: la dueña tenía
+  // que bajar a mano buscándola. La vista baja sola hasta el encabezado
+  // de la tarjeta recién desplegada. Al cerrar (openCat → null) no se
+  // mueve nada. El header es sticky, así que se descuenta su alto para
+  // que la tarjeta no quede metida debajo de la barra verde.
+  const catCardRef = useRef(null)
+  useEffect(() => {
+    if (!openCat) return
+    const t = setTimeout(() => {
+      const el = catCardRef.current
+      if (!el) return                    // categoría sin gastos este mes
+      const hdr = document.querySelector('header')
+      const off = (hdr ? hdr.offsetHeight : 56) + 12
+      const y = el.getBoundingClientRect().top + window.scrollY - off
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' })
+    }, 60)
+    return () => clearTimeout(t)
+  }, [openCat])
   const safe=Array.isArray(expenses)?expenses:[]
   const months=[...new Set([...safe.map(e=>cleanDate(e.date).slice(0,7)),monthStr()].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
   const me=[...safe].filter(e=>cleanDate(e.date).slice(0,7)===month).sort((a,b)=>cleanDate(a.date).localeCompare(cleanDate(b.date))||cmpExpense(a,b))
@@ -4896,7 +4915,7 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
     {/* ── Gastos de la categoría desplegada ── Aparece DEBAJO de
         «Por categoría» y desaparece con un segundo clic. Si pasa de
         CATEGORY_PAGE_SIZE aparecen los círculos. */}
-    {openCat&&catList.length>0&&<div className="card" style={{
+    {openCat&&catList.length>0&&<div className="card" ref={catCardRef} style={{
         marginBottom:10,
         // Se tiñe SOLO con variables del tema activo: `--primary-l` es el
         // verde / rojo / morado CLARO de la paleta elegida en Ajustes y
@@ -4925,6 +4944,10 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
     {dayEntries.length===0
       ?<div className="card" style={{textAlign:'center',padding:30,color:'var(--t2)'}}>Sin gastos este mes</div>
       :<>
+      {/* Título de la lista: sin él, el primer día quedaba pegado de la
+          tarjeta de categoría (o de la desplegada) y no se entendía que
+          empezaba otra sección. */}
+      <div style={{fontWeight:700,fontSize:14,margin:'20px 0 10px'}}>📅 Gastos por día</div>
       {dayShown.map(([day,items])=>{
         const dayTot=items.reduce((s,e)=>s+toN(e.amount||0),0)
         // Gastos del día de a 5. OJO: `dayTot` se calcula con `items`

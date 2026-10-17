@@ -41,7 +41,7 @@ aplica.
 ```mermaid
 flowchart TD
     subgraph Cliente["Navegador (celular o PC)"]
-        UI["src/App.jsx — UI React (~5.370 líneas)"]
+        UI["src/App.jsx — UI React (~5.530 líneas)"]
         HLP["src/helpers.js — lógica pura (~909 líneas)"]
         API["src/api.js — transporte HTTP"]
         LS[("localStorage<br/>sb_c · sb_s · sb_a · sb_e<br/>sz_palette · sz_hcats · sz_opening_balance")]
@@ -177,7 +177,7 @@ App → saveData(payload) → call(URL, {method:'POST', body:{token, ...payload}
 | Archivo | Líneas | Responsabilidad | ¿Testeado? |
 |---|---:|---|:---:|
 | `src/main.jsx` | 10 | Punto de entrada de React (`StrictMode`) | — |
-| `src/App.jsx` | 5.502 | **Toda la UI** + estado global + orquestación de guardado | — (componentes no unit-testeados) |
+| `src/App.jsx` | 5.528 | **Toda la UI** + estado global + orquestación de guardado | — (componentes no unit-testeados) |
 | `src/helpers.js` | 909 | **Lógica pura**: fechas, slots, duraciones, estados, finanzas, reportes, servicio a domicilio, clasificación de citas | ✅ 171 tests |
 | `src/api.js` | 83 | Transporte HTTP y mensajes de error | ✅ 7 tests |
 | `apps-script/Code.gs` | 2.249 | Backend completo: API, seguridad, Sheets, Calendar, reportes, respaldos | ✅ 144 tests (en sandbox `node:vm`) |
@@ -213,10 +213,10 @@ App → saveData(payload) → call(URL, {method:'POST', body:{token, ...payload}
 | `MonthComparison` | 3538 | Comparación de meses |
 | `TopServices` | 3669 | Top servicios |
 | `ReportTab` | 3833 | Reportes y exportación |
-| `IncomeDetail` | 4199 | Detalle de ingresos |
-| `SettingsTab` | 4471 | Ajustes y restablecimiento |
-| `ExpenseDetail` | 4809 | Detalle de gastos |
-| `CalendarView` | 4973 | Vista de calendario |
+| `IncomeDetail` | 4202 | Detalle de ingresos |
+| `SettingsTab` | 4474 | Ajustes y restablecimiento |
+| `ExpenseDetail` | 4812 | Detalle de gastos |
+| `CalendarView` | 4999 | Vista de calendario |
 
 > 📌 **Nota de diseño:** `App.jsx` concentra la UI en un archivo único
 > **a propósito** (documentado en el `README.md`). La lógica reutilizable vive
@@ -833,10 +833,23 @@ datos, el catálogo real es el de Google Sheets. Detalle y paso a paso en
 > `cmpExpense` — descripción A→Z y luego mayor monto;
 > `CATEGORY_PAGE_SIZE = 10`
 > por página con `CirclePager`); `catPage` es **una sola página
-> compartida** y el `useEffect` de `App.jsx` 4442 la devuelve a **1**
+> compartida** y el `useEffect` de `App.jsx` 4827 la devuelve a **1**
 > **cada vez que cambia `openCat` o `month`** — abrir otra categoría, o
 > cerrar y volver a abrir, **arranca siempre en la página 1**. Los
 > **totales no cambian** al abrir o cerrar. ✅
+>
+> Al **abrir** una categoría la vista **baja sola** hasta su tarjeta
+> (`catCardRef` + `useEffect` sobre `openCat`, `App.jsx` 4828–4846): la
+> lista nace debajo de «Por categoría» y, con la página arriba, quedaba
+> fuera de pantalla. El destino se calcula con la posición de la tarjeta
+> en el documento **menos el alto del header sticky** (más 12 px de
+> aire), para que la tarjeta no quede metida debajo de la barra, y el
+> efecto salta si `openCat` es `null` → **cerrar no mueve la vista**
+> (cambiar de mes tampoco: el efecto depende solo de `openCat`). 📌
+>
+> La lista de días se separa de la de categorías con su propio título,
+> **«📅 Gastos por día»** (`App.jsx` 4950), para que no quede pegada a
+> la tarjeta desplegada. ✅
 
 ### 12.4 Reparto por método de pago
 
@@ -894,22 +907,22 @@ Hay **dos familias** de control, definidas en `App.jsx` junto a
 | Muestra el rango y la posición: `1–7 de 20 días · pág. 1 de 3` | `first`/`last` calculados sobre el total, **no** sobre la página |
 | El rango se **recorta siempre** dentro de `[1, pages]` | `Math.min(Math.max(1,page),pages)` — una lista que encoge nunca deja la vista vacía |
 | **‹ Ant.** deshabilitado en la primera página, **Sig. ›** en la última | `disabled` + opacidad 0,4 |
-| El estado lo lleva el **padre**, no el propio `Pager` | `expPage` (3206) / `apptPage` (3392) / `mvPage` (3866) / `incPage` (4207) / `dayPage` (4816) + `useEffect` de reinicio |
+| El estado lo lleva el **padre**, no el propio `Pager` | `expPage` (3206) / `apptPage` (3392) / `mvPage` (3866) / `incPage` (4210) / `dayPage` (4819) + `useEffect` de reinicio |
 | Acepta tamaño propio con `size` | `size={DAY_PAGE_SIZE}` (7) o `size={CLIENT_APPT_PAGE_SIZE}` (5) — sin `size` sigue en 10 |
 
 #### 12.5.2 Familia ANIDADA — `CirclePager` (número dentro de un círculo)
 
 > ℹ️ **Ojo, no hay que confundirlos:** en «Detalle Gastos» e «Detalle
 > Ingresos» **los DÍA van con el `Pager` plano** de §12.5.1
-> (`App.jsx` 4168 y 4582). El `CirclePager` se usa **solo** para lo que hay
+> (`App.jsx` 4320 en Ingresos y 4990 en Gastos). El `CirclePager` se usa **solo** para lo que hay
 > *dentro* de una tarjeta, donde un segundo `‹ Ant. / Sig. ›` seguido del
 > primero se lee mal:
 
 | Lista | Lo que pagina dentro | Tamaño | `App.jsx` |
 |---|---|---:|---:|
-| **💚 Detalle Ingresos** | citas de **un día** | `ITEM_PAGE_SIZE` = 5 | 4158 |
-| **📤 Detalle Gastos** | gastos de **un día** | `ITEM_PAGE_SIZE` = 5 | 4576 |
-| **📤 Detalle Gastos** | **categoría desplegada** | `CATEGORY_PAGE_SIZE` = 10 | 4537 |
+| **💚 Detalle Ingresos** | citas de **un día** | `ITEM_PAGE_SIZE` = 5 | 4310 |
+| **📤 Detalle Gastos** | gastos de **un día** | `ITEM_PAGE_SIZE` = 5 | 4984 |
+| **📤 Detalle Gastos** | **categoría desplegada** | `CATEGORY_PAGE_SIZE` = 10 | 4941 |
 
 | Regla | Implementación |
 |---|---|
@@ -954,15 +967,15 @@ en que llegaron de la hoja.
 
 | Lista | Orden | Dónde |
 |---|---|---|
-| **Gastos del mes** (Finanzas) | fecha descendente + `cmpExpense` | `meSorted`, `App.jsx` 3020 |
-| **Movimientos del período** (pantalla) | fecha descendente | `mvRows`, `App.jsx` 3719–3720 |
-| **Días** en Detalle Gastos / Ingresos | fecha descendente | `dayEntries`, 4092 / 4456 |
-| **Gastos de una categoría** desplegada | fecha descendente + `cmpExpense` | `catList`, 4465–4466 |
-| **Todas las citas** (historial de cliente) | fecha descendente | `cAppts`, 3184 |
-| **Citas de un día** (Detalle Ingresos) | **hora ascendente** | `ma`, 4073–4075 |
-| **Gastos de un día** (Detalle Gastos) | **descripción A→Z** y, si empatan, **mayor monto** | `me` (4445) → `byDay`; criterio en `cmpExpense` |
+| **Gastos del mes** (Finanzas) | fecha descendente + `cmpExpense` | `meSorted`, `App.jsx` 3234 |
+| **Movimientos del período** (pantalla) | fecha descendente | `mvRows`, `App.jsx` 3946–3947 |
+| **Días** en Detalle Gastos / Ingresos | fecha descendente | `dayEntries`, 4860 / 4244 |
+| **Gastos de una categoría** desplegada | fecha descendente + `cmpExpense` | `catList`, 4869–4870 |
+| **Todas las citas** (historial de cliente) | fecha descendente | `cAppts`, 3396 |
+| **Citas de un día** (Detalle Ingresos) | **hora ascendente** | `ma`, 4225–4227 |
+| **Gastos de un día** (Detalle Gastos) | **descripción A→Z** y, si empatan, **mayor monto** | `me` (4849) → `byDay`; criterio en `cmpExpense` |
 
-#### 12.6.1 El desempate de gastos — `cmpExpense` (`App.jsx` 5117–5120)
+#### 12.6.1 El desempate de gastos — `cmpExpense` (`App.jsx` 5525–5528)
 
 Una **cita** se puede ordenar por hora (`cleanTime`); un **gasto no tiene
 hora**, así que ordenar solo por fecha dejaba cada día en el orden en que las
@@ -983,8 +996,8 @@ const cmpExpense = (a, b) =>
 | 3 | Si aún así → manda el **orden estable** de `Array.sort` (el del servidor) |
 
 Se aplica **como segundo criterio de la fecha** en las tres listas de gastos:
-`me` (4445, de donde salen los grupos `byDay`), `catList` (4466) y
-`meSorted` (3020).
+`me` (4849, de donde salen los grupos `byDay`), `catList` (4869) y
+`meSorted` (3234).
 
 > ✅ **Los totales no cambian.** El total del mes, el desglose por categoría,
 > el total de cada tarjeta de día y el de cada categoría desplegada son
@@ -1339,6 +1352,8 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 38f | **Círculos numerados** para las listas anidadas | `App.jsx` `CirclePager` | ✅ | — |
 | 38g | **Orden** de las listas: reciente → antiguo (citas del día: hora ↑; **gastos del día: `cmpExpense`** — descripción A→Z, luego mayor monto) | `App.jsx` `meSorted`, `mvRows`, `dayEntries`, `catList`, `ma`, `cmpExpense` | ✅ | — |
 | 38h | **Paginación en «Pasadas»** (20 por página) | `App.jsx` `PAST_APPT_PAGE_SIZE`, `pastPage`, `AccGroup` | ✅ | — |
+| 38i | **Bajada automática al abrir una categoría** (al tocarla, la vista baja sola hasta su lista desplegada, con respeto por el header sticky; cerrar o cambiar de mes **no** la mueve) | `App.jsx` `ExpenseDetail`, `catCardRef` + `useEffect` de `openCat` | ✅ | — |
+| 38j | **Título «📅 Gastos por día»** sobre la lista de días del detalle de gastos (separa esa sección de la tarjeta de categoría) | `App.jsx` `ExpenseDetail` | ✅ | — |
 | **REPORTES** | | | | |
 | 39 | Períodos día / mes / rango / **año** | `helpers.js` `periodLedger` | ✅ | 🧪 |
 | 40 | Excel con 3 hojas (app) | `App.jsx` `exportExcel` (3740), SheetJS | ✅ | — |

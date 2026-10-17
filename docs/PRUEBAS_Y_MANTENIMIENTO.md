@@ -339,9 +339,16 @@ Haz esta lista **antes** de cada publicación importante. Usa un
       categoría** debe **desplegar sus gastos** debajo (10 por página, del
       más reciente al más antiguo y, dentro del día, por descripción A→Z)
       y volver a tocarla debe **cerrarla**.
+- [ ] Al **tocar una categoría** desde el tope de la página, la pantalla
+      debe **bajar sola** hasta su lista recién desplegada (la tarjeta
+      visible justo debajo del encabezado, **sin que la tape** la barra
+      sticky). **Cerrar** la categoría **no debe mover la vista**.
+- [ ] La lista de días debe llevar su **título «📅 Gastos por día»**,
+      con aire hacia arriba, para no quedar pegada a la tarjeta de
+      categoría.
 - [ ] Con una categoría abierta en la **página 3**, **abrir otra categoría**
       (o cerrar y volver a abrir la misma) debe **volver a la página 1** —
-      `catPage` es único y lo reinicia `App.jsx` 4442.
+      `catPage` es único y lo reinicia `App.jsx` 4827.
 - [ ] ⭐ **Invariante:** el **Total del mes** y el desglose por categoría
       deben ser **idénticos** con la categoría abierta o cerrada y en todas
       las páginas (salen del mes completo).
