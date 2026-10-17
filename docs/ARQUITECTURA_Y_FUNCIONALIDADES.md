@@ -41,7 +41,7 @@ aplica.
 ```mermaid
 flowchart TD
     subgraph Cliente["Navegador (celular o PC)"]
-        UI["src/App.jsx — UI React (~5.530 líneas)"]
+        UI["src/App.jsx — UI React (~5.570 líneas)"]
         HLP["src/helpers.js — lógica pura (~909 líneas)"]
         API["src/api.js — transporte HTTP"]
         LS[("localStorage<br/>sb_c · sb_s · sb_a · sb_e<br/>sz_palette · sz_hcats · sz_opening_balance")]
@@ -162,12 +162,12 @@ App → saveData(payload) → call(URL, {method:'POST', body:{token, ...payload}
 
 | Mecanismo | Ubicación | Comportamiento |
 |---|---|---|
-| Carga inicial | `App.jsx` 312–332 | `loadData()` → si falla, lee `localStorage` y marca `error` |
-| Polling | `App.jsx` 358–370 | Cada **30 s**, y al volver a la pestaña |
-| Pausa con pestaña oculta | `App.jsx` 363–368 | `document.visibilitychange` |
-| Evitar carreras | `App.jsx` 310, 313 | `savingRef`: si hay un guardado en curso, `refresh` **no** pisa el estado |
-| Escritura optimista | `App.jsx` 372–389 | Escribe el estado local y `localStorage` **antes** de la respuesta |
-| Si el servidor falla | `App.jsx` 385–388 | **No hay rollback inmediato**: deja el mensaje de error y devuelve `null` (los llamadores abortan). El estado real vuelve con el **próximo polling (≤30 s)** o al recargar |
+| Carga inicial | `App.jsx` 395–428 | `loadData()` → si falla, lee `localStorage` y marca `error` |
+| Polling | `App.jsx` 479–491 | Cada **30 s**, y al volver a la pestaña |
+| Pausa con pestaña oculta | `App.jsx` 484–489 | `document.visibilitychange` |
+| Evitar carreras | `App.jsx` 377, 396 | `savingRef`: si hay un guardado en curso, `refresh` **no** pisa el estado |
+| Escritura optimista | `App.jsx` 493–522 | Escribe el estado local y `localStorage` **antes** de la respuesta |
+| Si el servidor falla | `App.jsx` 517–520 | **No hay rollback inmediato**: deja el mensaje de error y devuelve `null` (los llamadores abortan). El estado real vuelve con el **próximo polling (≤30 s)** o al recargar |
 | Telemetría | — | **No hay.** Cero `console.log`/`fetch` a terceros. ✅ |
 
 ---
@@ -177,7 +177,7 @@ App → saveData(payload) → call(URL, {method:'POST', body:{token, ...payload}
 | Archivo | Líneas | Responsabilidad | ¿Testeado? |
 |---|---:|---|:---:|
 | `src/main.jsx` | 10 | Punto de entrada de React (`StrictMode`) | — |
-| `src/App.jsx` | 5.528 | **Toda la UI** + estado global + orquestación de guardado | — (componentes no unit-testeados) |
+| `src/App.jsx` | 5.570 | **Toda la UI** + estado global + orquestación de guardado | — (componentes no unit-testeados) |
 | `src/helpers.js` | 909 | **Lógica pura**: fechas, slots, duraciones, estados, finanzas, reportes, servicio a domicilio, clasificación de citas | ✅ 171 tests |
 | `src/api.js` | 83 | Transporte HTTP y mensajes de error | ✅ 7 tests |
 | `apps-script/Code.gs` | 2.249 | Backend completo: API, seguridad, Sheets, Calendar, reportes, respaldos | ✅ 144 tests (en sandbox `node:vm`) |
@@ -216,7 +216,7 @@ App → saveData(payload) → call(URL, {method:'POST', body:{token, ...payload}
 | `IncomeDetail` | 4202 | Detalle de ingresos |
 | `SettingsTab` | 4474 | Ajustes y restablecimiento |
 | `ExpenseDetail` | 4812 | Detalle de gastos |
-| `CalendarView` | 4999 | Vista de calendario |
+| `CalendarView` | 5040 | Vista de calendario |
 
 > 📌 **Nota de diseño:** `App.jsx` concentra la UI en un archivo único
 > **a propósito** (documentado en el `README.md`). La lógica reutilizable vive
@@ -301,10 +301,10 @@ La hoja **Config** (clave/valor) no está en `JS_KEYS`: la definen
 ### 4.2 Reglas de snapshot
 
 - **`serviceNames` es una foto histórica**: los nombres de servicios **no se
-  actualizan** si luego cambias el catálogo (`NewWizard`, `App.jsx` 2586). ✅
+  actualizan** si luego cambias el catálogo (`NewWizard`, `App.jsx` 2787). ✅
 - **`servicePrice` conserva el precio de cuando se creó la cita**, y el precio
-  por servicio queda en `servicePrices` (`{id:precio}`, `App.jsx` 2587 al
-  crear y 2303–2305 al editar). ✅
+  por servicio queda en `servicePrices` (`{id:precio}`, `App.jsx` 2788 al
+  crear y 2504–2506 al editar). ✅
 - Por eso **editar un servicio no reescribe las citas viejas**. 🧪
 
 ---
@@ -383,7 +383,7 @@ gráfico de historial **siempre tiene un punto de partida**. ✅ 🧪
 | Bloques | 07:00 → 20:30, cada 30 min | `TIME_SLOTS` (`helpers.js` 9–13) | ✅ 🧪 |
 | Hora de cierre | **21:00** — una cita no puede **terminar** después | `CLOSING_TIME` (`helpers.js` 103) + `getSlots` (158–181) | ✅ 🧪 |
 | Duración por defecto | 60 min | `SERVICE_DURATION` (`helpers.js` 15) | ✅ 🧪 |
-| Duración válida | 15–480 min | **Solo el backend la recorta**: `safeDuration` (`Code.gs` 858). El frontend, `svcDuration` (`helpers.js` 106), no recorta: si falta o es ≤ 0 devuelve 60, y la UI solo ofrece 30/60/90/120/150/180 (`DURATION_OPTIONS`, `App.jsx` 237) | ✅ 🧪 |
+| Duración válida | 15–480 min | **Solo el backend la recorta**: `safeDuration` (`Code.gs` 858). El frontend, `svcDuration` (`helpers.js` 106), no recorta: si falta o es ≤ 0 devuelve 60, y la UI solo ofrece 30/60/90/120/150/180 (`DURATION_OPTIONS`, `App.jsx` 301) | ✅ 🧪 |
 | Duración de la cita | **suma** de sus servicios | `sumDuration` (`helpers.js` 112) | ✅ 🧪 |
 | Zona horaria | `America/Bogota` | `appsscript.json` | ✅ |
 
@@ -405,7 +405,7 @@ y es **la única fuente de verdad** de la que cuelgan otras reglas. ✅ 🧪
 ### 6.3 Grupo visual de la lista de citas
 
 `apptGroup(a, now)` (`helpers.js` 231–246), usado por `ApptsTab` (`App.jsx`
-1839):
+1996):
 
 | Grupo | Condición |
 |---|---|
@@ -426,9 +426,9 @@ lo toca la operadora:
 
 | Acción | Dónde |
 |---|---|
-| ✓ **Completar** (elige Efectivo / Nequi / Daviplata / Bancolombia) | `App.jsx` 1881, 1889 |
-| ✗ **No asistió** | `App.jsx` 1881 |
-| Crear cita → `completed: false` | `NewWizard`, `App.jsx` 2591 |
+| ✓ **Completar** (elige Efectivo / Nequi / Daviplata / Bancolombia) | `App.jsx` 2067, 2084 |
+| ✗ **No asistió** | `App.jsx` 2067 |
+| Crear cita → `completed: false` | `NewWizard`, `App.jsx` 2792 |
 
 Lo único que cambia sin intervención es la **presentación**, nunca el dato:
 `apptLife` y `apptGroup` clasifican por fecha y hora, y `apptStatus` deriva
@@ -454,9 +454,9 @@ totalPrice = sum(servicePrices) + (domicilio ? domicilioPrice : 0)
 - `servicePrice` = suma de los precios **al crear**. ✅
 - Al **editar servicios** de la cita, `servicePrice` **se recalcula** pero
   `paymentMethod` **se conserva** (`EditAppt` parte de `...appt`,
-  `App.jsx` 2306–2312). ✅ 🧪
-- Los precios **negativos** se rechazan en la UI (`setPErr`, `App.jsx` 2906,
-  2936) **y** los sanea el backend. ✅ 🧪
+  `App.jsx` 2507–2513). ✅ 🧪
+- Los precios **negativos** se rechazan en la UI (`setPErr`, `App.jsx` 3120,
+  3150) **y** los sanea el backend. ✅ 🧪
 
 ---
 
@@ -494,8 +494,8 @@ tolerancia de minutos. ✅ 🧪
 ### 7.2 ¿Dónde se valida?
 
 > ⚠️ **`checkSlot` se ejecuta SOLO en el cliente**, y solo al **crear** una
-> cita: `NewWizard` (`App.jsx` 2567). **`EditAppt` NO lo llama** — allí la
-> hora se revalida con `getSlots` (`App.jsx` 2256), que marca cada bloque
+> cita: `NewWizard` (`App.jsx` 2768). **`EditAppt` NO lo llama** — allí la
+> hora se revalida con `getSlots` (`App.jsx` 2457), que marca cada bloque
 > como `disabled` y muestra el motivo.
 >
 > El backend **NO** vuelve a comprobar solapes: `doPost` delega en
@@ -524,7 +524,7 @@ cada bloque devuelve:
 - `reason` es el texto que ve la operadora: `Ocupada` / `Hora pasada` /
   `No alcanza antes del cierre`.
 
-Lo usan `EditAppt` (`App.jsx` 2256) y `NewWizard` (`App.jsx` 2558) para
+Lo usan `EditAppt` (`App.jsx` 2457) y `NewWizard` (`App.jsx` 2759) para
 **deshabilitar** las horas tomadas. ✅ 🧪
 
 ---
@@ -544,8 +544,8 @@ allowDelete   = appt.completed === 'false'      →  else «Solo las citas pendi
 | ✅ `completed === 'true'` | ❌ | ❌ |
 | ❌ `completed === 'noshow'` | ❌ | ❌ |
 
-**Implementación:** `EditAppt` (`App.jsx` 2172), `ApptDetail` (1974–2086) y
-`deleteAppt` (479). 🧪 (cubierto en `helpers.test.js` y `backend.test.js`)
+**Implementación:** `EditAppt` (`App.jsx` 2373), `ApptDetail` (2175–2286) y
+`deleteAppt` (625). 🧪 (cubierto en `helpers.test.js` y `backend.test.js`)
 
 ### 8.2 Flujo de «Completar»
 
@@ -570,7 +570,7 @@ leer. ✅ 🧪 (paridad: `PAYMENT_METHODS` ≡ `PAY_METHODS`)
 En los reportes, **«No asistió» aparece solo como número**, nunca como monto
 (`reportLines`, `helpers.js` 702–755). ✅ 🧪 (prueba de paridad)
 
-### 8.4 Eliminar una cita — `deleteAppt` (`App.jsx` 479–511)
+### 8.4 Eliminar una cita — `deleteAppt` (`App.jsx` 625–657)
 
 **Secuencia real (4 pasos):**
 
@@ -619,7 +619,7 @@ en curso.**
 
 **Resultado en el cliente:** `{ok, count, blockers, message}` con un mensaje
 concreto. Si aun así el servidor rechaza la escritura, `ServicesTab.tryDelete`
-**restaura la lista local** (`if (r === null) SS(safe)`, `App.jsx` 2918–2922)
+**restaura la lista local** (`if (r === null) SS(safe)`, `App.jsx` 3133–3136)
 para no mostrar de más un servicio que sigue en la hoja. ✅ 🧪
 
 ### 9.3 Resolución de servicios en reportes
@@ -702,7 +702,7 @@ writeSheet  →  si hay calendarAction  →  create/update/deleteCalEvent
 **No hay transaccionalidad entre Sheets y Calendar.** El diseño acepta eso
 explícitamente:
 
-- **Borrado:** avisar + reintento + mostrar el ID (`App.jsx` 498–510).
+- **Borrado:** avisar + reintento + mostrar el ID (`App.jsx` 644–656).
 - **Edición:** si Calendar no aplicó la hora, el backend devuelve error y la
   app **no** comunica el éxito.
 - **Reset:** los eventos se borran **desde el servidor** dentro de la
@@ -720,8 +720,8 @@ explícitamente:
 
 | Función | Implementación | Regla |
 |---|---|---|
-| Búsqueda | `phoneMatch` (`helpers.js` 50) + `ClientsTab` (`App.jsx` 2829) | **Sufijo** del celular primero, luego **subcadena** del nombre |
-| Alta al agendar | `NewWizard` (`App.jsx` 2546) | Si el nombre no existe → se crea con `uid()` |
+| Búsqueda | `phoneMatch` (`helpers.js` 50) + `ClientsTab` (`App.jsx` 3016) | **Sufijo** del celular primero, luego **subcadena** del nombre |
+| Alta al agendar | `NewWizard` (`App.jsx` 2746) | Si el nombre no existe → se crea con `uid()` |
 | Historial | `ClientHistory` (3385) | Citas, montos, última visita |
 | Reutilización | — | ⚠️ Si **2 clientas** comparten celular, **no** se fusionan |
 
@@ -729,15 +729,15 @@ explícitamente:
 
 | Función | Implementación |
 |---|---|
-| Crear | `ServicesTab.add` (`App.jsx` 2908): `{id:uid(), name, price, duration}` con `price ≥ 0` |
-| Editar | `ServicesTab` (2936): recalcula `price` con `Math.max(0, …)` |
-| Duración | Selector de 60 min por defecto; opciones 30/60/90/120/150/180 (`App.jsx` 237) |
-| Eliminar | `tryDelete` (2913) → `serviceDeletionCheck` → confirm → `SS(next)` |
+| Crear | `ServicesTab.add` (`App.jsx` 3122): `{id:uid(), name, price, duration}` con `price ≥ 0` |
+| Editar | `ServicesTab` (3176): recalcula `price` con `Math.max(0, …)` |
+| Duración | Selector de 60 min por defecto; opciones 30/60/90/120/150/180 (`App.jsx` 301) |
+| Eliminar | `tryDelete` (3127) → `serviceDeletionCheck` → confirm → `SS(next)` |
 | Historial de precios | `trackPriceChanges` (`Code.gs` 1912) en el servidor |
 
 ### 11.3 Catálogo por defecto
 
-`DEFAULT_SERVICES` (`App.jsx` 237) **no está escrito en el código**: se
+`DEFAULT_SERVICES` (`App.jsx` 297) **no está escrito en el código**: se
 resuelve en tiempo de compilación con `resolveCatalog()` (`src/catalogs.js`),
 que aplica este orden:
 
@@ -787,11 +787,11 @@ datos, el catálogo real es el de Google Sheets. Detalle y paso a paso en
 `Code.gs`; si difiere, falla la prueba de paridad. 🧪
 
 > 📌 **Solo «Por rango» puede ir al futuro.** El `<input>` de **Día** lleva
-> `max={today}` y el de **Mes** `max={monthStr()}` (`App.jsx` 3886, 3888),
+> `max={today}` y el de **Mes** `max={monthStr()}` (`App.jsx` 4035, 4037),
 > pero el de **Desde/Hasta** solo se limita entre sí (`max={to}` /
-> `min={from}`, 3896–3897): sirve para revisar citas ya agendadas con
+> `min={from}`, 4045–4046): sirve para revisar citas ya agendadas con
 > antelación. Ningún predicado compara contra hoy — ni `inPeriod`
-> (`App.jsx` 3643–3650) ni `_inPeriod` (`Code.gs` 1135): solo hacen
+> (`App.jsx` 3870–3877) ni `_inPeriod` (`Code.gs` 1135): solo hacen
 > `desde ≤ fecha ≤ hasta`. 🧪
 
 ### 12.3 Detalle de gastos en el **texto del reporte** — regla de 8
@@ -838,17 +838,23 @@ datos, el catálogo real es el de Google Sheets. Detalle y paso a paso en
 > cerrar y volver a abrir, **arranca siempre en la página 1**. Los
 > **totales no cambian** al abrir o cerrar. ✅
 >
-> Al **abrir** una categoría la vista **baja sola** hasta su tarjeta
-> (`catCardRef` + `useEffect` sobre `openCat`, `App.jsx` 4828–4846): la
+> Al **abrir** una categoría la vista **baja sola** hasta su **título**
+> (`catTitleRef` + `useEffect` sobre `openCat`, `App.jsx` 4836–4887): la
 > lista nace debajo de «Por categoría» y, con la página arriba, quedaba
-> fuera de pantalla. El destino se calcula con la posición de la tarjeta
-> en el documento **menos el alto del header sticky** (más 12 px de
-> aire), para que la tarjeta no quede metida debajo de la barra, y el
-> efecto salta si `openCat` es `null` → **cerrar no mueve la vista**
-> (cambiar de mes tampoco: el efecto depende solo de `openCat`). 📌
+> fuera de pantalla. El destino se calcula con la posición del título en
+> el documento **menos el alto de la barra sticky completa (header +
+> pestañas)**, más 10 px de aire, para que el título quede **exactamente**
+> visible justo debajo de la barra (descontar solo el `<header>` dejaba
+> el título tapado por las pestañas: parecía que el scroll pasaba de
+> largo). Si la operadora no toca la vista, dos pases de re-alineación
+> en seco (750 ms y 1600 ms) corrigen cualquier reacomodo del navegador
+> (barra móvil que se pliega, fuentes que reflowean); un toque, rueda o
+> tecla suya los cancela. El efecto salta si `openCat` es `null` →
+> **cerrar no mueve la vista** (cambiar de mes tampoco: el efecto
+> depende solo de `openCat`). 📌
 >
 > La lista de días se separa de la de categorías con su propio título,
-> **«📅 Gastos por día»** (`App.jsx` 4950), para que no quede pegada a
+> **«📅 Gastos por día»** (`App.jsx` 4991), para que no quede pegada a
 > la tarjeta desplegada. ✅
 
 ### 12.4 Reparto por método de pago
@@ -914,15 +920,15 @@ Hay **dos familias** de control, definidas en `App.jsx` junto a
 
 > ℹ️ **Ojo, no hay que confundirlos:** en «Detalle Gastos» e «Detalle
 > Ingresos» **los DÍA van con el `Pager` plano** de §12.5.1
-> (`App.jsx` 4320 en Ingresos y 4990 en Gastos). El `CirclePager` se usa **solo** para lo que hay
+> (`App.jsx` 4320 en Ingresos y 5031 en Gastos). El `CirclePager` se usa **solo** para lo que hay
 > *dentro* de una tarjeta, donde un segundo `‹ Ant. / Sig. ›` seguido del
 > primero se lee mal:
 
 | Lista | Lo que pagina dentro | Tamaño | `App.jsx` |
 |---|---|---:|---:|
 | **💚 Detalle Ingresos** | citas de **un día** | `ITEM_PAGE_SIZE` = 5 | 4310 |
-| **📤 Detalle Gastos** | gastos de **un día** | `ITEM_PAGE_SIZE` = 5 | 4984 |
-| **📤 Detalle Gastos** | **categoría desplegada** | `CATEGORY_PAGE_SIZE` = 10 | 4941 |
+| **📤 Detalle Gastos** | gastos de **un día** | `ITEM_PAGE_SIZE` = 5 | 5025 |
+| **📤 Detalle Gastos** | **categoría desplegada** | `CATEGORY_PAGE_SIZE` = 10 | 4982 |
 
 | Regla | Implementación |
 |---|---|
@@ -969,13 +975,13 @@ en que llegaron de la hoja.
 |---|---|---|
 | **Gastos del mes** (Finanzas) | fecha descendente + `cmpExpense` | `meSorted`, `App.jsx` 3234 |
 | **Movimientos del período** (pantalla) | fecha descendente | `mvRows`, `App.jsx` 3946–3947 |
-| **Días** en Detalle Gastos / Ingresos | fecha descendente | `dayEntries`, 4860 / 4244 |
-| **Gastos de una categoría** desplegada | fecha descendente + `cmpExpense` | `catList`, 4869–4870 |
+| **Días** en Detalle Gastos / Ingresos | fecha descendente | `dayEntries`, 4901 / 4244 |
+| **Gastos de una categoría** desplegada | fecha descendente + `cmpExpense` | `catList`, 4910–4911 |
 | **Todas las citas** (historial de cliente) | fecha descendente | `cAppts`, 3396 |
 | **Citas de un día** (Detalle Ingresos) | **hora ascendente** | `ma`, 4225–4227 |
-| **Gastos de un día** (Detalle Gastos) | **descripción A→Z** y, si empatan, **mayor monto** | `me` (4849) → `byDay`; criterio en `cmpExpense` |
+| **Gastos de un día** (Detalle Gastos) | **descripción A→Z** y, si empatan, **mayor monto** | `me` (4890) → `byDay`; criterio en `cmpExpense` |
 
-#### 12.6.1 El desempate de gastos — `cmpExpense` (`App.jsx` 5525–5528)
+#### 12.6.1 El desempate de gastos — `cmpExpense` (`App.jsx` 5566–5569)
 
 Una **cita** se puede ordenar por hora (`cleanTime`); un **gasto no tiene
 hora**, así que ordenar solo por fecha dejaba cada día en el orden en que las
@@ -996,7 +1002,7 @@ const cmpExpense = (a, b) =>
 | 3 | Si aún así → manda el **orden estable** de `Array.sort` (el del servidor) |
 
 Se aplica **como segundo criterio de la fecha** en las tres listas de gastos:
-`me` (4849, de donde salen los grupos `byDay`), `catList` (4869) y
+`me` (4890, de donde salen los grupos `byDay`), `catList` (4910) y
 `meSorted` (3234).
 
 > ✅ **Los totales no cambian.** El total del mes, el desglose por categoría,
@@ -1023,7 +1029,7 @@ Se aplica **como segundo criterio de la fecha** en las tres listas de gastos:
 
 ### 13.1 Exportación a Excel desde la app (SheetJS)
 
-`exportExcel()` en `ReportTab` (`App.jsx` 3740):
+`exportExcel()` en `ReportTab` (`App.jsx` 3967):
 
 - Usa la librería **`xlsx` 0.18.5** (dependencia de producción).
 - Genera **3 hojas**: **Resumen · Citas · Gastos**.
@@ -1035,7 +1041,7 @@ Se aplica **como segundo criterio de la fecha** en las tres listas de gastos:
 - `sendWA` construye el texto con `reportLines` y abre **`wa.me`** con el
   número del admin (`VITE_ADMIN_WHATSAPP`).
 - Si no hay número configurado, **el botón sale deshabilitado** (`App.jsx`
-  206, 4021–4036). ✅
+  272, 4175–4190). ✅
 
 ### 13.3 Reportes por correo (Apps Script)
 
@@ -1162,7 +1168,7 @@ action === 'resetData'
 
 ### 14.5 Recuperación si la respuesta del servidor se pierde
 
-`resetAll` (`App.jsx` 414–456) contempla que el reset **se ejecutó pero la
+`resetAll` (`App.jsx` 554–602) contempla que el reset **se ejecutó pero la
 respuesta se perdió**. En vez de asumir, **relee la hoja** y la compara
 (`isResetOutcome`):
 
@@ -1210,10 +1216,10 @@ que ve la operadora:
 
 ### 15.2 Modo offline
 
-1. Si `loadData()` falla → `setSt('error')` (324) y se leen las cuatro
-   claves de `localStorage` (`App.jsx` 326–330): `sb_c`, `sb_s`, `sb_a`, `sb_e`.
+1. Si `loadData()` falla → `setSt('error')` (420) y se leen las cuatro
+   claves de `localStorage` (`App.jsx` 422–425): `sb_c`, `sb_s`, `sb_a`, `sb_e`.
 2. En la parte superior aparece **`⚠️ Modo sin conexión — <mensaje>`**
-   (`App.jsx` 562) y el `SyncBadge` (711) pasa a **`⚠️`**.
+   (`App.jsx` 721) y el `SyncBadge` (688) pasa a **`⚠️`**.
 3. **No hay cola automática de reintentos**, pero el fallo **sí tiene aviso y
    reintento manual**: si `sync` falla, aparece la franja roja
    **«⚠️ No se pudo guardar»** con botón **«↻ Reintentar guardar»**
@@ -1224,15 +1230,15 @@ que ve la operadora:
    reintenta, se recupera solo cuando un `refresh` posterior o una recarga
    vuelven a traer la hoja.
    - **Excepción: Calendar.** Ahí sí hay reintento **manual** —
-     `retryCalendar` (`App.jsx` 2336) con su botón (2454–2455), para el
+     `retryCalendar` (`App.jsx` 2537) con su botón (2656–2657), para el
      caso de «se guardó la cita pero no el evento».
-4. Mientras hay `savingRef` en vuelo, `refresh` **no corre** (313) para no
+4. Mientras hay `savingRef` en vuelo, `refresh` **no corre** (396) para no
    pisar la escritura.
 
 ### 15.3 Escritura optimista (sin reversión inmediata)
 
-`sync` (`App.jsx` 372–389), del que cuelgan `SC` / `SS` / `SA` / `SE`
-(líneas 391–394):
+`sync` (`App.jsx` 493–522), del que cuelgan `SC` / `SS` / `SA` / `SE`
+(líneas 524–527):
 
 ```
 setState(nuevo) + localStorage  →  saveData()
@@ -1282,17 +1288,17 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 1 | **Sin roles ni sesión**: cualquiera con URL + token ve y edita todo | Arquitectura general |
 | 2 | **`VITE_TOKEN` no es secreto** — va en el bundle público | `api.js` 1–2 |
 | 3 | **La validación de horarios es solo en el cliente**: doble reloj posible entre dos dispositivos | `checkSlot`, `helpers.js` 532 |
-| 4 | **No hay transaccionalidad Sheets ↔ Calendar**: posible evento huérfano | `deleteAppt`, `App.jsx` 479–511 |
+| 4 | **No hay transaccionalidad Sheets ↔ Calendar**: posible evento huérfano | `deleteAppt`, `App.jsx` 625–657 |
 | 5 | **El reloj de la app** (agrupar por pasado/hoy, marcar horas vencidas) solo corre si el navegador está abierto | `apptGroup` / `apptLife`, `helpers.js` 231, 453 |
 | 6 | **`writeSheet` borra ediciones manuales** de la hoja | `Code.gs` 1983 |
 | 7 | ~~Destinatario de reportes hardcodeado~~ → **CORREGIDO**: los tres envíos leen `_authorizedEmail()` / `SB_AUTHORIZED_EMAIL` | `Code.gs` 185 |
-| 8 | **El guardado fallido no revierte la pantalla** de inmediato: espera al próximo polling (≤30 s). **Mitigado** con la franja roja + «↻ Reintentar guardar» y con `refresh()` protegido mientras el aviso esté activo | `sync`, `App.jsx` 385–388, 623–631 |
+| 8 | **El guardado fallido no revierte la pantalla** de inmediato: espera al próximo polling (≤30 s). **Mitigado** con la franja roja + «↻ Reintentar guardar» y con `refresh()` protegido mientras el aviso esté activo | `sync`, `App.jsx` 517–520, 397–401 |
 | 9 | **Eventos de Calendar no se respaldan** | — |
 | 10 | **Dos clientas con el mismo celular no se fusionan** | — |
 | 11 | **Lógica duplicada** frontend ↔ backend (revelada por las pruebas de paridad) | `helpers.js` / `Code.gs` |
 | 12 | **Los `VITE_*` requieren rebuild** — no cambian en caliente | Vite |
-| 13 | **`App.jsx` es monolítico** (~5.500 líneas) — decisión deliberada, documentada | `App.jsx` |
-| 14 | ~~`VITE_BIZ_SUBTITLE` no llegaba al `<title>` de la pestaña~~ → **CORREGIDO**: había **dos** `useEffect` de branding y el segundo (`App.jsx` 341–351, deps `[]`) pisaba al primero (293–306). React ejecuta los efectos en orden de declaración, así que ganaba el segundo y se perdía el subtítulo — **solo en la pestaña**, porque en el encabezado (533) sí se veía, y por eso el fallo pasaba inadvertido. Ahora **solo existe el de 293–306**, único escritor del `document.title` (294, formato `NOMBRE · SUBTITULO`), del favicon (297–299) y del `apple-touch-icon` (302–304); el hueco donde estaba el segundo lleva un comentario que prohíbe reañadirlo. | `App.jsx` 293–306 |
+| 13 | **`App.jsx` es monolítico** (~5.570 líneas) — decisión deliberada, documentada | `App.jsx` |
+| 14 | ~~`VITE_BIZ_SUBTITLE` no llegaba al `<title>` de la pestaña~~ → **CORREGIDO**: había **dos** `useEffect` de branding y el segundo (`App.jsx` 462–471, deps `[]`) pisaba al primero (360–373). React ejecuta los efectos en orden de declaración, así que ganaba el segundo y se perdía el subtítulo — **solo en la pestaña**, porque en el encabezado (683) sí se veía, y por eso el fallo pasaba inadvertido. Ahora **solo existe el de 360–373**, único escritor del `document.title` (361, formato `NOMBRE · SUBTITULO`), del favicon (364–366) y del `apple-touch-icon` (369–371); el hueco donde estaba el segundo lleva un comentario que prohíbe reañadirlo. | `App.jsx` 360–373 |
 
 ---
 
@@ -1312,23 +1318,23 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 9 | Múltiples servicios (combo) | `NewWizard`, `helpers.js` | ✅ | 🧪 |
 | 10 | Cita a domicilio + dirección | `NewWizard`, `helpers.js` | ✅ | 🧪 |
 | 11 | Total = servicios + domicilio | `helpers.js`, `Code.gs` | ✅ | 🧪 |
-| 12 | Snapshot de precios al crear | `App.jsx` 2587 (nueva) y 2303–2305 (edición) | ✅ | 🧪 |
-| 13 | **Nada se marca «solo»** — `completed` solo lo toca la operadora | `App.jsx` 1881, 1889 | ✅ | 🧪 |
-| 14 | Editar solo pendientes | `App.jsx` 2172, 1974 | ✅ | 🧪 |
-| 15 | Eliminar solo pendientes | `App.jsx` 479 | ✅ | 🧪 |
+| 12 | Snapshot de precios al crear | `App.jsx` 2788 (nueva) y 2504–2506 (edición) | ✅ | 🧪 |
+| 13 | **Nada se marca «solo»** — `completed` solo lo toca la operadora | `App.jsx` 2067, 2084 | ✅ | 🧪 |
+| 14 | Editar solo pendientes | `App.jsx` 2373, 2175 | ✅ | 🧪 |
+| 15 | Eliminar solo pendientes | `App.jsx` 625 | ✅ | 🧪 |
 | 16 | Método de pago al completar | `PayModal`, `sanitizePayload` | ✅ | 🧪 |
 | 17 | Marcar no asistió | `App.jsx`, `helpers.js` | ✅ | 🧪 |
 | **CALENDAR** | | | | |
 | 18 | Crear evento | `Code.gs` `createCalEvent` (761) | ✅ | 🧪 |
 | 19 | Actualizar con verificación post-escritura | `Code.gs` `updateCalEvent` (792) | ✅ | 🧪 |
 | 20 | Borrar idempotente | `Code.gs` `deleteCalEvent` (846) | ✅ | 🧪 |
-| 21 | Fallo de borrado → reintento + ID | `App.jsx` 492–511 | ✅ | — |
+| 21 | Fallo de borrado → reintento + ID | `App.jsx` 638–657 | ✅ | — |
 | **CLIENTES** | | | | |
-| 22 | Búsqueda por sufijo/subcadena | `helpers.js` `phoneMatch`, `App.jsx` 2829 | ✅ | 🧪 |
-| 23 | Alta automática al agendar | `App.jsx` 2546 | ✅ | — |
+| 22 | Búsqueda por sufijo/subcadena | `helpers.js` `phoneMatch`, `App.jsx` 3016 | ✅ | 🧪 |
+| 23 | Alta automática al agendar | `App.jsx` 2746 | ✅ | — |
 | 24 | Historial de clienta | `ClientHistory` (3385) | ✅ | — |
 | **SERVICIOS** | | | | |
-| 25 | Catálogo con precio y duración | `ServicesTab` (2903) | ✅ | 🧪 |
+| 25 | Catálogo con precio y duración | `ServicesTab` (3117) | ✅ | 🧪 |
 | 26 | Historial de precios | `Code.gs` `trackPriceChanges` (1912) | ✅ | 🧪 |
 | 27 | Semilla del historial | `Code.gs` `_seedPriceHistory` (457) | ✅ | 🧪 |
 | 28 | No eliminar con citas futuras | `helpers.js` 487 + `Code.gs` 724 | ✅ | 🧪 |
@@ -1343,8 +1349,8 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 34 | Gastos agrupados si > 8 (**solo texto del reporte**) | `helpers.js` `groupExpensesByCategory` | ✅ | 🧪 |
 | 35 | Total gastos **siempre** = todo el período | `helpers.js` | ✅ | 🧪 |
 | 36 | Reparto por método de pago (4 actuales + heredada + total Transferencias) | `helpers.js` `periodLedger` (`byMethod`, `totalTransfer`) | ✅ | 🧪 |
-| 37 | Comparación mes a mes | `MonthComparison` (3311) | ✅ | 🧪 |
-| 38 | Top servicios (ingresos y demanda) | `helpers.js` `topServicesByDemand`, `TopServices` (3442) | ✅ | 🧪 |
+| 37 | Comparación mes a mes | `MonthComparison` (3538) | ✅ | 🧪 |
+| 38 | Top servicios (ingresos y demanda) | `helpers.js` `topServicesByDemand`, `TopServices` (3669) | ✅ | 🧪 |
 | 38b | **Paginación en «Gastos del mes»** (>10) | `App.jsx` `Pager`, `FinancesTab` | ✅ | — |
 | 38c | **Paginación en «Detalle Ingresos»** (7 días / 5 citas) | `App.jsx` `Pager` + `CirclePager`, `IncomeDetail` | ✅ | — |
 | 38d | **Paginación en «Detalle Gastos»** (7 días / 5 gastos) | `App.jsx` `Pager` + `CirclePager`, `ExpenseDetail` | ✅ | — |
@@ -1352,14 +1358,14 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 38f | **Círculos numerados** para las listas anidadas | `App.jsx` `CirclePager` | ✅ | — |
 | 38g | **Orden** de las listas: reciente → antiguo (citas del día: hora ↑; **gastos del día: `cmpExpense`** — descripción A→Z, luego mayor monto) | `App.jsx` `meSorted`, `mvRows`, `dayEntries`, `catList`, `ma`, `cmpExpense` | ✅ | — |
 | 38h | **Paginación en «Pasadas»** (20 por página) | `App.jsx` `PAST_APPT_PAGE_SIZE`, `pastPage`, `AccGroup` | ✅ | — |
-| 38i | **Bajada automática al abrir una categoría** (al tocarla, la vista baja sola hasta su lista desplegada, con respeto por el header sticky; cerrar o cambiar de mes **no** la mueve) | `App.jsx` `ExpenseDetail`, `catCardRef` + `useEffect` de `openCat` | ✅ | — |
+| 38i | **Bajada automática al abrir una categoría** (al tocarla, la vista baja sola hasta el **título** de la lista desplegada, exactamente debajo de la barra sticky completa —header + pestañas—; cerrar o cambiar de mes **no** la mueve) | `App.jsx` `ExpenseDetail`, `catTitleRef` + `useEffect` de `openCat` | ✅ | — |
 | 38j | **Título «📅 Gastos por día»** sobre la lista de días del detalle de gastos (separa esa sección de la tarjeta de categoría) | `App.jsx` `ExpenseDetail` | ✅ | — |
 | **REPORTES** | | | | |
 | 39 | Períodos día / mes / rango / **año** | `helpers.js` `periodLedger` | ✅ | 🧪 |
-| 40 | Excel con 3 hojas (app) | `App.jsx` `exportExcel` (3740), SheetJS | ✅ | — |
+| 40 | Excel con 3 hojas (app) | `App.jsx` `exportExcel` (3967), SheetJS | ✅ | — |
 | 41 | Excel trae **todos** los gastos | `App.jsx` `exportExcel` | ✅ | 🧪 |
 | 41b | **Paginación en «Movimientos del período»** (>10) | `App.jsx` `Pager`, `ReportTab` | ✅ | — |
-| 41c | **Rango que llega al futuro** (revisar citas agendadas) | `App.jsx` `onFrom`/`onTo` (3627–3635) e `inPeriod` (3643–3650); backend `_inPeriod` (`Code.gs` 1135) | ✅ | 🧪 |
+| 41c | **Rango que llega al futuro** (revisar citas agendadas) | `App.jsx` `onFrom`/`onTo` (3854–3862) e `inPeriod` (3870–3877); backend `_inPeriod` (`Code.gs` 1135) | ✅ | 🧪 |
 | 42 | WhatsApp al admin | `App.jsx` `sendWA`, `wa.me` | ✅ | — |
 | 43 | Correo con adjunto `.xlsx` | `Code.gs` `_buildReportXlsx` (1375) | ✅ | 🧪 |
 | 44 | Fallback sin adjunto | `Code.gs` `_sendReportEmail` (1623) | ✅ | 🧪 |
@@ -1375,19 +1381,19 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 53 | 3 envíos por hora | `Code.gs` 176–177 | ✅ | 🧪 |
 | 54 | Grant de un solo uso | `Code.gs` 273 | ✅ | 🧪 |
 | 55 | Detección de operación destructiva | `Code.gs` 258 | ✅ | 🧪 |
-| 56 | Recuperación si se pierde la respuesta | `App.jsx` 414–456 | ✅ | 🧪 |
+| 56 | Recuperación si se pierde la respuesta | `App.jsx` 554–602 | ✅ | 🧪 |
 | **OPERACIÓN** | | | | |
 | 57 | `LockService` para concurrencia | `Code.gs` 59–60 | ✅ | 🧪 |
 | 58 | Saneamiento de montos y duraciones | `Code.gs` `sanitizePayload` (2028) | ✅ | 🧪 |
 | 59 | Respaldo diario a Drive (30 días) | `Code.gs` `createDailyBackup` (884) | ✅ | 🧪 |
 | 60 | Respaldo semanal por correo | `Code.gs` `sendWeeklyBackupEmail` (986) | ✅ | 🧪 |
-| 61 | Polling 30 s + pausa con pestaña oculta | `App.jsx` 358–370 | ✅ | — |
-| 62 | Modo offline con `localStorage` | `App.jsx` 312–332 | ✅ | — |
-| 63 | Escritura optimista (revisión en el próximo polling) | `App.jsx` 372–389 | ✅ | — |
+| 61 | Polling 30 s + pausa con pestaña oculta | `App.jsx` 479–491 | ✅ | — |
+| 62 | Modo offline con `localStorage` | `App.jsx` 395–428 | ✅ | — |
+| 63 | Escritura optimista (revisión en el próximo polling) | `App.jsx` 493–522 | ✅ | — |
 | 63b | **Franja roja de guardado fallido + «↻ Reintentar»** (`refresh()` protegido mientras `saveFailed`) | `App.jsx` `saveFailed`, `failedSaveRef`, `retrySave` | ✅ | — |
 | 63c | **Excel de respaldo antes del reset** = informe completo (Resumen / Movimientos / Citas, histórico entero) + hoja Clientes, `respaldo_YYYY-MM-DD.xlsx` | `App.jsx` `exportBackupXlsx` · `buildReportWorkbook` | ✅ | — |
-| 64 | Tema y paletas persistentes | `GS` (829), `localStorage` | ✅ | — |
-| 65 | Branding dinámico (`VITE_BIZ_*`) | `App.jsx` 193–196, 293–306 | ✅ | — |
+| 64 | Tema y paletas persistentes | `GS` (1006), `localStorage` | ✅ | — |
+| 65 | Branding dinámico (`VITE_BIZ_*`) | `App.jsx` 259–262, 360–373 | ✅ | — |
 | 66 | Telemetría / análisis externo | **No existe** | ✅ | ✅ |
 
 ---

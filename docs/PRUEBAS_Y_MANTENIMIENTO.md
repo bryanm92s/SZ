@@ -219,7 +219,7 @@ funcione.**
 
 | No se prueba | Por qué |
 |---|---|
-| **Componentes React** | No hay `@testing-library/react`: toda la UI (~5.500 líneas) está **sin tests de componentes** |
+| **Componentes React** | No hay `@testing-library/react`: toda la UI (~5.570 líneas) está **sin tests de componentes** |
 | **Google Sheets real** | `SpreadsheetApp` está **mockeado** |
 | **Google Calendar real** | `CalendarApp` está **mockeado** |
 | **Gmail real** | `GmailApp` está **mockeado** |
@@ -340,9 +340,12 @@ Haz esta lista **antes** de cada publicación importante. Usa un
       más reciente al más antiguo y, dentro del día, por descripción A→Z)
       y volver a tocarla debe **cerrarla**.
 - [ ] Al **tocar una categoría** desde el tope de la página, la pantalla
-      debe **bajar sola** hasta su lista recién desplegada (la tarjeta
-      visible justo debajo del encabezado, **sin que la tape** la barra
-      sticky). **Cerrar** la categoría **no debe mover la vista**.
+      debe **bajar sola** hasta el **título** de la categoría recién
+      desplegada, quedando **exactamente debajo de la barra sticky
+      completa** (header + pestañas), con ~10 px de aire y **sin que la
+      tape** la barra. **Cerrar** la categoría **no debe mover la vista**;
+      si mueves la pantalla a mano mientras baja, la vista debe quedar
+      donde tú la dejes (las correcciones automáticas se cancelan).
 - [ ] La lista de días debe llevar su **título «📅 Gastos por día»**,
       con aire hacia arriba, para no quedar pegada a la tarjeta de
       categoría.

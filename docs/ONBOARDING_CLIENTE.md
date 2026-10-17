@@ -346,7 +346,7 @@ Después, **siempre**: `npm test` (339 en verde) y el checklist de la
 fase D.
 
 > ⚠️ **La trampa real de los repos independientes no es git, es
-> `App.jsx`** (~5.500 líneas). Si en ABC personalizaste esa pantalla y
+> `App.jsx`** (~5.570 líneas). Si en ABC personalizaste esa pantalla y
 > copias encima el `App.jsx` de SZ, **borras su personalización** y ni
 > siquiera hay un conflicto de git que te avise. Por eso:
 >

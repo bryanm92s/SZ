@@ -460,7 +460,7 @@ export default function App() {
   },[themePalette])
 
   // ── Un SOLO efecto de branding ─────────────────────────────────
-  // El de la línea 293 es el único que escribe `document.title`, el
+  // El de la línea 360 es el único que escribe `document.title`, el
   // favicon y el `apple-touch-icon`. Antes había aquí un segundo
   // `useEffect` que volvía a hacer `document.title = BIZ_NAME`; como
   // React ejecuta los efectos en el orden en que se declaran, el
@@ -468,7 +468,7 @@ export default function App() {
   // `VITE_BIZ_SUBTITLE` — el subtítulo solo se veía en el encabezado
   // de la app, nunca en la pestaña, y por eso el fallo pasaba
   // inadvertido. Si hace falta tocar el título o el favicon, se hace
-  // en ese efecto (293–306) y nunca en otro que lo sobrescriba.
+  // en ese efecto (360–373) y nunca en otro que lo sobrescriba.
 
   useEffect(() => { refresh() }, [])
 
@@ -4827,22 +4827,63 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
   useEffect(()=>{ setCatPage(1) },[openCat,month])
   // Al ABRIR una categoría, su tarjeta nace debajo de «Por categoría» y,
   // con la lista de días larga, queda fuera de pantalla: la dueña tenía
-  // que bajar a mano buscándola. La vista baja sola hasta el encabezado
-  // de la tarjeta recién desplegada. Al cerrar (openCat → null) no se
-  // mueve nada. El header es sticky, así que se descuenta su alto para
-  // que la tarjeta no quede metida debajo de la barra verde.
-  const catCardRef = useRef(null)
+  // que bajar a mano buscándola. La vista baja sola hasta el TÍTULO de
+  // la tarjeta recién desplegada («🗂️ Categoría») — se mide contra el
+  // título y no contra el borde para parar EXACTAMENTE en él, ni más
+  // abajo ni más arriba. Al cerrar (openCat → null) no se mueve nada.
+  // Lo fijo arriba es el wrapper sticky COMPLETO (header + pestañas), no
+  // solo <header>: se descuenta ese alto entero (+10px de aire).
+  const catTitleRef = useRef(null)
   useEffect(() => {
     if (!openCat) return
-    const t = setTimeout(() => {
-      const el = catCardRef.current
-      if (!el) return                    // categoría sin gastos este mes
+    let dead = false
+    let userScrolled = false
+    const markUser = () => { userScrolled = true }
+    const timers = []
+    const destY = () => {
+      const t = catTitleRef.current
+      if (!t) return null                  // categoría sin gastos este mes
+      // La barra fija superior NO es solo <header>: es el WRAPPER sticky
+      // (header + barra de navegación) que mide el doble. Descontar solo
+      // el header dejaba el título metido DEBAJO de las pestañas — parecía
+      // que el scroll pasaba de largo del título. Se descuenta la barra
+      // completa +10px de aire.
       const hdr = document.querySelector('header')
-      const off = (hdr ? hdr.offsetHeight : 56) + 12
-      const y = el.getBoundingClientRect().top + window.scrollY - off
-      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' })
-    }, 60)
-    return () => clearTimeout(t)
+      const wrap = hdr && hdr.parentElement
+      const bar = wrap && getComputedStyle(wrap).position !== 'static' ? wrap : hdr
+      const off = (bar ? bar.offsetHeight : 56) + 10
+      return Math.max(0, t.getBoundingClientRect().top + window.scrollY - off)
+    }
+    timers.push(setTimeout(() => {
+      const y0 = destY()
+      if (y0 === null) return
+      window.scrollTo({ top: y0, behavior: 'smooth' })
+      // Aterrizaje EXACTO: al terminar el scroll suave el navegador puede
+      // reacomodar la vista (en móvil la barra de Safari se pliega al
+      // bajar y el header crece con ella; o las fuentes cargan y
+      // reflowean el contenido de arriba). Si la dueña NO ha movido la
+      // vista con su mano, se re-alinea en seco a los 750 y a los 1600
+      // ms para que el título quede ni más abajo ni más arriba: exacto.
+      const fix = () => {
+        if (dead || userScrolled) return   // su mano manda: no se molesta
+        const y = destY()
+        if (y === null) return
+        if (Math.abs(y - window.scrollY) > 4) window.scrollTo({ top: y, behavior: 'auto' })
+      }
+      timers.push(setTimeout(fix, 750))
+      timers.push(setTimeout(fix, 1600))
+    }, 60))
+    // Un toque o rueda durante la maniobra cancela las correcciones.
+    window.addEventListener('wheel', markUser, { passive: true })
+    window.addEventListener('touchstart', markUser, { passive: true })
+    window.addEventListener('keydown', markUser)
+    return () => {
+      dead = true
+      timers.forEach(clearTimeout)
+      window.removeEventListener('wheel', markUser)
+      window.removeEventListener('touchstart', markUser)
+      window.removeEventListener('keydown', markUser)
+    }
   }, [openCat])
   const safe=Array.isArray(expenses)?expenses:[]
   const months=[...new Set([...safe.map(e=>cleanDate(e.date).slice(0,7)),monthStr()].filter(Boolean))].sort((a,b)=>b.localeCompare(a))
@@ -4915,7 +4956,7 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
     {/* ── Gastos de la categoría desplegada ── Aparece DEBAJO de
         «Por categoría» y desaparece con un segundo clic. Si pasa de
         CATEGORY_PAGE_SIZE aparecen los círculos. */}
-    {openCat&&catList.length>0&&<div className="card" ref={catCardRef} style={{
+    {openCat&&catList.length>0&&<div className="card" style={{
         marginBottom:10,
         // Se tiñe SOLO con variables del tema activo: `--primary-l` es el
         // verde / rojo / morado CLARO de la paleta elegida en Ajustes y
@@ -4927,7 +4968,7 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
         boxShadow:'0 6px 18px var(--glass-strong)',
         transition:'background .2s',
       }}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+      <div ref={catTitleRef} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
         <span style={{fontWeight:700,fontSize:14,color:'var(--primary)'}}>🗂️ {openCat}</span>
         <span style={{fontWeight:700,color:'var(--primary-d)',fontSize:13}}>{fmtM(catTotal)}</span>
       </div>

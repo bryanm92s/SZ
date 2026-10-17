@@ -548,8 +548,9 @@ administrador**.
   - 👉 **Toca una categoría** para **abrir sus gastos**: se despliega una
     tarjeta justo debajo con **todos los gastos de esa categoría**, del más
     reciente al más antiguo (y, dentro del día, por descripción A→Z), **10
-    por página**. Al abrirla **la pantalla baja sola** hasta esa lista, sin
-    que tengas que desplazarte a mano; si la cierras, la vista **no se
+    por página**. Al abrirla **la pantalla baja sola** hasta el título de
+    esa lista (que queda justo debajo de la barra de arriba), sin que
+    tengas que desplazarte a mano; si la cierras, la vista **no se
     mueve**. Vuelve a tocarla para cerrarla. Al **abrir otra categoría** la
     paginación **vuelve a la página 1**.
   - Debajo, con su propio título **«📅 Gastos por día»** para que no quede
