@@ -9,7 +9,7 @@ React 18 + Vite · Google Apps Script + Sheets + Calendar · Deploy en Vercel
 
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=white)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
-[![Tests](https://img.shields.io/badge/Tests-339_passing-brightgreen)](#-testing)
+[![Tests](https://img.shields.io/badge/Tests-351_passing-brightgreen)](#-testing)
 [![Deploy](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)](https://vercel.com)
 [![Backend](https://img.shields.io/badge/Backend-Google_Apps_Script-34A853?logo=googleapps&logoColor=white)](https://script.google.com)
 
@@ -74,7 +74,10 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 - Edición de cita preservando el **precio que tenía al momento de crearla**
   (historial de precios en la hoja `HistorialPrecios`).
 - **Integración con Google Calendar**: cada cita crea/actualiza/borra un evento
-  automático, con comprobación post-escritura.
+  automático, con comprobación post-escritura. Con la propiedad opcional
+  `SB_CALENDAR_ID` los eventos van a un **calendario secundario** de la
+  cuenta del proyecto (p. ej. «Citas <negocio>»), compartible con la usuaria
+  en **solo lectura**; sin ella, al calendario por defecto.
 
 ### 👥 Clientes
 - Base de clientes con **búsqueda por celular** (sufijo primero, luego subcadena).
@@ -118,7 +121,9 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 - **Exportación a Excel (`.xlsx`)** con tres hojas: Resumen, Citas y Gastos.
 - **Botón de WhatsApp al admin** con el resumen del período.
 - **Reportes automáticos por correo** (Apps Script, con el Excel adjunto):
-  diario, semanal, mensual y anual.
+  diario, semanal, mensual y anual. Salen **desde la cuenta de Google del
+  proyecto** hacia `SB_REPORT_EMAIL` (o, si no existe, hacia
+  `SB_AUTHORIZED_EMAIL`): puedes mandarlos solo a la usuaria.
 
 ### 📅 Calendario (vista mensual)
 - Vista de mes completa con las citas pintadas por día.
@@ -238,7 +243,7 @@ SZ/
 │
 ├── src/
 │   ├── main.jsx               # Entry point de React
-│   ├── App.jsx                # 🟡 Toda la UI (~5.500 líneas): componentes y estado
+│   ├── App.jsx                # 🟡 Toda la UI (~5.570 líneas): componentes y estado
 │   ├── api.js                 # load/save contra el Web App de Apps Script
 │   ├── helpers.js             # Funciones puras (~900 líneas) — la fuente de las reglas
 │   ├── catalogs.js            # Catálogos por tipo de negocio (VITE_CATALOG)
@@ -250,7 +255,7 @@ SZ/
 │   └── backend.test.js        # Ejecuta el Code.gs REAL dentro de un sandbox
 │
 └── apps-script/               # 🟢 Backend (SOLO LOCAL, en .gitignore: NO va a GitHub)
-    ├── Code.gs                # Lógica completa (~2.250 líneas)
+    ├── Code.gs                # Lógica completa (~2.340 líneas)
     └── appsscript.json        # Manifiesto ACTIVO (scopes + zona horaria)
 ```
 
@@ -413,13 +418,13 @@ Detalle completo en [`docs/MANUAL_TECNICO.md`](docs/MANUAL_TECNICO.md) sección 
 
 ## 🧪 Testing
 
-Hay **339 pruebas** en 5 suites, ejecutadas y verificadas en esta ronda de
+Hay **351 pruebas** en 5 suites, ejecutadas y verificadas en esta ronda de
 documentación:
 
 | Suite | Pruebas | Qué cubre |
 |---|---:|---|
 | `src/helpers.test.js` | 171 | Lógica pura: fechas, slots, teléfono, duraciones, estados, finanzas, reportes |
-| `src/backend.test.js` | 144 | **Ejecuta el `Code.gs` real** en un sandbox (`node:vm`): API, reset, Calendar, reportes, Excel, paridad correo/WhatsApp y marca de los correos (`SB_BIZ_NAME`) |
+| `src/backend.test.js` | 156 | **Ejecuta el `Code.gs` real** en un sandbox (`node:vm`): API, reset, Calendar (incluido `SB_CALENDAR_ID`), reportes, Excel, destinatarios (`SB_AUTHORIZED_EMAIL` lista / `SB_REPORT_EMAIL` / `SB_BACKUP_EMAIL`), paridad correo/WhatsApp y marca de los correos (`SB_BIZ_NAME`) |
 | `src/catalogs.test.js` | 14 | Catálogo inicial por tipo de negocio (`VITE_CATALOG` / `VITE_DEFAULT_SERVICES`) |
 | `src/api.test.js` | 7 | Transporte: mensajes de error, `loadData`/`saveData`, restablecimiento |
 | `src/excel.test.js` | 3 | Libro Excel (`buildReportWorkbook`): Resumen/Movimientos/Citas, hoja Clientes y las 9 paletas |
@@ -484,12 +489,13 @@ Confirmadas en el código, no corregidas:
   Calendar falla, la app avisa y ofrece reintento, pero **no se puede hacer
   rollback** de la cita ya borrada. La app muestra el ID del evento para borrarlo
   a mano.
-- **El correo del destinatario vive solo en Script Properties.** Ni el
-  reporte, ni el respaldo semanal, ni el código de restablecimiento tienen
-  una dirección escrita en el código: códigos y reportes leen
-  `SB_AUTHORIZED_EMAIL`, y el respaldo semanal lee `SB_BACKUP_EMAIL` si
-  existe (para que pueda ir a otro correo) y si no, la misma.
-  **Si faltan esas propiedades no se envía nada** (el reset no gasta su cupo
+- **Los destinatarios de correo viven solo en Script Properties.** Ninguna
+  dirección está escrita en el código: los códigos de restablecimiento leen
+  `SB_AUTHORIZED_EMAIL` (**lista**: varias direcciones separadas por coma,
+  todas reciben el mismo código), los reportes leen `SB_REPORT_EMAIL` si
+  existe y si no `SB_AUTHORIZED_EMAIL`, y el respaldo semanal lee
+  `SB_BACKUP_EMAIL` si existe (para que pueda ir a otro correo) y si no, la
+  misma. **Si faltan las dos, no se envía nada** (el reset no gasta su cupo
   de solicitudes y los reportes/backups se omiten avisando en el log).
 - **El restablecimiento borra todo** (clientes, citas, gastos, el saldo
   inicial —hoja «Config»— y los eventos de Calendar) y **no se puede

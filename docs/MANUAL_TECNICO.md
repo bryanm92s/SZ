@@ -45,14 +45,26 @@ entorno nuevo.
 | **GitHub** | ✅ | Escritura en el repo | Alojar el código |
 | **Vercel** | ✅ | Proyecto propio | Alojar el frontend |
 
+> 🔑 **Una cuenta de Google por proyecto.** Para que un cliente no pueda
+> (ni tú por accidente) borrar la hoja, el script o los respaldos, cada
+> despliegue se monta sobre **su propia cuenta** (p. ej.
+> `proyectoSZ@gmail.com`, `proyectoABC@gmail.com`), con 2FA y el teléfono
+> de recuperación anotados en tu gestor de contraseñas. De esa cuenta salen
+> los correos (GmailApp), viven los respaldos de Drive y el calendario de las
+> citas —compartido con la usuaria en **solo lectura**. A ella se le entregan
+> sus datos por otros canales: los reportes a su correo (`SB_REPORT_EMAIL`),
+> el respaldo semanal (`SB_BACKUP_EMAIL`) y el Excel de respaldo desde
+> Ajustes. Google desactiva cuentas inactivas: **entra a cada cuenta de
+> proyecto de vez en cuando**.
+
 ### A.3 Servicios externos que SZ toca
 
 | Servicio | Uso en SZ | Dónde se configura |
 |---|---|---|
 | **Google Sheets** | Base de datos (6 hojas) | Vinculado al proyecto de Apps Script |
-| **Google Calendar** | Eventos de cada cita | Calendario por defecto de la cuenta |
+| **Google Calendar** | Eventos de cada cita | Calendario por defecto de la cuenta, o el de **`SB_CALENDAR_ID`** si está configurada |
 | **Google Drive** | Respaldos automáticos de la hoja | Carpetas `BACKUP-PROYECTO/Backups/…` |
-| **Gmail** | Reportes automáticos, respaldo semanal, código de recuperación | Cuenta del propietario del script |
+| **Gmail** | Reportes automáticos, respaldo semanal, código de recuperación | Cuenta que ejecuta el script (destinatarios en `SB_AUTHORIZED_EMAIL` / `SB_REPORT_EMAIL` / `SB_BACKUP_EMAIL`) |
 | **Vercel** | Hosting del frontend | Variables de entorno |
 
 ### A.4 Restricciones de compatibilidad
@@ -119,7 +131,7 @@ Abre **http://localhost:5173**.
 ### B.5 Pruebas, lint y build
 
 ```bash
-npm test              # 339 pruebas, una sola ejecución
+npm test              # 351 pruebas, una sola ejecución
 npm run test:watch    # modo observador
 npm run lint          # ESLint sobre src/
 npm run build         # build de producción en dist/
@@ -130,7 +142,7 @@ npm run preview       # sirve dist/ localmente
 
 | Comando | Resultado |
 |---|---|
-| `npm test` | ✅ **339/339 pruebas pasando** (5 suites) |
+| `npm test` | ✅ **351/351 pruebas pasando** (5 suites) |
 | `npm run lint` | ✅ **0 errores**, 11 *warnings* preexistentes (`no-unused-vars`) |
 | `npm run build` | ✅ Build OK (~5,8 s) |
 
@@ -308,13 +320,15 @@ Ninguna se escribe dentro del código (el repo es público).
 
 | Nombre exacto | Clave en el código | Uso | Obligatoria | Sensibilidad | Verificación |
 |---|---|---|---|---|---|
-| `SB_SYNC_TOKEN` | `TOKEN_PROP_KEY` (`Code.gs` 15) | Autentica GET y POST. **Si falta, no se autoriza nada** («fail closed») y el servidor responde «Token de sincronización no configurado: añade la propiedad SB_SYNC_TOKEN…» (`Code.gs` 244–245). | **Sí** | **Secreto** | Sin ella, cualquier petición es rechazada. Con ella y el token correcto, la app muestra «✓ Sincronizado». |
-| `SB_AUTHORIZED_EMAIL` | `PROP_KEY.email` (`Code.gs` ~170) | **ÚNICA** fuente del correo de **seguridad**: código de restablecimiento y los 4 reportes automáticos. | **Sí** — sin ella no se envía nada de eso. | **Secreto / personal** | Con ella: el correo llega al indicado al pedir el código. Sin ella: no sale nada y el log de ejecución avisa (el reset responde igual para no revelar la configuración, pero no gasta el cupo de solicitudes). |
-| `SB_BACKUP_EMAIL` | `PROP_KEY.backupEmail` (`Code.gs` ~171) | Destinatario del **respaldo semanal** (el `.xlsx` del sábado). Para separar «a quién le llega la copia» de «quién recibe los códigos». | **No** — si falta, el respaldo va a `SB_AUTHORIZED_EMAIL`. | **Secreto / personal** | Con ella: el sábado el backup llega a esa dirección. Sin ella: llega a `SB_AUTHORIZED_EMAIL` (comportamiento original). |
-| `SB_BIZ_NAME` | `PROP_KEY.bizName` (`Code.gs` ~172) | Marca que firma los correos del script (asunto y texto). | **No** — si falta, firma «SZ». | Interna | Mira el asunto del correo: debe llevar el nombre del negocio. |
-| `SB_RESET_CODE` | `PROP_KEY.code` (`Code.gs` ~173) | JSON `{hash, expiresAt, tries}` del código vigente. **La gestiona el propio sistema.** | Automática | Interna | No se toca a mano. |
-| `SB_RESET_GRANTS` | `PROP_KEY.grants` (`Code.gs` 166) | JSON `{grantId: {hash, expiresAt, usedAt}}`. **La gestiona el propio sistema.** | Automática | Interna | No se toca a mano. |
-| `SB_RESET_LIMITS` | `PROP_KEY.limits` (`Code.gs` 167) | JSON `{sends:[ms], lockedUntil:ms}` de rate-limiting. **La gestiona el propio sistema.** | Automática | Interna | No se toca a mano. |
+| `SB_SYNC_TOKEN` | `TOKEN_PROP_KEY` (`Code.gs` 15) | Autentica GET y POST. **Si falta, no se autoriza nada** («fail closed») y el servidor responde «Token de sincronización no configurado: añade la propiedad SB_SYNC_TOKEN…» (`Code.gs` 349–350). | **Sí** | **Secreto** | Sin ella, cualquier petición es rechazada. Con ella y el token correcto, la app muestra «✓ Sincronizado». |
+| `SB_AUTHORIZED_EMAIL` | `PROP_KEY.email` (`Code.gs` 198) | **ÚNICA** fuente del correo de **seguridad**: a él (o a **ella**, si es una lista) llega el código de restablecimiento. Admite **varias direcciones separadas por coma** (p. ej. la cuenta del proyecto y la usuaria); cada una recibe el mismo código, con la misma vigencia e intentos. Solo se aceptan direcciones con `@`. | **Sí** — sin ella no se envía nada de eso. | **Secreto / personal** | Con ella: el correo llega al indicado al pedir el código. Sin ella (o sin ninguna dirección válida): no sale nada y el log de ejecución avisa (el reset responde igual para no revelar la configuración, pero no gasta el cupo de solicitudes). |
+| `SB_REPORT_EMAIL` | `PROP_KEY.reportEmail` (`Code.gs` 199) | Destinatario de los **4 reportes automáticos**. Para separar «quién recibe los reportes» de «quién recibe los códigos» (una cuenta de Google por proyecto). Admite varias direcciones con coma. | **No** — si falta, los reportes van a `SB_AUTHORIZED_EMAIL`. | **Secreto / personal** | Con ella: el reporte llega a esa dirección y el código sigue yendo a `SB_AUTHORIZED_EMAIL`. Sin ella: los reportes van a `SB_AUTHORIZED_EMAIL` (comportamiento original). |
+| `SB_BACKUP_EMAIL` | `PROP_KEY.backupEmail` (`Code.gs` 200) | Destinatario del **respaldo semanal** (el `.xlsx` del sábado). Para separar «a quién le llega la copia» de «quién recibe los códigos». | **No** — si falta, el respaldo va a `SB_AUTHORIZED_EMAIL`. | **Secreto / personal** | Con ella: el sábado el backup llega a esa dirección. Sin ella: llega a `SB_AUTHORIZED_EMAIL` (comportamiento original). |
+| `SB_CALENDAR_ID` | `PROP_KEY.calendarId` (`Code.gs` 201) | Id de un **calendario SECUNDARIO** de la misma cuenta (p. ej. «Citas <negocio>») al que van todos los eventos. Sirve para compartir la agenda con la usuaria en **solo lectura** sin exponer su calendario personal. | **No** — si falta, los eventos van al **calendario por defecto** (como siempre). | Interna | Con ella (y el calendario accesible): las citas salen en ese calendario. Si el id no existe o no es accesible: cae al por defecto y el log avisa (`SB_CALENDAR_ID`). |
+| `SB_BIZ_NAME` | `PROP_KEY.bizName` (`Code.gs` 202) | Marca que firma los correos del script (asunto y texto). | **No** — si falta, firma «SZ». | Interna | Mira el asunto del correo: debe llevar el nombre del negocio. |
+| `SB_RESET_CODE` | `PROP_KEY.code` (`Code.gs` 203) | JSON `{hash, expiresAt, tries}` del código vigente. **La gestiona el propio sistema.** | Automática | Interna | No se toca a mano. |
+| `SB_RESET_GRANTS` | `PROP_KEY.grants` (`Code.gs` 204) | JSON `{grantId: {hash, expiresAt, usedAt}}`. **La gestiona el propio sistema.** | Automática | Interna | No se toca a mano. |
+| `SB_RESET_LIMITS` | `PROP_KEY.limits` (`Code.gs` 205) | JSON `{sends:[ms], lockedUntil:ms}` de rate-limiting. **La gestiona el propio sistema.** | Automática | Interna | No se toca a mano. |
 
 > 🔑 **Confirmar en consola:** los valores reales de estas propiedades viven en
 > tu cuenta de Google y **no están en el repositorio**. Antes de migrar de
@@ -336,9 +350,10 @@ saberlo al instalar en otro negocio:
 > ✅ **El correo ya NO está escrito en el código.** Antes aparecía en tres
 > sitios (`_sendReportEmail`, `sendWeeklyBackupEmail` y como respaldo del
 > correo de restablecimiento); ahora los tres lo leen de propiedades de
-> script: los códigos de recuperación y los reportes usan
-> `_authorizedEmail()` → `SB_AUTHORIZED_EMAIL`, y el respaldo semanal usa
-> `_backupEmail()` → `SB_BACKUP_EMAIL` si existe, y si no,
+> script: los códigos de recuperación usan `_authorizedEmail()` →
+> `SB_AUTHORIZED_EMAIL` (lista), los reportes `_reportEmail()` →
+> `SB_REPORT_EMAIL` si existe y si no `SB_AUTHORIZED_EMAIL`, y el respaldo
+> semanal usa `_backupEmail()` → `SB_BACKUP_EMAIL` si existe, y si no,
 > `SB_AUTHORIZED_EMAIL`. Ni `Code.gs` ni el repositorio contienen ninguna
 > dirección de correo.
 
@@ -354,15 +369,15 @@ saberlo al instalar en otro negocio:
 | `TIME_SLOTS` | 07:00 → 20:30, cada 30 min | `helpers.js` 9–13 | Bloques de agenda |
 | `CLOSING_TIME` | `21:00` | `helpers.js` 103 | Una cita no puede **terminar** después |
 | `SERVICE_DURATION` | 60 min | `helpers.js` 15 | Duración por defecto sin dato |
-| `safeDuration` | 15–480, defecto 60 | `Code.gs` 858 | Recorte de duraciones (el frontend `svcDuration`, `helpers.js` 106, solo pone 60 si falta) |
+| `safeDuration` | 15–480, defecto 60 | `Code.gs` 1015 | Recorte de duraciones (el frontend `svcDuration`, `helpers.js` 106, solo pone 60 si falta) |
 | `DURATION_OPTIONS` | 30, 60, 90, 120, 150, 180 | `App.jsx` 237 | Opciones del selector |
-| `CODE_TTL_MS` | 15 min | `Code.gs` 172 | Vigencia del código de reset |
-| `GRANT_TTL_MS` | 10 min | `Code.gs` 173 | Vigencia de la autorización |
-| `MAX_VERIFY_TRIES` | 5 | `Code.gs` 174 | Intentos de verificación |
-| `LOCKOUT_MS` | 30 min | `Code.gs` 175 | Bloqueo tras agotar intentos |
-| `MAX_SENDS` / `SEND_WINDOW_MS` | 3 / 1 h | `Code.gs` 176–177 | Códigos por ventana |
-| `REPORT_EXPENSE_DETAIL_MAX` / `DETALLE_MAX` | 8 | `helpers.js` 764 / `Code.gs` 1639 | Umbral de detalle de gastos |
-| `MAX_REPORT_EXPENSES` / `MAX_EXP` | 20 | `helpers.js` 757 / `Code.gs` 1644 | Tope de categorías en el reporte |
+| `CODE_TTL_MS` | 15 min | `Code.gs` 208 | Vigencia del código de reset |
+| `GRANT_TTL_MS` | 10 min | `Code.gs` 209 | Vigencia de la autorización |
+| `MAX_VERIFY_TRIES` | 5 | `Code.gs` 210 | Intentos de verificación |
+| `LOCKOUT_MS` | 30 min | `Code.gs` 211 | Bloqueo tras agotar intentos |
+| `MAX_SENDS` / `SEND_WINDOW_MS` | 3 / 1 h | `Code.gs` 212–213 | Códigos por ventana |
+| `REPORT_EXPENSE_DETAIL_MAX` / `DETALLE_MAX` | 8 | `helpers.js` 764 / `Code.gs` 1826 | Umbral de detalle de gastos |
+| `MAX_REPORT_EXPENSES` / `MAX_EXP` | 20 | `helpers.js` 757 / `Code.gs` 1831 | Tope de categorías en el reporte |
 | `DEF_CATS` | 7 categorías | `App.jsx` 211 | Categorías de gasto por defecto |
 
 ---
@@ -389,7 +404,7 @@ hoja automáticamente:
 
 | Archivo | Origen | Contenido |
 |---|---|---|
-| `Code.gs` | Pegar el contenido de `apps-script/Code.gs` | Toda la lógica (~2.250 líneas) |
+| `Code.gs` | Pegar el contenido de `apps-script/Code.gs` | Toda la lógica (~2.340 líneas) |
 | `appsscript.json` | Pegar el contenido de `apps-script/appsscript.json` | Manifiesto: zona horaria y scopes |
 
 > 🔒 **`apps-script/` es solo local** (está en `.gitignore` y **no se sube
@@ -469,19 +484,28 @@ En **⚙️ → Propiedades del proyecto → Propiedades de script**, agrega:
 | Clave | Valor |
 |---|---|
 | `SB_SYNC_TOKEN` | Un texto **único y largo** (p. ej. 32+ caracteres aleatorios). El mismo que usarás en `VITE_TOKEN`. |
-| `SB_AUTHORIZED_EMAIL` | **Obligatoria.** Tu correo. A él llegan el código de restablecimiento y los reportes automáticos. |
+| `SB_AUTHORIZED_EMAIL` | **Obligatoria.** Correo(s) al que llega el **código de restablecimiento**. Acepta **varias direcciones separadas por coma** (p. ej. `tucuenta@gmail.com, clienta@gmail.com`): todas reciben el mismo código. |
+| `SB_REPORT_EMAIL` | **Opcional.** Correo(s) de los **4 reportes automáticos**. Si quieres que los reportes vayan solo a la usuaria y los códigos a ti, ponla aquí. Varias direcciones con coma. Vacía → los reportes van a `SB_AUTHORIZED_EMAIL`. |
 | `SB_BACKUP_EMAIL` | **Opcional.** Otro correo si quieres que la copia semanal de la hoja vaya a otro sitio (una gestoría, el correo personal del dueño…). Si la dejas vacía, el respaldo va a `SB_AUTHORIZED_EMAIL`. |
+| `SB_CALENDAR_ID` | **Opcional.** Id de un **calendario secundario** de ESTA cuenta (Ajustes del calendario → *Integrar calendario* → *ID del calendario*) al que van las citas. Permite compartir ese calendario con la usuaria en **solo lectura**. Vacío → calendario por defecto. |
 | `SB_BIZ_NAME` | Nombre del negocio **en los correos que envía el script** (asunto, cuerpo y tarjeta HTML del código de restablecimiento). No es secreto, pero vive aquí y no en el código: un cliente nuevo cambia de nombre sin editar `Code.gs`. Si falta → «SZ». |
 
 > 🔑 **Nunca** escribas el token dentro de `Code.gs`: el repositorio es público.
 
 ### D.6 Preparar Calendar y Gmail
 
-- **Calendar:** se usa el **calendario por defecto** de la cuenta. No hay nada
-  que configurar más allá de autorizar el permiso. Los eventos se crean con el
-  color `MAUVE` (`Code.gs` 767).
-- **Gmail:** se usa la cuenta del propietario del script (`GmailApp`). No
-  requiere configuración adicional, pero sí el scope `script.mail`.
+- **Calendar:** por defecto se usa el **calendario por defecto** de la
+  cuenta. Con la propiedad opcional **`SB_CALENDAR_ID`** las citas van a un
+  **calendario secundario** de esa misma cuenta (p. ej. «Citas <negocio>»),
+  que puedes compartir con la usuaria en **solo lectura** desde
+  *calendar.google.com → Ajustes del calendario → Compartir con personas con
+  derechos específicos → «Ver todos los detalles»*. Así ella ve las citas en
+  su celular sin poder borrarlas ni ver tu calendario personal. Si el id falta
+  o no es accesible, se sigue usando el calendario por defecto (y el log
+  avisa). Los eventos se crean con el color `MAUVE` (`Code.gs`).
+- **Gmail:** se usa la cuenta que ejecuta el script (la **del proyecto** si
+  la creaste dedicada: los correos salen «desde» esa dirección). No requiere
+  configuración adicional, pero sí el scope `script.mail`.
 
 ### D.7 Autorizar permisos
 
@@ -553,8 +577,8 @@ Cada vez que cambies `Code.gs`:
 
 ### E.1 Estructura de las hojas
 
-`initSheets()` (`Code.gs` 2050) **crea automáticamente** las 6 hojas que falten.
-Cada hoja tiene una fila de encabezados en español (`HEADERS_ES`, `Code.gs` 30–39)
+`initSheets()` (`Code.gs` 2156) **crea automáticamente** las 6 hojas que falten.
+Cada hoja tiene una fila de encabezados en español (`HEADERS_ES`, `Code.gs` 44–53)
 y **todas las celdas se guardan como texto** (`setNumberFormat('@')`).
 
 #### `Clientes` — 4 columnas
@@ -639,16 +663,16 @@ y **todas las celdas se guardan como texto** (`setNumberFormat('@')`).
 
 ### E.2 ⚠️ `writeSheet` reescribe la hoja completa
 
-`writeSheet` (`Code.gs` 1983) hace `sh.clearContents()` y **reescribe encabezados
+`writeSheet` (`Code.gs` 2252) hace `sh.clearContents()` y **reescribe encabezados
 y todas las filas** en cada guardado. Consecuencias prácticas:
 
 - **No edites las hojas a mano** mientras la app esté en uso: esas filas se
   pierden en el siguiente guardado. **Excepción: la hoja `Config`** (clave/valor)
   sí está pensada para edición manual (véase arriba).
 - Si una hoja tiene **más columnas** de las esperadas, `readSheet` las ignora y
-  avisa por consola (`Code.gs` 1972).
-- Si tiene **menos**, los campos faltantes llegan como `''` (línea 1973).
-- Las filas **sin ID en la columna A** se descartan al leer (línea 1976).
+  avisa por consola (`Code.gs`, `readSheet`).
+- Si tiene **menos**, los campos faltantes llegan como `''` (mismo `readSheet`).
+- Las filas **sin ID en la columna A** se descartan al leer (idem).
 
 ### E.3 Formato de fechas, hora y moneda
 
@@ -663,7 +687,7 @@ y todas las filas** en cada guardado. Consecuencias prácticas:
 > `localNowISO` (`helpers.js` 33) existe precisamente para **no** usar
 > `toISOString()` (que devuelve UTC y desplaza las horas en Colombia).
 
-> `cellStr` (`Code.gs` 1993) normaliza al leer: si Sheets devuelve un `Date`, lo
+> `cellStr` (`Code.gs` 2262) normaliza al leer: si Sheets devuelve un `Date`, lo
 > convierte a `YYYY-MM-DD`; si devuelve un número entre 0 y 1, lo interpreta como
 > hora y lo convierte a `HH:MM`.
 
@@ -671,11 +695,11 @@ y todas las filas** en cada guardado. Consecuencias prácticas:
 
 | Operación | Función | Comportamiento |
 |---|---|---|
-| **Crear** | `createCalEvent` (`Code.gs` 761) | Crea el evento en el calendario **por defecto**, color `MAUVE`, sin enviar invitaciones. Devuelve `{ok, eventId}` o `{ok:false, error}`. |
-| **Actualizar** | `updateCalEvent` (`Code.gs` 792) | Usa **solo el id que trae la cita**. Nunca crea eventos. Comprueba **después** de escribir que Calendar aplicó la hora (tolerancia 1 s) y si no, devuelve `ok:false` con código `not_applied`. |
-| **Borrar** | `deleteCalEvent` (`Code.gs` 846) | Usa solo el id. Si el evento ya no existe, devuelve `ok:true, alreadyGone:true` (**idempotente**). Nunca barre el calendario. |
+| **Crear** | `createCalEvent` (`Code.gs` 918) | Crea el evento en el calendario de **`SB_CALENDAR_ID`** si está configurada (y ese calendario es accesible); si no, en el **por defecto**. Color `MAUVE`, sin invitaciones. Devuelve `{ok, eventId}` o `{ok:false, error}`. |
+| **Actualizar** | `updateCalEvent` (`Code.gs` 949) | Usa **solo el id que trae la cita** (busca primero en el calendario de `SB_CALENDAR_ID` y luego en el resto). Nunca crea eventos. Comprueba **después** de escribir que Calendar aplicó la hora (tolerancia 1 s) y si no, devuelve `ok:false` con código `not_applied`. |
+| **Borrar** | `deleteCalEvent` (`Code.gs` 1003) | Usa solo el id (misma búsqueda que actualizar). Si el evento ya no existe, devuelve `ok:true, alreadyGone:true` (**idempotente**). Nunca barre el calendario. |
 
-**Título y descripción** (`calTitle_` / `calDescription_`, `Code.gs` 693–704):
+**Título y descripción** (`calTitle_` / `calDescription_`, `Code.gs` 932–946):
 
 - Título: `✨ <servicios> — <cliente>`
 - Descripción: cliente, celular, servicios, total y, si es a domicilio, el
@@ -694,7 +718,7 @@ así:
 - **Al editar**, si Calendar no aplicó el cambio de hora, el backend devuelve
   un error y la app no comunica el éxito.
 - **Al restablecer**, los eventos se borran **desde el servidor** dentro de la
-  operación ya autorizada (`_resetData`, `Code.gs` 457–476); el frontend no
+  operación ya autorizada (`_resetData`, `Code.gs` 576); el frontend no
   borra nada antes de autorizar.
 - **Al fallar un guardado** (`saveData` → `sync`, `App.jsx`): la app mantiene
   el estado optimista y muestra la **franja roja «⚠️ No se pudo guardar»** con
@@ -718,8 +742,8 @@ así:
 
 | Función | Frecuencia | Qué hace |
 |---|---|---|
-| `createDailyBackup` (`Code.gs` 884) | Diario, 23:00 | Copia la hoja a `BACKUP-PROYECTO/Backups/<nombre de la hoja>/` como `<nombre> — Backup yyyy-MM-dd`. **No duplica** si ya existe hoy. Elimina los mayores de **30 días**. |
-| `sendWeeklyBackupEmail` (`Code.gs` 986) | Sábados, 9:00 | Busca el respaldo más reciente, lo exporta a `.xlsx` y lo envía por correo. Destinatario desde **`SB_BACKUP_EMAIL`** si existe y si no desde `SB_AUTHORIZED_EMAIL`; si faltan las dos, se omite y queda aviso en el log. |
+| `createDailyBackup` (`Code.gs` 1041) | Diario, 23:00 | Copia la hoja a `BACKUP-PROYECTO/Backups/<nombre de la hoja>/` como `<nombre> — Backup yyyy-MM-dd`. **No duplica** si ya existe hoy. Elimina los mayores de **30 días**. |
+| `sendWeeklyBackupEmail` (`Code.gs` 1143) | Sábados, 9:00 | Busca el respaldo más reciente, lo exporta a `.xlsx` y lo envía por correo. Destinatario desde **`SB_BACKUP_EMAIL`** si existe y si no desde `SB_AUTHORIZED_EMAIL`; si faltan las dos, se omite y queda aviso en el log. |
 
 **Instalación (una sola vez):**
 
@@ -730,7 +754,7 @@ setupWeeklyEmailTrigger()     → trigger los sábados a las 9:00
 
 ### E.8 Reportes automáticos por correo
 
-`setupAllReportTriggers()` (`Code.gs` 1882) instala **4 triggers**, todos a las
+`setupAllReportTriggers()` (`Code.gs` 2082) instala **4 triggers**, todos a las
 **12:00** (hora del script):
 
 | Función | Dispara | Período | Guard |
@@ -748,6 +772,11 @@ El correo incluye un **adjunto `.xlsx`** generado en el momento. Si la
 generación falla, **el correo se envía igual, sin adjunto**, y el cuerpo HTML
 muestra un aviso. El texto plano nunca cambia (para que coincida con el
 WhatsApp del admin).
+
+> 📬 **A quién llegan:** a `SB_REPORT_EMAIL` si existe (varias direcciones
+> separadas por coma), y si no a `SB_AUTHORIZED_EMAIL`. Si faltan las dos, el
+> reporte se omite y queda aviso en el log. Ninguna acción pública cambia ese
+> destinatario.
 
 ---
 
@@ -843,7 +872,8 @@ Vercel permite **Redeploy** de cualquier despliegue anterior o
 
 El token de sincronización **no es un secreto** (viaja en el bundle público).
 Por eso el reset exige una **autorización temporal emitida por el servidor**
-tras verificar al dueño por correo. Ver `Code.gs` 122–158.
+tras verificar al dueño por correo. Ver el comentario de cabecera del
+restablecimiento en `Code.gs`.
 
 **Tres pasos, todos explícitos:**
 
@@ -897,7 +927,7 @@ la compara con lo que se pidió borrar (`isResetOutcome`). Así:
 | **La hoja completa** | `createDailyBackup` (automático, 30 días en Drive) | Diaria |
 | **Una copia por correo** | `sendWeeklyBackupEmail` (automático, sábados) | Semanal |
 | **El código** | El repositorio de GitHub | Cada push |
-| **Las propiedades del script** | ⚠️ **No se respaldan automáticamente.** Anota `SB_SYNC_TOKEN` y `SB_AUTHORIZED_EMAIL` en un lugar seguro (gestor de contraseñas). | Al crearlas y al cambiarlas |
+| **Las propiedades del script** | ⚠️ **No se respaldan automáticamente.** Anota `SB_SYNC_TOKEN`, `SB_AUTHORIZED_EMAIL`, `SB_REPORT_EMAIL`, `SB_BACKUP_EMAIL`, `SB_CALENDAR_ID` y `SB_BIZ_NAME` en un lugar seguro (gestor de contraseñas). | Al crearlas y al cambiarlas |
 
 ### G.7 Procedimiento de restauración
 

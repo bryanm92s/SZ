@@ -13,16 +13,44 @@ salen de variables de entorno y de propiedades de Apps Script.
 
 ## 0. La idea en una frase
 
-| Es la **plantilla** (igual para todos) | Es del **cliente** (único por despliegue) |
+| Es la **plantilla** (igual para todos) | Es del **despliegue** (único por cliente) |
 |---|---|
-| El código (`src/`, `apps-script/`) y **todas las reglas de negocio** | Su cuenta de Google: Sheets, Calendar, Drive y Gmail |
+| El código (`src/`, `apps-script/`) y **todas las reglas de negocio** | **La cuenta de Google del proyecto** (una por cliente): Sheets, Calendar, Drive y Gmail |
 | Los tests, la arquitectura, los reportes | Sus datos (clientes, citas, gastos) |
 | El repositorio y el pipeline de build | Su nombre, emoji, logo, WhatsApp y catálogo |
-| | Sus variables en Vercel y sus propiedades en Apps Script |
+| | Las variables en Vercel y las propiedades en Apps Script |
 
 > 🔑 **Los datos nunca están en el repo.** Viven en Google Sheets. Por eso
 > puedes tener 10 clientes con el mismo código y ninguno ve la información
 > de otro.
+
+### 📧 Una cuenta de Google por proyecto (modelo recomendado)
+
+En vez de montar el despliegue sobre **la cuenta de la usuaria** —que un día
+puede «depurar» Drive y borrarte la hoja o el script sin querer—, cada
+proyecto se instala sobre **su propia cuenta** (p. ej. `proyectoSZ@gmail.com`,
+`proyectoABC@gmail.com`), de la que **tú eres dueño**:
+
+| Pieza | Vive en | Quién puede borrarla |
+|---|---|---|
+| Spreadsheet + Apps Script + respaldos de Drive | Cuenta del proyecto | Solo tú |
+| Calendario «Citas \<negocio\>» | Cuenta del proyecto | Solo tú (la usuaria lo ve en **solo lectura**) |
+| Correos que salen (reportes, códigos, respaldos) | Cuenta del proyecto (`GmailApp`) | — |
+| Código en GitHub + deploy en Vercel | Tus cuentas | Solo tú |
+
+**Y a la usuaria se le entregan sus datos por tres canales**, sin que necesite
+acceso a la infraestructura:
+
+- **Reportes automáticos** a su correo → propiedad `SB_REPORT_EMAIL`.
+- **Respaldo semanal `.xlsx`** a su correo → propiedad `SB_BACKUP_EMAIL`.
+- **Excel de respaldo completo** desde la pantalla de Ajustes, cuando quiera.
+
+Además, el **código de restablecimiento** llega a `SB_AUTHORIZED_EMAIL`
+(**lista**: la cuenta del proyecto **y** su correo, separados por coma).
+
+> ⚠️ Cuenta dedicada implica: **2FA + teléfono de recuperación** en esa
+> cuenta, contraseña en tu gestor de contraseñas, y **entrar de vez en
+> cuando** (Google desactiva las cuentas inactivas).
 
 ### 🤖 O deja que el script haga los pasos contigo
 
@@ -67,7 +95,7 @@ a propósito:
 
 | Tipo de paso | Quién | Qué pasa |
 |---|---|---|
-| **🤖 Automático** | El script | Copia la plantilla a la carpeta del cliente (sin `.git`, `node_modules`, `dist`, `.env` ni `logo.png`), renombra la marca en los docs, `git init` con historia propia, `package.json` → `name`, `.env`, tu `logo.png`, `CUSTOMIZACIONES.md`, remote `madre`, `npm install` + **339 pruebas** + build, y **genera un token nuevo** para `SB_SYNC_TOKEN` / `VITE_TOKEN` |
+| **🤖 Automático** | El script | Copia la plantilla a la carpeta del cliente (sin `.git`, `node_modules`, `dist`, `.env` ni `logo.png`), renombra la marca en los docs, `git init` con historia propia, `package.json` → `name`, `.env`, tu `logo.png`, `CUSTOMIZACIONES.md`, remote `madre`, `npm install` + **351 pruebas** + build, y **genera un token nuevo** para `SB_SYNC_TOKEN` / `VITE_TOKEN` |
 | **🧑 Manual** | Tú | Google, GitHub y Vercel: el script **imprime el paso completo** (con las rutas y valores ya rellenados) y espera tu respuesta |
 | **✅ Verificación** | Tú | Los 9 chequeos de la fase D, uno por uno, con la causa probable si algo falla |
 
@@ -99,11 +127,12 @@ final puedes borrar ese archivo.
 
 | # | Artefacto | Dónde se crea | Qué lo hace único |
 |---|---|---|---|
-| 1 | **Google Spreadsheet** | `sheets.google.com` con la cuenta del cliente | Su base de datos |
-| 2 | **Apps Script (Web App)** | `script.google.com` o *Extensiones → Apps Script* desde la hoja | `SB_SYNC_TOKEN` (nueva), `SB_AUTHORIZED_EMAIL`, `SB_BIZ_NAME`, `SB_BACKUP_EMAIL` (opcional) |
+| 1 | **Google Spreadsheet** | `sheets.google.com` con la **cuenta del proyecto** | Su base de datos |
+| 2 | **Apps Script (Web App)** | `script.google.com` o *Extensiones → Apps Script* desde la hoja | `SB_SYNC_TOKEN` (nueva), `SB_AUTHORIZED_EMAIL` (lista), `SB_BIZ_NAME` y, opcionales, `SB_REPORT_EMAIL`, `SB_BACKUP_EMAIL`, `SB_CALENDAR_ID` |
 | 3 | **Repo en GitHub** | `github.com` (tu misma cuenta, un repo por cliente) | Código + `package.json` `name` |
 | 4 | **Proyecto en Vercel** | `vercel.com` | `VITE_SCRIPT_URL`, `VITE_TOKEN`, `VITE_BIZ_*`, `VITE_CATALOG`, `VITE_ADMIN_WHATSAPP` |
 | 5 | **Triggers de Apps Script** | Editor → ⏰ | Reportes diario/semanal/mensual/anual y respaldos |
+| 6 | **Calendario «Citas \<negocio\>»** | calendar.google.com (cuenta del proyecto) | Compartido con la usuaria en **solo lectura** → `SB_CALENDAR_ID` |
 
 ---
 
@@ -185,18 +214,20 @@ los correos son dos marcas distintas y cada una tiene su llave:
 
 ---
 
-## 3. Fase B — Google del cliente
+## 3. Fase B — Google del PROYECTO (cuenta dedicada)
 
-Sigue [`SETUP.md`](../SETUP.md) pasos 1 a 3 y 6, con estas claves del
-cliente:
+Sigue [`SETUP.md`](../SETUP.md) pasos 1 a 3 y 6, pero **todo dentro de la
+cuenta de Google del proyecto** (una por cliente; ver §0). Si todavía no
+existe, créala antes: 2FA, tu teléfono de recuperación y la contraseña en el
+gestor de contraseñas.
 
-1. **Decisión previa (la única que no es técnica):** ¿los datos viven en
-   **la cuenta de Google del cliente** o en **la tuya**?
-   - *Cuenta del cliente:* él es dueño de todo; tú necesitas permiso de
-     edición para soportar (compártele el proyecto de Apps Script).
-   - *Tu cuenta:* todo centralizado; el cliente no controla su información
-     ni puede revidarte. Para un negocio real, **recomendado: la suya**.
-2. **Spreadsheet nuevo** en su cuenta → nómbralo con su negocio
+1. **Cuenta del proyecto.** Hoja, script, respaldos de Drive y calendario se
+   crean **ahí**, nunca en la cuenta de la usuaria: así un «ordenamiento»
+   de Drive suyo no puede borrar la infraestructura y tú conservas el
+   soporte sin pedirle permisos. Ella recibe sus datos por
+   `SB_REPORT_EMAIL` (reportes automáticos), `SB_BACKUP_EMAIL` (respaldo
+   semanal) y el **📥 Excel de respaldo** de Ajustes.
+2. **Spreadsheet nuevo** en esa cuenta → nómbralo con su negocio
    (p. ej. `Uñas DB`). Solo necesitas el ID de la URL.
 3. **Apps Script nuevo**, pegar `apps-script/appsscript.json` y
    `apps-script/Code.gs`. (Lo más cómodo: desde el propio spreadsheet,
@@ -207,21 +238,41 @@ cliente:
    | Propiedad | Valor | Nota |
    |---|---|---|
    | `SB_SYNC_TOKEN` | Token **nuevo**, largo y aleatorio | **Nunca** reutilices el de otro cliente; debe coincidir con `VITE_TOKEN` |
-   | `SB_AUTHORIZED_EMAIL` | Correo **del cliente** | Obligatoria: a él llegan los códigos de recuperación y los reportes |
-   | `SB_BACKUP_EMAIL` | Otro correo (opcional) | Si el cliente quiere la **copia semanal de la hoja** en otro sitio (gestoría, correo personal…). Vacío → el respaldo va a `SB_AUTHORIZED_EMAIL` |
+   | `SB_AUTHORIZED_EMAIL` | **Lista:** `cuenta.proyecto@gmail.com, usuaria@gmail.com` | Obligatoria: el código de restablecimiento llega a **las dos** (tú controlas el despliegue, ella tiene copia). Direcciones separadas por **coma**; solo se admiten las que traen `@` |
+   | `SB_REPORT_EMAIL` | Correo **de la usuaria** (o los dos, con coma) | Opcional: aquí llegan los 4 reportes automáticos. Si falta → van a `SB_AUTHORIZED_EMAIL` |
+   | `SB_BACKUP_EMAIL` | Otro correo (opcional) | Si quiere la **copia semanal de la hoja** en otro sitio (gestoría, correo personal…). Vacío → el respaldo va a `SB_AUTHORIZED_EMAIL` |
    | `SB_BIZ_NAME` | Nombre del negocio | Es el que firma los correos. Si falta → «SZ» |
+   | `SB_CALENDAR_ID` | Id del calendario «Citas \<negocio\>» (paso 5) | Opcional: manda las citas a ese calendario secundario. Vacío → calendario por defecto |
 
-5. **Desplegar como Web App** (*Implementar → Nueva implementación*):
+5. **Calendario dedicado y compartido con la usuaria** (5 min, una vez):
+
+   1. Con la cuenta del proyecto: **calendar.google.com → ➕ → Crear
+      calendario** → nombre `Citas <negocio>`.
+   2. **Ajustes del calendario → Integrar calendario → ID del calendario**
+      → cópialo y pégalo en la propiedad **`SB_CALENDAR_ID`**.
+   3. **Ajustes del calendario → Compartir con personas con derechos
+      específicos** → correo de la usuaria → permiso **«Ver todos los
+      detalles»** (solo lectura: **no** le des «Hacer cambios y gestionar
+      eventos»).
+   4. Ella lo agrega en el celular: *calendar.google.com → ⋮ → Ajustes →
+      Añadir otro calendario → Suscribirse* (o en la app de Calendar:
+      *Añadir → Suscribirse a calendario → pegar el ID*).
+
+   > Si algún día ella lo quita de su celular, se vuelve a agregar y no se
+   > pierde ningún evento. Y un evento creado **antes** de poner
+   > `SB_CALENDAR_ID` sigue localizable para editarlo o borrarlo.
+
+6. **Desplegar como Web App** (*Implementar → Nueva implementación*):
    ejecutar como **Yo**, acceso **Cualquier usuario**. Copia la URL
    `…/exec` → esa va en `VITE_SCRIPT_URL`.
-6. **Triggers** (una sola vez por cliente), según
+7. **Triggers** (una sola vez por cliente), según
    [`MANUAL_USUARIO.md`](MANUAL_USUARIO.md) / `SETUP.md`:
    - `setupAllReportTriggers()` → reportes automáticos.
    - `setupDailyBackupTrigger()` → copia diaria 23:00 (crea las carpetas).
    - `setupWeeklyEmailTrigger()` → correo de respaldo los sábados 9:00.
    > Sin el trigger diario, el correo del sábado falla con «Carpeta de
    > backups no encontrada».
-7. **Zona horaria:** `appsscript.json` trae `America/Bogota`. Si el cliente
+8. **Zona horaria:** `appsscript.json` trae `America/Bogota`. Si el cliente
    está en otro huso, cámbialo **antes** de desplegar: toda la lógica de
    fechas asume UTC-5.
 
@@ -259,7 +310,7 @@ git commit -m "chore: base de nombre-del-cliente (copia de SZ @ $(git -C ..\SZ r
 #    y rellena VITE_SCRIPT_URL y VITE_TOKEN con las del cliente (luego,
 #    en Vercel, las mismas). Verifica con pruebas y build:
 npm install
-npm test      # debe pasar: 339 tests (o: npx vitest run --environment node)
+npm test      # debe pasar: 351 tests (o: npx vitest run --environment node)
 npm run build
 
 # 5. Crea el repo VACÍO en github.com y conecta
@@ -342,7 +393,7 @@ git apply fix.patch
 # C) a mano: copiar SOLO los archivos que el cliente NO personalizó
 ```
 
-Después, **siempre**: `npm test` (339 en verde) y el checklist de la
+Después, **siempre**: `npm test` (351 en verde) y el checklist de la
 fase D.
 
 > ⚠️ **La trampa real de los repos independientes no es git, es
@@ -396,14 +447,22 @@ fase D.
 - [ ] La pestaña dice el nombre del cliente y el favicon es su emoji.
 - [ ] Header en verde: **«✓ Sincronizado»**.
 - [ ] En «Servicios» aparece el catálogo de su actividad.
-- [ ] Creo una cliente de prueba → **aparece en su Google Sheets**.
-- [ ] Agenda una cita → **aparece en su Google Calendar** con el color
-      correspondiente.
+- [ ] Creo una cliente de prueba → **aparece en el Google Sheets de la cuenta
+      del proyecto** (no en la de la usuaria).
+- [ ] Agenda una cita → **aparece en el calendario «Citas \<negocio\>»**
+      (o en el por defecto si no configuraste `SB_CALENDAR_ID`), con el
+      color correspondiente.
+- [ ] Ese calendario está **compartido con la usuaria en solo lectura** y
+      ella lo ve en su celular (sin poder editarlo).
 - [ ] Su WhatsApp admin abre `wa.me` con su número (reporte).
-- [ ] Correo de restablecimiento: pide código → llega con **su nombre**,
-      nunca «SZ» → comprueba asunto, cuerpo y HTML.
+- [ ] Correo de restablecimiento: pide código → llega a **TODAS** las
+      direcciones de `SB_AUTHORIZED_EMAIL` (la cuenta del proyecto y la
+      usuaria), con **su nombre**, nunca «SZ» → comprueba asunto, cuerpo y
+      HTML.
+- [ ] Reporte de prueba (`sendDailyReportEmail()` o
+      `sendWeeklyReportEmail()`) → llega a **`SB_REPORT_EMAIL`** (su correo).
 - [ ] Ejecuté `createDailyBackup()` a mano → se creó
-      `BACKUP-PROYECTO/Backups/…` en **su** Drive.
+      `BACKUP-PROYECTO/Backups/…` en el **Drive de la cuenta del proyecto**.
 - [ ] El repo de SZ y los datos de SZ **no** se tocaron (nada nuevo en su
       spreadsheet, ningún trigger extra).
 
@@ -414,13 +473,14 @@ fase D.
 1. **La lógica de `Code.gs` y de `src/`.** Las reglas de negocio son el
    producto; si el cliente necesita una regla distinta, es una
    personalización, no un onboarding.
-2. **Los tests.** `npm test` debe pasar siempre (339 tests). Si un cambio
+2. **Los tests.** `npm test` debe pasar siempre (351 tests). Si un cambio
    de cliente los rompe, el cambio estaba mal hecho.
 3. **El token del cliente en el código.** Vive en `SB_SYNC_TOKEN`
    (servidor) y `VITE_TOKEN` (Vercel). El repo es público.
-4. **`SB_AUTHORIZED_EMAIL` (o `SB_BACKUP_EMAIL`) con el correo de otro
-   cliente.** Los reportes, los códigos y los respaldos de uno no pueden
-   llegar a la bandeja de otro.
+4. **`SB_AUTHORIZED_EMAIL`, `SB_REPORT_EMAIL` o `SB_BACKUP_EMAIL` con el
+   correo de otro cliente** (o con el token de otro). Los reportes, los
+   códigos y los respaldos de uno no pueden llegar a la bandeja de otro:
+   cada proyecto tiene **su** cuenta de Google y **sus** propiedades.
 5. **No pegues un `Code.gs` de otro cliente encima.** Usa el del repo
    (es único y no lleva datos); solo cambian las propiedades.
 6. **No arrastres personalizaciones de un cliente a otro.** Si a SZ le
@@ -468,10 +528,13 @@ Lo que **sí** quedó parametrizado y no requiere tocar nada:
 | «Token de sincronización no configurado» | Falta `SB_SYNC_TOKEN` **en el servidor** (no en Vercel) |
 | App dice «SZ» | Falta `VITE_BIZ_NAME` |
 | El correo de restablecimiento dice «SZ» | Falta `SB_BIZ_NAME` |
-| Llega correo de otro negocio | `SB_AUTHORIZED_EMAIL` mal copiada |
+| Llega correo de otro negocio | `SB_AUTHORIZED_EMAIL` / `SB_REPORT_EMAIL` mal copiadas (revisa que **ninguna** dirección sea de otro cliente) |
+| El código de reset **no le llega a la usuaria** | Su correo no está en la **lista** `SB_AUTHORIZED_EMAIL` (separa las direcciones con **coma**) |
+| Los reportes llegan a tu bandeja en vez de a la suya | Falta `SB_REPORT_EMAIL` (sin ella, los reportes van a `SB_AUTHORIZED_EMAIL`) |
+| La cita **no aparece** en el calendario de la usuaria | Falta `SB_CALENDAR_ID`, el id no corresponde a un calendario accesible (mira el log) o no la compartiste en **solo lectura** |
 | «Carpeta de backups no encontrada» | No se ejecutó `setupDailyBackupTrigger()` / `createDailyBackup()` |
 | Las citas salen desfasadas | Zona horaria de `appsscript.json` ≠ UTC-5 |
-| Sin reportes automáticos | Falta `SB_AUTHORIZED_EMAIL` o no corriste `setupAllReportTriggers()` |
+| Sin reportes automáticos | Faltan `SB_REPORT_EMAIL` y `SB_AUTHORIZED_EMAIL`, o no corriste `setupAllReportTriggers()` |
 
 Detalle y solución ampliada en [`SETUP.md`](../SETUP.md) (Solución de
 problemas) y [`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) sección F.
@@ -481,17 +544,22 @@ problemas) y [`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) sección F.
 ## 9. Checklist final del cliente
 
 ```text
-[ ] Cuenta de Google del cliente (decidida y con acceso de soporte)
+[ ] Cuenta de Google del PROYECTO creada (2FA + recuperación en tu gestor)
 [ ] Spreadsheet creado + Apps Script vinculado + manifiesto pegado
 [ ] Code.gs pegado y desplegado como Web App (URL …/exec copiada)
-[ ] Propiedades: SB_SYNC_TOKEN (nueva) · SB_AUTHORIZED_EMAIL · SB_BIZ_NAME · SB_BACKUP_EMAIL (opcional)
+[ ] Propiedades: SB_SYNC_TOKEN (nueva) · SB_AUTHORIZED_EMAIL (lista: proyecto + usuaria)
+      · SB_BIZ_NAME · SB_REPORT_EMAIL (usuaria) · SB_BACKUP_EMAIL (opcional)
+      · SB_CALENDAR_ID (opcional)
+[ ] Calendario «Citas <negocio>» creado, con ID en SB_CALENDAR_ID y
+      compartido con la usuaria en SOLO LECTURA
 [ ] Triggers: reportes + backup diario + correo semanal
 [ ] Repo nuevo en GitHub (historia propia, `madre` como remote de solo lectura)
 [ ] `package.json` → "name" + `CUSTOMIZACIONES.md` creado
-[ ] npm test en verde (339) + npm run build
+[ ] npm test en verde (351) + npm run build
 [ ] Vercel: proyecto nuevo + 7 variables de la fase A + 2 críticas
 [ ] Deploy → checklist de la sección 5 completo
-[ ] Anotado en el gestor de contraseñas: token y correo del cliente
+[ ] Anotado en el gestor de contraseñas: cuenta del proyecto, token,
+      propiedades de script y correos (proyecto / usuaria)
 ```
 
 ---
@@ -530,7 +598,7 @@ git remote -v                     # ✅ origin (NOMBRE) + madre (SZ)
 
 # 5. Validar (ver aviso de PowerShell arriba, sección 4)
 npm install
-npm test        # ✅ 339 pruebas
+npm test        # ✅ 351 pruebas
 npm run build   # ✅ built in ~3s
 
 # 6. SZ intacto
@@ -540,9 +608,13 @@ git remote -v                      # solo origin = .../SZ.git
 git --no-pager log --oneline -1    # el sha de la plantilla
 ```
 
-### A.2 — Google (≈20 min) — el orden importa
+### A.2 — Google (≈25 min) — el orden importa
 
-1. **Drive (cuenta del cliente) → Nuevo → Google Sheets** → `NOMBRE DB`.
+> 🔑 **Todo con la cuenta de Google del PROYECTO abierta** (una por
+> cliente), nunca con la de la usuaria ni con otra de las tuyas. Compruébalo
+> arriba a la derecha antes del paso 1.
+
+1. **Drive (cuenta del proyecto) → Nuevo → Google Sheets** → `NOMBRE DB`.
 2. Desde esa hoja: **Extensiones → Apps Script** (queda vinculado, sin IDs).
 3. ⚙️ → **Mostrar archivo de manifiesto** → pegar **todo**
    `apps-script/appsscript.json` → Guardar.
@@ -553,13 +625,19 @@ git --no-pager log --oneline -1    # el sha de la plantilla
 5. ⚙️ → Propiedades del proyecto → **Propiedades de script** — *antes* de
    implementar:
    | `SB_SYNC_TOKEN` | token nuevo: `(New-Guid).ToString('N') + (New-Guid).ToString('N')` |
-   | `SB_AUTHORIZED_EMAIL` | correo del dueño (códigos y reportes) |
+   | `SB_AUTHORIZED_EMAIL` | **lista**: `cuenta.proyecto@gmail.com, usuaria@gmail.com` (ambas reciben el código de reset) |
+   | `SB_REPORT_EMAIL` | correo de la usuaria: aquí van los 4 reportes (opcional) |
    | `SB_BACKUP_EMAIL` | otro correo si la copia semanal va a otro sitio (opcional) |
    | `SB_BIZ_NAME` | nombre del negocio (firma los correos) |
+   | `SB_CALENDAR_ID` | id del calendario «Citas NOMBRE» (paso 7; opcional) |
 6. **Implementar → Nueva implementación → Aplicación web** →
    *Ejecutar como:* **Yo** · *Quién tiene acceso:* **Cualquier usuario** →
    Implementar → autorizar permisos → **copiar URL `…/exec`**.
-7. (Después, no bloquea) `setupAllReportTriggers()` ·
+7. **Calendario:** calendar.google.com → ➕ **Crear calendario** →
+   `Citas NOMBRE` → *Ajustes → Integrar calendario → ID del calendario* →
+   pegarlo en `SB_CALENDAR_ID` → *Ajustes → Compartir* con la usuaria en
+   **«Ver todos los detalles»** (solo lectura).
+8. (Después, no bloquea) `setupAllReportTriggers()` ·
    `setupDailyBackupTrigger()` · `setupWeeklyEmailTrigger()`.
 
 ### A.3 — Vercel (≈10 min)
@@ -572,8 +650,9 @@ git --no-pager log --oneline -1    # el sha de la plantilla
    `VITE_ADMIN_WHATSAPP` y — si hay logo — `VITE_BIZ_LOGO`.
 3. *Build Settings* lo deja Vercel: Vite, `npm run build`, salida `dist`.
 4. **Deploy**.
-5. **Prueba:** «✓ Sincronizado» → cliente de prueba en la hoja → cita en
-   **su** Calendar → correo de restablecimiento con **su** nombre.
+5. **Prueba:** «✓ Sincronizado» → cliente de prueba en la hoja → cita en el
+   **calendario «Citas NOMBRE»** (visible en el celular de la usuaria) →
+   correo de restablecimiento en **la cuenta del proyecto y en la de ella**.
 
 ### A.4 — Errores que SÍ salieron en la práctica
 

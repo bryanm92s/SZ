@@ -402,6 +402,13 @@ no tiene duración, SZ usa **60 minutos** por defecto.
   evento **directo en Google Calendar**, esa cita **seguirá existiendo en SZ**.
   Borra o edita la cita **desde la app**.
 
+> 📆 **¿Dónde salen tus citas en Google Calendar?** Si tu negocio tiene su
+> propio calendario (p. ej. *«Citas \<nombre\>»*), ahí aparecen. Comprueba
+> que lo tengas **añadido en tu celular** y, si te falta, pídeselo al
+> desarrollador para volver a suscribirte: **no se pierde ninguna cita**
+> aunque lo quites y lo vuelvas a poner. Tu acceso es de **solo lectura**:
+> ver las citas allí no permite modificar ni borrar la agenda.
+
 ---
 
 ## 13. Domicilios, dirección, duración y precios

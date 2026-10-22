@@ -8,7 +8,7 @@ aplica.
 >
 > - ✅ **Verificado en código** — se leyó la implementación en este repositorio.
 > - 🧪 **Verificado en pruebas automatizadas** — existe un test que lo cubre
->   (339 pruebas, ejecutadas y en verde en esta ronda de documentación).
+>   (351 pruebas, ejecutadas y en verde en esta ronda de documentación).
 > - 🔎 **No verificado en producción** — la regla existe en el código pero no
 >   se probó en el entorno real de Google/Vercel.
 
@@ -177,11 +177,11 @@ App → saveData(payload) → call(URL, {method:'POST', body:{token, ...payload}
 | Archivo | Líneas | Responsabilidad | ¿Testeado? |
 |---|---:|---|:---:|
 | `src/main.jsx` | 10 | Punto de entrada de React (`StrictMode`) | — |
-| `src/App.jsx` | 5.570 | **Toda la UI** + estado global + orquestación de guardado | — (componentes no unit-testeados) |
+| `src/App.jsx` | 5.569 | **Toda la UI** + estado global + orquestación de guardado | — (componentes no unit-testeados) |
 | `src/helpers.js` | 909 | **Lógica pura**: fechas, slots, duraciones, estados, finanzas, reportes, servicio a domicilio, clasificación de citas | ✅ 171 tests |
 | `src/api.js` | 83 | Transporte HTTP y mensajes de error | ✅ 7 tests |
-| `apps-script/Code.gs` | 2.249 | Backend completo: API, seguridad, Sheets, Calendar, reportes, respaldos | ✅ 144 tests (en sandbox `node:vm`) |
-| `src/backend.test.js` | 3.286 | Ejecuta `Code.gs` **real** con mocks de Apps Script | — |
+| `apps-script/Code.gs` | 2.341 | Backend completo: API, seguridad, Sheets, Calendar (con `SB_CALENDAR_ID`), reportes, respaldos | ✅ 156 tests (en sandbox `node:vm`) |
+| `src/backend.test.js` | 3.513 | Ejecuta `Code.gs` **real** con mocks de Apps Script | — |
 | `src/helpers.test.js` | 1.767 | Pruebas unitarias de `helpers.js` | — |
 | `src/api.test.js` | 108 | Pruebas del transporte | — |
 | `src/excel.test.js` | 88 | Pruebas del libro Excel de reportes y respaldos (`buildReportWorkbook`) | — |
@@ -657,7 +657,7 @@ CSV **ambiguo**: un servicio puede llamarse
 >
 > Réplica obligatoria en **`Code.gs` → `_recoverSnapshotNames`** (ES5),
 > cubierta por el test de **paridad frontend↔backend**. Si se toca un lado
-> sin el otro, los 339 tests se caen.
+> sin el otro, los 351 tests se caen.
 
 ---
 
@@ -1291,7 +1291,7 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 4 | **No hay transaccionalidad Sheets ↔ Calendar**: posible evento huérfano | `deleteAppt`, `App.jsx` 625–657 |
 | 5 | **El reloj de la app** (agrupar por pasado/hoy, marcar horas vencidas) solo corre si el navegador está abierto | `apptGroup` / `apptLife`, `helpers.js` 231, 453 |
 | 6 | **`writeSheet` borra ediciones manuales** de la hoja | `Code.gs` 1983 |
-| 7 | ~~Destinatario de reportes hardcodeado~~ → **CORREGIDO**: los tres envíos leen `_authorizedEmail()` / `SB_AUTHORIZED_EMAIL` | `Code.gs` 185 |
+| 7 | ~~Destinatario de reportes hardcodeado~~ → **CORREGIDO**: los tres envíos leen propiedades de script (`_authorizedEmail()` / `SB_AUTHORIZED_EMAIL` **lista**, `_reportEmail()` / `SB_REPORT_EMAIL`, `_backupEmail()` / `SB_BACKUP_EMAIL`) | `Code.gs`, sección «Configuración» |
 | 8 | **El guardado fallido no revierte la pantalla** de inmediato: espera al próximo polling (≤30 s). **Mitigado** con la franja roja + «↻ Reintentar guardar» y con `refresh()` protegido mientras el aviso esté activo | `sync`, `App.jsx` 517–520, 397–401 |
 | 9 | **Eventos de Calendar no se respaldan** | — |
 | 10 | **Dos clientas con el mismo celular no se fusionan** | — |

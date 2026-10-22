@@ -28,7 +28,7 @@ Guía para **probar, diagnosticar, respaldar, restaurar y desplegar** SZ.
 Todos los comandos están tomados de `package.json` (`scripts`).
 
 ```bash
-npm run test          # una ejecución de las 339 pruebas
+npm run test          # una ejecución de las 351 pruebas
 npm run test:watch    # modo observador (re-ejecuta al guardar)
 npm run lint          # ESLint sobre src/ (*.js y *.jsx)
 npm run build         # build de producción en dist/
@@ -50,7 +50,7 @@ npm run format        # Prettier — formatea src/**
 
 | Comando | Resultado |
 |---|---|
-| `npm test` | ✅ **339/339 pruebas pasando** — 5 suites (≈3 s) |
+| `npm test` | ✅ **351/351 pruebas pasando** — 5 suites (≈3 s) |
 | `npm run lint` | ✅ **0 errores**, 11 *warnings* |
 | `npm run build` | ✅ OK (≈6 s) |
 
@@ -67,7 +67,7 @@ npm run format        # Prettier — formatea src/**
 | Suite | Pruebas | Qué cubre |
 |---|---:|---|
 | `src/helpers.test.js` | **171** | Toda la lógica pura de `helpers.js` |
-| `src/backend.test.js` | **144** | Ejecuta el `Code.gs` **real** en un sandbox |
+| `src/backend.test.js` | **156** | Ejecuta el `Code.gs` **real** en un sandbox |
 | `src/api.test.js` | **7** | Transporte HTTP y mensajes de error |
 | `src/catalogs.test.js` | **14** | Catálogo inicial por tipo de negocio (`VITE_CATALOG` / `VITE_DEFAULT_SERVICES`) |
 | `src/excel.test.js` | **3** | Libro Excel (`buildReportWorkbook`): Resumen/Movimientos/Citas, hoja Clientes y las 9 paletas |
@@ -214,7 +214,7 @@ Aplica Prettier (`semi: false`, `singleQuote: true`, `printWidth: 120`).
 
 ## 4. Qué NO cubren las pruebas
 
-Esto es importante: **pasar las 339 pruebas no garantiza que producción
+Esto es importante: **pasar las 351 pruebas no garantiza que producción
 funcione.**
 
 | No se prueba | Por qué |
@@ -485,8 +485,9 @@ Editor → **Registros de ejecución** → busca `ERROR`, `❌`, `not_applied`.
 
 | Qué | Cómo | Frecuencia | Dónde |
 |---|---|---|---|
-| Hoja completa | `createDailyBackup` (`Code.gs` 884) | Diaria, 23:00 | Drive: `BACKUP-PROYECTO/Backups/<hoja>/` |
-| Último respaldo | `sendWeeklyBackupEmail` (`Code.gs` 986) | Sábados, 9:00 | Correo (destinatario desde `SB_BACKUP_EMAIL`, o `SB_AUTHORIZED_EMAIL` si no existe) |
+| Hoja completa | `createDailyBackup` (`Code.gs` 1041) | Diaria, 23:00 | Drive: `BACKUP-PROYECTO/Backups/<hoja>/` |
+| Último respaldo | `sendWeeklyBackupEmail` | Sábados, 9:00 | Correo (destinatario desde `SB_BACKUP_EMAIL`, o `SB_AUTHORIZED_EMAIL` si no existe) |
+| Reportes automáticos | `_sendReportEmail` (4 triggers a las 12:00) | Diario / semanal / mensual / anual | Correo (desde `SB_REPORT_EMAIL` si existe, si no desde `SB_AUTHORIZED_EMAIL`) |
 
 - **Retención:** 30 días (se eliminan los mayores).
 - **No duplica** si ya existe un respaldo de hoy.
@@ -500,7 +501,7 @@ Editor → **Registros de ejecución** → busca `ERROR`, `❌`, `not_applied`.
 
 | No se respalda | Cómo mitigarlo |
 |---|---|
-| **Propiedades del script** (`SB_SYNC_TOKEN`, `SB_AUTHORIZED_EMAIL`) | Anótalas en un **gestor de contraseñas** |
+| **Propiedades del script** (`SB_SYNC_TOKEN`, `SB_AUTHORIZED_EMAIL`, `SB_REPORT_EMAIL`, `SB_BACKUP_EMAIL`, `SB_CALENDAR_ID`, `SB_BIZ_NAME`) | Anótalas en un **gestor de contraseñas** |
 | **Variables de Vercel** | Anótalas; se re-entran en la consola |
 | **Eventos de Google Calendar** | No hay respaldo: si se borran, hay que **recrear las citas** |
 | **El código** | ✅ Sí está respaldado: es el repositorio de GitHub |

@@ -61,19 +61,23 @@ Durante el análisis del código real aparecieron puntos que **no se corrigieron
 corregidos** después, el **4.º** ya estaba resuelto, y el **5.º** es en realidad
 una **restricción de diseño**, no un defecto.
 
-1. ~~**Destinatario del reporte por correo hardcodeado.**~~ ✅ **CORREGIDO.**
+1. ~~**Destinatario del reporte por correo hardcodeado.**~~ ✅ **CORREGIDO**
+   (y ampliado en octubre de 2026).
    `_sendReportEmail` y `sendWeeklyBackupEmail` usaban una dirección de correo
-   escrita **dentro del código**. Ahora los tres puntos (reporte, respaldo
-   semanal y restablecimiento) leen propiedades de script: códigos y reportes
-   usan `_authorizedEmail()` → `SB_AUTHORIZED_EMAIL`, y el respaldo semanal
-   usa `_backupEmail()` → `SB_BACKUP_EMAIL` si existe, y si no,
-   `SB_AUTHORIZED_EMAIL`. **Ninguna dirección de correo queda en el
-   repositorio**, ni siquiera en los tests (usan un valor sintético).
+   escrita **dentro del código**. Ahora los tres puntos leen propiedades de
+   script: los códigos usan `_authorizedEmail()` → `SB_AUTHORIZED_EMAIL`
+   (**lista**: varias direcciones separadas por coma reciben el mismo
+   código), los reportes usan `_reportEmail()` → `SB_REPORT_EMAIL` si existe
+   y si no `SB_AUTHORIZED_EMAIL`, y el respaldo semanal usa `_backupEmail()` →
+   `SB_BACKUP_EMAIL` si existe, y si no, `SB_AUTHORIZED_EMAIL`. **Ninguna
+   dirección de correo queda en el repositorio**, ni siquiera en los tests
+   (usan valores sintéticos).
    > ⚠️ **Exige acción al desplegar:** crea la propiedad
    > `SB_AUTHORIZED_EMAIL` en el editor de Apps Script **antes** de pegar el
-   > `Code.gs` nuevo. Si falta, no se envía nada: el código de
-   > restablecimiento se descarta sin gastar el cupo de solicitudes y los
-   > reportes/backups se omiten dejando aviso en el log de ejecución.
+   > `Code.gs` nuevo. Si falta (o no trae ninguna dirección válida), no se
+   > envía nada: el código de restablecimiento se descarta sin gastar el cupo
+   > de solicitudes y los reportes/backups se omiten dejando aviso en el log
+   > de ejecución. `SB_REPORT_EMAIL` y `SB_CALENDAR_ID` son opcionales.
 2. ~~**Dos manifiestos de Apps Script distintos.**~~ ✅ **CORREGIDO.**
    Existían `appsscript.json` y `appsscript.json.txt` con **scopes
    diferentes** y con solo uno trayendo el bloque `webapp`. Se comparó
