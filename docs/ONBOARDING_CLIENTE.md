@@ -95,7 +95,7 @@ a propósito:
 
 | Tipo de paso | Quién | Qué pasa |
 |---|---|---|
-| **🤖 Automático** | El script | Copia la plantilla a la carpeta del cliente (sin `.git`, `node_modules`, `dist`, `.env` ni `logo.png`), renombra la marca en los docs, `git init` con historia propia, `package.json` → `name`, `.env`, tu `logo.png`, `CUSTOMIZACIONES.md`, remote `madre`, `npm install` + **351 pruebas** + build, y **genera un token nuevo** para `SB_SYNC_TOKEN` / `VITE_TOKEN` |
+| **🤖 Automático** | El script | Copia la plantilla a la carpeta del cliente (sin `.git`, `node_modules`, `dist`, `.env` ni `logo.png`), renombra la marca en los docs, `git init` con historia propia, `package.json` → `name`, `.env`, tu `logo.png`, `CUSTOMIZACIONES.md`, remote `madre`, `npm install` + **354 pruebas** + build, y **genera un token nuevo** para `SB_SYNC_TOKEN` / `VITE_TOKEN` |
 | **🧑 Manual** | Tú | Google, GitHub y Vercel: el script **imprime el paso completo** (con las rutas y valores ya rellenados) y espera tu respuesta |
 | **✅ Verificación** | Tú | Los 9 chequeos de la fase D, uno por uno, con la causa probable si algo falla |
 
@@ -257,6 +257,12 @@ gestor de contraseñas.
    4. Ella lo agrega en el celular: *calendar.google.com → ⋮ → Ajustes →
       Añadir otro calendario → Suscribirse* (o en la app de Calendar:
       *Añadir → Suscribirse a calendario → pegar el ID*).
+   5. **Valídelo en 5 s:** en el editor de Apps Script ejecuta la función
+      **`pruebaCalendario()`** y mira *Registro de ejecuciones → Registros*:
+      `cal = OK → Citas <negocio>` significa que el id apunta al calendario
+      correcto; `cal = NULL (no accesible…)` significa que el id está mal
+      copiado o es de otra cuenta; `id = (sin SB_CALENDAR_ID)` significa que
+      la propiedad no existe todavía. No crea ni borra nada.
 
    > Si algún día ella lo quita de su celular, se vuelve a agregar y no se
    > pierde ningún evento. Y un evento creado **antes** de poner
@@ -310,7 +316,7 @@ git commit -m "chore: base de nombre-del-cliente (copia de SZ @ $(git -C ..\SZ r
 #    y rellena VITE_SCRIPT_URL y VITE_TOKEN con las del cliente (luego,
 #    en Vercel, las mismas). Verifica con pruebas y build:
 npm install
-npm test      # debe pasar: 351 tests (o: npx vitest run --environment node)
+npm test      # debe pasar: 354 tests (o: npx vitest run --environment node)
 npm run build
 
 # 5. Crea el repo VACÍO en github.com y conecta
@@ -393,7 +399,7 @@ git apply fix.patch
 # C) a mano: copiar SOLO los archivos que el cliente NO personalizó
 ```
 
-Después, **siempre**: `npm test` (351 en verde) y el checklist de la
+Después, **siempre**: `npm test` (354 en verde) y el checklist de la
 fase D.
 
 > ⚠️ **La trampa real de los repos independientes no es git, es
@@ -473,7 +479,7 @@ fase D.
 1. **La lógica de `Code.gs` y de `src/`.** Las reglas de negocio son el
    producto; si el cliente necesita una regla distinta, es una
    personalización, no un onboarding.
-2. **Los tests.** `npm test` debe pasar siempre (351 tests). Si un cambio
+2. **Los tests.** `npm test` debe pasar siempre (354 tests). Si un cambio
    de cliente los rompe, el cambio estaba mal hecho.
 3. **El token del cliente en el código.** Vive en `SB_SYNC_TOKEN`
    (servidor) y `VITE_TOKEN` (Vercel). El repo es público.
@@ -531,7 +537,7 @@ Lo que **sí** quedó parametrizado y no requiere tocar nada:
 | Llega correo de otro negocio | `SB_AUTHORIZED_EMAIL` / `SB_REPORT_EMAIL` mal copiadas (revisa que **ninguna** dirección sea de otro cliente) |
 | El código de reset **no le llega a la usuaria** | Su correo no está en la **lista** `SB_AUTHORIZED_EMAIL` (separa las direcciones con **coma**) |
 | Los reportes llegan a tu bandeja en vez de a la suya | Falta `SB_REPORT_EMAIL` (sin ella, los reportes van a `SB_AUTHORIZED_EMAIL`) |
-| La cita **no aparece** en el calendario de la usuaria | Falta `SB_CALENDAR_ID`, el id no corresponde a un calendario accesible (mira el log) o no la compartiste en **solo lectura** |
+| La cita **no aparece** en el calendario de la usuaria | Ejecuta **`pruebaCalendario()`** en el editor: si dice `NULL`, el id de `SB_CALENDAR_ID` no es de un calendario accesible de esa cuenta. Si dice `OK`, falta compartírselo a ella en **solo lectura** |
 | «Carpeta de backups no encontrada» | No se ejecutó `setupDailyBackupTrigger()` / `createDailyBackup()` |
 | Las citas salen desfasadas | Zona horaria de `appsscript.json` ≠ UTC-5 |
 | Sin reportes automáticos | Faltan `SB_REPORT_EMAIL` y `SB_AUTHORIZED_EMAIL`, o no corriste `setupAllReportTriggers()` |
@@ -555,7 +561,7 @@ problemas) y [`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) sección F.
 [ ] Triggers: reportes + backup diario + correo semanal
 [ ] Repo nuevo en GitHub (historia propia, `madre` como remote de solo lectura)
 [ ] `package.json` → "name" + `CUSTOMIZACIONES.md` creado
-[ ] npm test en verde (351) + npm run build
+[ ] npm test en verde (354) + npm run build
 [ ] Vercel: proyecto nuevo + 7 variables de la fase A + 2 críticas
 [ ] Deploy → checklist de la sección 5 completo
 [ ] Anotado en el gestor de contraseñas: cuenta del proyecto, token,
@@ -598,7 +604,7 @@ git remote -v                     # ✅ origin (NOMBRE) + madre (SZ)
 
 # 5. Validar (ver aviso de PowerShell arriba, sección 4)
 npm install
-npm test        # ✅ 351 pruebas
+npm test        # ✅ 354 pruebas
 npm run build   # ✅ built in ~3s
 
 # 6. SZ intacto

@@ -362,6 +362,9 @@ function runCodeGs(ss, store = makeStore()) {
       warn:  (...a) => store.logs.push(a.join(' ')),
       error: (...a) => store.logs.push(a.join(' ')),
     },
+    // Logger.log es lo que ve «Registro de ejecuciones → Registros» en
+    // el editor: lo usa pruebaCalendario() (diagnóstico manual).
+    Logger: { log: (...a) => store.logs.push(a.join(' ')) },
     LockService: {
       getScriptLock: () => ({
         waitLock() {
@@ -537,6 +540,7 @@ function runCodeGs(ss, store = makeStore()) {
         const key = String(id === undefined || id === null ? '' : id)
         if (!store.calIds.has(key)) return null     // no existe / no es accesible
         return {
+          getName: () => 'Citas ' + key,   // lo que imprime pruebaCalendario()
           createEvent: (title, s, e, opts) => {
             const cid = store.cal.create(title, s, e, opts && opts.description, key)
             store.calCreatedFrom.push(key)
@@ -3292,6 +3296,28 @@ describe('CALENDARIO DEDICADO — SB_CALENDAR_ID', () => {
     expect(g.store.calDedLookups).toEqual([viejo.eventId])  // miró primero ahí…
     expect(g.store.calLookups).toEqual([viejo.eventId])     // …y lo encontró igual
     expect(g.store.calDeleted).toEqual([viejo.eventId])
+  })
+
+  it('pruebaCalendario() diagnostica bien los tres casos sin tocar nada', () => {
+    // (a) id válido → «OK → <nombre>», y no crea eventos.
+    const ok3 = env()
+    ok3.store.props.set('SB_CALENDAR_ID', DED)
+    ok3.store.calIds.add(DED)
+    ok3.call('pruebaCalendario')
+    expect(JSON.stringify(ok3.store.logs)).toContain('id   = ' + DED)
+    expect(JSON.stringify(ok3.store.logs)).toContain('OK → Citas ' + DED)
+    expect(ok3.store.cal._events.size).toBe(0)               // nada creado
+
+    // (b) id inaccesible (otra cuenta / mal copiado) → «NULL».
+    const nulo = env()
+    nulo.store.props.set('SB_CALENDAR_ID', '8ef30853@group.calendar.google.com')
+    nulo.call('pruebaCalendario')
+    expect(JSON.stringify(nulo.store.logs)).toContain('NULL (no accesible → se usará el por defecto)')
+
+    // (c) sin la propiedad → lo dice sin reventar.
+    const sin = env()
+    sin.call('pruebaCalendario')
+    expect(JSON.stringify(sin.store.logs)).toContain('(sin SB_CALENDAR_ID)')
   })
 })
 

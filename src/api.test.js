@@ -24,6 +24,7 @@ afterEach(() => {
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 describe('api: traducción de errores de transporte', () => {
@@ -104,5 +105,47 @@ describe('api: lo que decide el servidor se respeta sin traducir', () => {
 
     await expect(verifyResetCode('ABCD1234')).resolves.toEqual(grant)
     await expect(requestResetCode()).resolves.toBeDefined()
+  })
+})
+
+/* ── Tope de espera (src/api.js) ────────────────────────────────
+   El spinner «Guardando y creando evento en Calendar…» no puede
+   quedarse ahí para siempre: si Apps Script no responde (arranque en
+   frío, límite de peticiones o una respuesta CORS sin cabeceras), la
+   petición se aborta a los 25 s y el llamador recibe un error normal,
+   con lo que `sync` deja el payload en el banner «Reintentar guardar»
+   sin perder nada.                                                  */
+describe('api: tope de espera de 25 s', () => {
+  it('si Apps Script no responde, se cancela con un mensaje accionable', async () => {
+    const { saveData } = await loadApi()
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn((_u, opts) => new Promise((_res, reject) => {
+      // Un fetch "colgado": solo resuelve cuando lo aborten.
+      opts.signal.addEventListener('abort', () => {
+        const e = new Error('The operation was aborted')
+        e.name = 'AbortError'
+        reject(e)
+      })
+    })))
+
+    const pending = saveData({ clients: [] }).catch(e => e.message)
+    await vi.advanceTimersByTimeAsync(25000)
+    const msg = await pending
+
+    expect(msg).toMatch(/no respondió en 25 s/)
+    expect(msg).toMatch(/Reintentar guardar/)
+    // No se confunde con el fallo de red: son mensajes (y soluciones) distintos.
+    expect(msg).not.toMatch(/Sin respuesta de Apps Script/)
+    vi.useRealTimers()
+  })
+
+  it('una respuesta normal limpia el temporizador (no queda aborto pendiente)', async () => {
+    const { loadData } = await loadApi()
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn(async () => ok({ clients: [] })))
+
+    await expect(loadData()).resolves.toEqual({ clients: [] })
+    expect(vi.getTimerCount()).toBe(0)
+    vi.useRealTimers()
   })
 })

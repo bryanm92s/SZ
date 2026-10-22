@@ -131,7 +131,7 @@ Abre **http://localhost:5173**.
 ### B.5 Pruebas, lint y build
 
 ```bash
-npm test              # 351 pruebas, una sola ejecución
+npm test              # 354 pruebas, una sola ejecución
 npm run test:watch    # modo observador
 npm run lint          # ESLint sobre src/
 npm run build         # build de producción en dist/
@@ -142,7 +142,7 @@ npm run preview       # sirve dist/ localmente
 
 | Comando | Resultado |
 |---|---|
-| `npm test` | ✅ **351/351 pruebas pasando** (5 suites) |
+| `npm test` | ✅ **354/354 pruebas pasando** (5 suites) |
 | `npm run lint` | ✅ **0 errores**, 11 *warnings* preexistentes (`no-unused-vars`) |
 | `npm run build` | ✅ Build OK (~5,8 s) |
 
@@ -369,15 +369,15 @@ saberlo al instalar en otro negocio:
 | `TIME_SLOTS` | 07:00 → 20:30, cada 30 min | `helpers.js` 9–13 | Bloques de agenda |
 | `CLOSING_TIME` | `21:00` | `helpers.js` 103 | Una cita no puede **terminar** después |
 | `SERVICE_DURATION` | 60 min | `helpers.js` 15 | Duración por defecto sin dato |
-| `safeDuration` | 15–480, defecto 60 | `Code.gs` 1015 | Recorte de duraciones (el frontend `svcDuration`, `helpers.js` 106, solo pone 60 si falta) |
+| `safeDuration` | 15–480, defecto 60 | `Code.gs` 1041 | Recorte de duraciones (el frontend `svcDuration`, `helpers.js` 106, solo pone 60 si falta) |
 | `DURATION_OPTIONS` | 30, 60, 90, 120, 150, 180 | `App.jsx` 237 | Opciones del selector |
 | `CODE_TTL_MS` | 15 min | `Code.gs` 208 | Vigencia del código de reset |
 | `GRANT_TTL_MS` | 10 min | `Code.gs` 209 | Vigencia de la autorización |
 | `MAX_VERIFY_TRIES` | 5 | `Code.gs` 210 | Intentos de verificación |
 | `LOCKOUT_MS` | 30 min | `Code.gs` 211 | Bloqueo tras agotar intentos |
 | `MAX_SENDS` / `SEND_WINDOW_MS` | 3 / 1 h | `Code.gs` 212–213 | Códigos por ventana |
-| `REPORT_EXPENSE_DETAIL_MAX` / `DETALLE_MAX` | 8 | `helpers.js` 764 / `Code.gs` 1826 | Umbral de detalle de gastos |
-| `MAX_REPORT_EXPENSES` / `MAX_EXP` | 20 | `helpers.js` 757 / `Code.gs` 1831 | Tope de categorías en el reporte |
+| `REPORT_EXPENSE_DETAIL_MAX` / `DETALLE_MAX` | 8 | `helpers.js` 764 / `Code.gs` 1852 | Umbral de detalle de gastos |
+| `MAX_REPORT_EXPENSES` / `MAX_EXP` | 20 | `helpers.js` 757 / `Code.gs` 1857 | Tope de categorías en el reporte |
 | `DEF_CATS` | 7 categorías | `App.jsx` 211 | Categorías de gasto por defecto |
 
 ---
@@ -503,6 +503,16 @@ En **⚙️ → Propiedades del proyecto → Propiedades de script**, agrega:
   su celular sin poder borrarlas ni ver tu calendario personal. Si el id falta
   o no es accesible, se sigue usando el calendario por defecto (y el log
   avisa). Los eventos se crean con el color `MAUVE` (`Code.gs`).
+- **Validar que `SB_CALENDAR_ID` quedó bien:** ejecuta la función
+  **`pruebaCalendario()`** desde el editor de Apps Script (no usa token,
+  hoja ni lock: solo escribe en *Registro de ejecuciones → Registros*) y
+  mira la línea `cal =`:
+  - `OK → Citas <negocio>` → el id apunta al calendario correcto.
+  - `NULL (no accesible → se usará el por defecto)` → el id está mal
+    copiado o es de otra cuenta (Google Calendar sigue funcionando, pero
+    en el calendario por defecto).
+  - `id = (sin SB_CALENDAR_ID)` → la propiedad no existe todavía.
+  - `ERROR → <motivo>` → CalendarApp rechazó la llamada.
 - **Gmail:** se usa la cuenta que ejecuta el script (la **del proyecto** si
   la creaste dedicada: los correos salen «desde» esa dirección). No requiere
   configuración adicional, pero sí el scope `script.mail`.
@@ -577,7 +587,7 @@ Cada vez que cambies `Code.gs`:
 
 ### E.1 Estructura de las hojas
 
-`initSheets()` (`Code.gs` 2156) **crea automáticamente** las 6 hojas que falten.
+`initSheets()` (`Code.gs` 2182) **crea automáticamente** las 6 hojas que falten.
 Cada hoja tiene una fila de encabezados en español (`HEADERS_ES`, `Code.gs` 44–53)
 y **todas las celdas se guardan como texto** (`setNumberFormat('@')`).
 
@@ -663,7 +673,7 @@ y **todas las celdas se guardan como texto** (`setNumberFormat('@')`).
 
 ### E.2 ⚠️ `writeSheet` reescribe la hoja completa
 
-`writeSheet` (`Code.gs` 2252) hace `sh.clearContents()` y **reescribe encabezados
+`writeSheet` (`Code.gs` 2278) hace `sh.clearContents()` y **reescribe encabezados
 y todas las filas** en cada guardado. Consecuencias prácticas:
 
 - **No edites las hojas a mano** mientras la app esté en uso: esas filas se
@@ -687,7 +697,7 @@ y todas las filas** en cada guardado. Consecuencias prácticas:
 > `localNowISO` (`helpers.js` 33) existe precisamente para **no** usar
 > `toISOString()` (que devuelve UTC y desplaza las horas en Colombia).
 
-> `cellStr` (`Code.gs` 2262) normaliza al leer: si Sheets devuelve un `Date`, lo
+> `cellStr` (`Code.gs` 2288) normaliza al leer: si Sheets devuelve un `Date`, lo
 > convierte a `YYYY-MM-DD`; si devuelve un número entre 0 y 1, lo interpreta como
 > hora y lo convierte a `HH:MM`.
 
@@ -695,11 +705,11 @@ y todas las filas** en cada guardado. Consecuencias prácticas:
 
 | Operación | Función | Comportamiento |
 |---|---|---|
-| **Crear** | `createCalEvent` (`Code.gs` 918) | Crea el evento en el calendario de **`SB_CALENDAR_ID`** si está configurada (y ese calendario es accesible); si no, en el **por defecto**. Color `MAUVE`, sin invitaciones. Devuelve `{ok, eventId}` o `{ok:false, error}`. |
-| **Actualizar** | `updateCalEvent` (`Code.gs` 949) | Usa **solo el id que trae la cita** (busca primero en el calendario de `SB_CALENDAR_ID` y luego en el resto). Nunca crea eventos. Comprueba **después** de escribir que Calendar aplicó la hora (tolerancia 1 s) y si no, devuelve `ok:false` con código `not_applied`. |
-| **Borrar** | `deleteCalEvent` (`Code.gs` 1003) | Usa solo el id (misma búsqueda que actualizar). Si el evento ya no existe, devuelve `ok:true, alreadyGone:true` (**idempotente**). Nunca barre el calendario. |
+| **Crear** | `createCalEvent` (`Code.gs` 944) | Crea el evento en el calendario de **`SB_CALENDAR_ID`** si está configurada (y ese calendario es accesible); si no, en el **por defecto**. Color `MAUVE`, sin invitaciones. Devuelve `{ok, eventId}` o `{ok:false, error}`. |
+| **Actualizar** | `updateCalEvent` (`Code.gs` 975) | Usa **solo el id que trae la cita** (busca primero en el calendario de `SB_CALENDAR_ID` y luego en el resto). Nunca crea eventos. Comprueba **después** de escribir que Calendar aplicó la hora (tolerancia 1 s) y si no, devuelve `ok:false` con código `not_applied`. |
+| **Borrar** | `deleteCalEvent` (`Code.gs` 1029) | Usa solo el id (misma búsqueda que actualizar). Si el evento ya no existe, devuelve `ok:true, alreadyGone:true` (**idempotente**). Nunca barre el calendario. |
 
-**Título y descripción** (`calTitle_` / `calDescription_`, `Code.gs` 932–946):
+**Título y descripción** (`calTitle_` / `calDescription_`, `Code.gs` 958–972):
 
 - Título: `✨ <servicios> — <cliente>`
 - Descripción: cliente, celular, servicios, total y, si es a domicilio, el
@@ -726,6 +736,11 @@ así:
   reenvía el mismo payload. Además `refresh()` **no** reemplaza el estado
   local mientras ese aviso esté activo (evita perder la mutación pendiente),
   y el retry limpia el aviso sin re-aplicar cambios optimistas.
+  **La espera tiene tope:** `call()` aborta la petición a los **25 s**
+  (`TIMEOUT_MS`, `src/api.js`) y devuelve *«Apps Script no respondió en
+  25 s…»*, así que el spinner de guardado nunca se queda colgado aunque
+  Google no responda (arranque en frío, límite de peticiones o una
+  respuesta CORS sin cabeceras).
 
 ### E.6 Cómo verificar que citas y eventos corresponden
 
@@ -742,8 +757,8 @@ así:
 
 | Función | Frecuencia | Qué hace |
 |---|---|---|
-| `createDailyBackup` (`Code.gs` 1041) | Diario, 23:00 | Copia la hoja a `BACKUP-PROYECTO/Backups/<nombre de la hoja>/` como `<nombre> — Backup yyyy-MM-dd`. **No duplica** si ya existe hoy. Elimina los mayores de **30 días**. |
-| `sendWeeklyBackupEmail` (`Code.gs` 1143) | Sábados, 9:00 | Busca el respaldo más reciente, lo exporta a `.xlsx` y lo envía por correo. Destinatario desde **`SB_BACKUP_EMAIL`** si existe y si no desde `SB_AUTHORIZED_EMAIL`; si faltan las dos, se omite y queda aviso en el log. |
+| `createDailyBackup` (`Code.gs` 1067) | Diario, 23:00 | Copia la hoja a `BACKUP-PROYECTO/Backups/<nombre de la hoja>/` como `<nombre> — Backup yyyy-MM-dd`. **No duplica** si ya existe hoy. Elimina los mayores de **30 días**. |
+| `sendWeeklyBackupEmail` (`Code.gs` 1169) | Sábados, 9:00 | Busca el respaldo más reciente, lo exporta a `.xlsx` y lo envía por correo. Destinatario desde **`SB_BACKUP_EMAIL`** si existe y si no desde `SB_AUTHORIZED_EMAIL`; si faltan las dos, se omite y queda aviso en el log. |
 
 **Instalación (una sola vez):**
 
@@ -754,7 +769,7 @@ setupWeeklyEmailTrigger()     → trigger los sábados a las 9:00
 
 ### E.8 Reportes automáticos por correo
 
-`setupAllReportTriggers()` (`Code.gs` 2082) instala **4 triggers**, todos a las
+`setupAllReportTriggers()` (`Code.gs` 2108) instala **4 triggers**, todos a las
 **12:00** (hora del script):
 
 | Función | Dispara | Período | Guard |

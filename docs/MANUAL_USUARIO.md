@@ -95,6 +95,10 @@ En la parte inferior hay 7 botones:
   botón **«↻ Reintentar guardar»**. Tócalo cuando vuelva la conexión: la app
   reenvía lo que faltó. **Mientras esa franja roja esté visible, no recargues
   la página**: lo que cambiaste aún no está en el servidor.
+  - La espera **nunca se queda trabada**: si Google no responde en
+    **25 segundos**, la app corta sola el intento, muestra «Apps Script no
+    respondió en 25 s…» y deja listo el botón de reintento (suele ser un
+    arranque en frío: espera unos segundos y vuelve a pulsarlo).
 - El nombre del negocio y su emoji (si se configuraron).
 
 ---

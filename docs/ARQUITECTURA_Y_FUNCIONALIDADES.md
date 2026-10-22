@@ -8,7 +8,7 @@ aplica.
 >
 > - ✅ **Verificado en código** — se leyó la implementación en este repositorio.
 > - 🧪 **Verificado en pruebas automatizadas** — existe un test que lo cubre
->   (351 pruebas, ejecutadas y en verde en esta ronda de documentación).
+>   (354 pruebas, ejecutadas y en verde en esta ronda de documentación).
 > - 🔎 **No verificado en producción** — la regla existe en el código pero no
 >   se probó en el entorno real de Google/Vercel.
 
@@ -179,11 +179,11 @@ App → saveData(payload) → call(URL, {method:'POST', body:{token, ...payload}
 | `src/main.jsx` | 10 | Punto de entrada de React (`StrictMode`) | — |
 | `src/App.jsx` | 5.569 | **Toda la UI** + estado global + orquestación de guardado | — (componentes no unit-testeados) |
 | `src/helpers.js` | 909 | **Lógica pura**: fechas, slots, duraciones, estados, finanzas, reportes, servicio a domicilio, clasificación de citas | ✅ 171 tests |
-| `src/api.js` | 83 | Transporte HTTP y mensajes de error | ✅ 7 tests |
-| `apps-script/Code.gs` | 2.341 | Backend completo: API, seguridad, Sheets, Calendar (con `SB_CALENDAR_ID`), reportes, respaldos | ✅ 156 tests (en sandbox `node:vm`) |
-| `src/backend.test.js` | 3.513 | Ejecuta `Code.gs` **real** con mocks de Apps Script | — |
+| `src/api.js` | 107 | Transporte HTTP, mensajes de error y **tope de espera de 25 s** (`AbortController`) | ✅ 9 tests |
+| `apps-script/Code.gs` | 2.367 | Backend completo: API, seguridad, Sheets, Calendar (con `SB_CALENDAR_ID` y diagnóstico `pruebaCalendario`), reportes, respaldos | ✅ 157 tests (en sandbox `node:vm`) |
+| `src/backend.test.js` | 3.539 | Ejecuta `Code.gs` **real** con mocks de Apps Script | — |
 | `src/helpers.test.js` | 1.767 | Pruebas unitarias de `helpers.js` | — |
-| `src/api.test.js` | 108 | Pruebas del transporte | — |
+| `src/api.test.js` | 151 | Pruebas del transporte (incluido el tope de espera) | — |
 | `src/excel.test.js` | 88 | Pruebas del libro Excel de reportes y respaldos (`buildReportWorkbook`) | — |
 
 ### 3.1 Componentes de `src/App.jsx`
@@ -311,7 +311,7 @@ La hoja **Config** (clave/valor) no está en `JS_KEYS`: la definen
 
 ## 5. Operaciones de lectura y escritura
 
-### 5.1 `readSheet(ss, key)` — `Code.gs` 1963
+### 5.1 `readSheet(ss, key)` — `Code.gs` 1989
 
 | Situación | Comportamiento |
 |---|---|
@@ -321,7 +321,7 @@ La hoja **Config** (clave/valor) no está en `JS_KEYS`: la definen
 | Filas **sin ID en la columna A** | Se descartan |
 | Celdas | Todas se leen como texto; `cellStr` (1993) normaliza fechas y horas |
 
-### 5.2 `writeSheet(ss, key, arr)` — `Code.gs` 1983
+### 5.2 `writeSheet(ss, key, arr)` — `Code.gs` 2009
 
 ```
 sh.clearContents()  →  setNumberFormat('@')  →  setValues([[HEADERS_ES[key]], …filas])
@@ -334,7 +334,7 @@ sh.clearContents()  →  setNumberFormat('@')  →  setValues([[HEADERS_ES[key]]
 - **No** hay `autoResizeColumn` aquí (el ancho de columnas solo se ajusta en
   el Excel que genera `_buildReportXlsx`).
 
-### 5.3 `sanitizePayload(b)` — `Code.gs` 2028
+### 5.3 `sanitizePayload(b)` — `Code.gs` 2054
 
 Aplica a cada campo numérico una **clausura de saneamiento**
 (`sanitizeNumberField` / `sanitizeDurationField`, líneas 2018–2026):
@@ -360,7 +360,7 @@ por la UI no se marca como rechazado. ✅
 > este punto. *Antes se documentaba aquí un filtrado de `__proto__` /
 > `constructor` / `prototype` que **no existe en el código**.*
 
-### 5.4 `trackPriceChanges(oldSvcs, newSvcs)` — `Code.gs` 1912
+### 5.4 `trackPriceChanges(oldSvcs, newSvcs)` — `Code.gs` 1938
 
 Antes de guardar servicios, compara precio viejo vs. nuevo y registra cada
 cambio en **HistorialPrecios** con `Utilities.formatDate(..., 'yyyy-MM-dd')`.
@@ -657,7 +657,7 @@ CSV **ambiguo**: un servicio puede llamarse
 >
 > Réplica obligatoria en **`Code.gs` → `_recoverSnapshotNames`** (ES5),
 > cubierta por el test de **paridad frontend↔backend**. Si se toca un lado
-> sin el otro, los 351 tests se caen.
+> sin el otro, los 354 tests se caen.
 
 ---
 
@@ -733,7 +733,7 @@ explícitamente:
 | Editar | `ServicesTab` (3176): recalcula `price` con `Math.max(0, …)` |
 | Duración | Selector de 60 min por defecto; opciones 30/60/90/120/150/180 (`App.jsx` 301) |
 | Eliminar | `tryDelete` (3127) → `serviceDeletionCheck` → confirm → `SS(next)` |
-| Historial de precios | `trackPriceChanges` (`Code.gs` 1912) en el servidor |
+| Historial de precios | `trackPriceChanges` (`Code.gs` 1938) en el servidor |
 
 ### 11.3 Catálogo por defecto
 
@@ -791,7 +791,7 @@ datos, el catálogo real es el de Google Sheets. Detalle y paso a paso en
 > pero el de **Desde/Hasta** solo se limita entre sí (`max={to}` /
 > `min={from}`, 4045–4046): sirve para revisar citas ya agendadas con
 > antelación. Ningún predicado compara contra hoy — ni `inPeriod`
-> (`App.jsx` 3870–3877) ni `_inPeriod` (`Code.gs` 1135): solo hacen
+> (`App.jsx` 3870–3877) ni `_inPeriod` (`Code.gs` 1161): solo hacen
 > `desde ≤ fecha ≤ hasta`. 🧪
 
 ### 12.3 Detalle de gastos en el **texto del reporte** — regla de 8
@@ -810,7 +810,7 @@ datos, el catálogo real es el de Google Sheets. Detalle y paso a paso en
 
 **Constantes:** `REPORT_EXPENSE_DETAIL_MAX = 8` y
 `MAX_REPORT_EXPENSES = 20` (`helpers.js` 764 y 757); réplicas
-`DETALLE_MAX`/`MAX_EXP` en `Code.gs` 1639/1644. ✅ 🧪
+`DETALLE_MAX`/`MAX_EXP` en `Code.gs` 1665/1670. ✅ 🧪
 
 > ⚠️ **Regla invariante:** el **`• Total gastos`** siempre suma **todo** el
 > período **sin importar cuántas líneas se muestren**. Es una propiedad con
@@ -1060,7 +1060,7 @@ Se aplica **como segundo criterio de la fecha** en las tres listas de gastos:
 
 ### 13.4 El adjunto `.xlsx` generado por Apps Script
 
-`_buildReportXlsx` (`Code.gs` 1375) — **no usa SheetJS**:
+`_buildReportXlsx` (`Code.gs` 1401) — **no usa SheetJS**:
 
 ```
 SpreadsheetApp.create()  →  poblar con setValues  →  SpreadsheetApp.flush()
@@ -1189,7 +1189,7 @@ respuesta se perdió**. En vez de asumir, **relee la hoja** y la compara
 
 ### 15.1 Mensajes de transporte (`src/api.js`)
 
-Textos **literales** de `httpError()` (15–25) y de `call()` (29–45) — son los
+Textos **literales** de `httpError()` (15–25) y de `call()` (44–69) — son los
 que ve la operadora:
 
 | Caso | Línea | Mensaje exacto |
@@ -1199,10 +1199,11 @@ que ve la operadora:
 | 401 / 403 | 21 | `HTTP 403: Google no autorizó la conexión. ` + `MULTI_ACCOUNT_HINT` |
 | 429 | 22 | `HTTP 429: Google está limitando las peticiones. Espera unos minutos y vuelve a intentarlo.` |
 | 5xx | 23 | `HTTP 500: Apps Script falló del lado de Google. Reintenta en unos minutos.` |
-| Red / `fetch` rechazado | 34–37 | `Sin respuesta de Apps Script (<motivo>). Revisa tu conexión a internet. ` + `MULTI_ACCOUNT_HINT` |
-| Respuesta no-JSON | 42 | `Apps Script devolvió algo que no es JSON: publica de nuevo la última versión del Web App.` |
-| **HTTP 200 con `{ok:false}`** | 43 | El **`json.error` del servidor**; si no lo hay, el `fallback` del llamador (`'Error guardando'`, `'Error cargando datos'`, …) |
-| `VITE_SCRIPT_URL` sin definir | 48, 53 | `VITE_SCRIPT_URL no configurado` |
+| Red / `fetch` rechazado | 56–59 | `Sin respuesta de Apps Script (<motivo>). Revisa tu conexión a internet. ` + `MULTI_ACCOUNT_HINT` |
+| **Tope de 25 s (`AbortError`)** | 38–42, 55 | `Apps Script no respondió en 25 s y se canceló la petición (límite de espera). Suele ser un arranque en frío o el límite de peticiones de Google…` |
+| Respuesta no-JSON | 66 | `Apps Script devolvió algo que no es JSON: publica de nuevo la última versión del Web App.` |
+| **HTTP 200 con `{ok:false}`** | 67 | El **`json.error` del servidor**; si no lo hay, el `fallback` del llamador (`'Error guardando'`, `'Error cargando datos'`, …) |
+| `VITE_SCRIPT_URL` sin definir | 72, 77 | `VITE_SCRIPT_URL no configurado` |
 
 > 📌 `MULTI_ACCOUNT_HINT` (11) se aparca en varios de ellos: es el aviso de
 > «Hay varias cuentas de Google abiertas en este navegador… entra en una
@@ -1272,7 +1273,7 @@ servidor y permite reenviarlo a mano. 🧪
 |---|---|
 | Escrituras concurrentes | `LockService.getScriptLock()` + `waitLock(10000)` → `«Servidor ocupado, reintenta»` (`Code.gs` 59–60) |
 | Claves ajenas al esquema | **No hay filtrado**: nunca llegan a la hoja porque `writeSheet` solo escribe `HEADERS_ES` (ver §5.3) |
-| Montos negativos | Saneados a `0` en el servidor (`clip0`, `Code.gs` 2013) |
+| Montos negativos | Saneados a `0` en el servidor (`clip0`, `Code.gs` 2039) |
 | Duraciones absurdas | Recortadas a 15–480 (`safeDuration`) |
 | Filas sin ID | Descartadas al leer |
 | Hojas con columnas de más | Ignoradas con `console.warn` |
@@ -1290,7 +1291,7 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 3 | **La validación de horarios es solo en el cliente**: doble reloj posible entre dos dispositivos | `checkSlot`, `helpers.js` 532 |
 | 4 | **No hay transaccionalidad Sheets ↔ Calendar**: posible evento huérfano | `deleteAppt`, `App.jsx` 625–657 |
 | 5 | **El reloj de la app** (agrupar por pasado/hoy, marcar horas vencidas) solo corre si el navegador está abierto | `apptGroup` / `apptLife`, `helpers.js` 231, 453 |
-| 6 | **`writeSheet` borra ediciones manuales** de la hoja | `Code.gs` 1983 |
+| 6 | **`writeSheet` borra ediciones manuales** de la hoja | `Code.gs` 2009 |
 | 7 | ~~Destinatario de reportes hardcodeado~~ → **CORREGIDO**: los tres envíos leen propiedades de script (`_authorizedEmail()` / `SB_AUTHORIZED_EMAIL` **lista**, `_reportEmail()` / `SB_REPORT_EMAIL`, `_backupEmail()` / `SB_BACKUP_EMAIL`) | `Code.gs`, sección «Configuración» |
 | 8 | **El guardado fallido no revierte la pantalla** de inmediato: espera al próximo polling (≤30 s). **Mitigado** con la franja roja + «↻ Reintentar guardar» y con `refresh()` protegido mientras el aviso esté activo | `sync`, `App.jsx` 517–520, 397–401 |
 | 9 | **Eventos de Calendar no se respaldan** | — |
@@ -1365,12 +1366,12 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 40 | Excel con 3 hojas (app) | `App.jsx` `exportExcel` (3967), SheetJS | ✅ | — |
 | 41 | Excel trae **todos** los gastos | `App.jsx` `exportExcel` | ✅ | 🧪 |
 | 41b | **Paginación en «Movimientos del período»** (>10) | `App.jsx` `Pager`, `ReportTab` | ✅ | — |
-| 41c | **Rango que llega al futuro** (revisar citas agendadas) | `App.jsx` `onFrom`/`onTo` (3854–3862) e `inPeriod` (3870–3877); backend `_inPeriod` (`Code.gs` 1135) | ✅ | 🧪 |
+| 41c | **Rango que llega al futuro** (revisar citas agendadas) | `App.jsx` `onFrom`/`onTo` (3854–3862) e `inPeriod` (3870–3877); backend `_inPeriod` (`Code.gs` 1161) | ✅ | 🧪 |
 | 42 | WhatsApp al admin | `App.jsx` `sendWA`, `wa.me` | ✅ | — |
 | 43 | Correo con adjunto `.xlsx` | `Code.gs` `_buildReportXlsx` (1375) | ✅ | 🧪 |
 | 44 | Fallback sin adjunto | `Code.gs` `_sendReportEmail` (1623) | ✅ | 🧪 |
 | 45 | Paridad WhatsApp ↔ correo | `backend.test.js` | ✅ | 🧪 |
-| 46 | Reportes automáticos (4) | `Code.gs` 1801–1861 | ✅ | 🧪 |
+| 46 | Reportes automáticos (4) | `Code.gs` 1827–1887 | ✅ | 🧪 |
 | 47 | Triggers idempotentes | `setupAllReportTriggers` (1882) | ✅ | 🧪 |
 | **SEGURIDAD** | | | | |
 | 48 | Token en Script Properties (fail closed) | `Code.gs` 15, 244 | ✅ | 🧪 |

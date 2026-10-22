@@ -9,7 +9,7 @@ React 18 + Vite · Google Apps Script + Sheets + Calendar · Deploy en Vercel
 
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=white)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
-[![Tests](https://img.shields.io/badge/Tests-351_passing-brightgreen)](#-testing)
+[![Tests](https://img.shields.io/badge/Tests-354_passing-brightgreen)](#-testing)
 [![Deploy](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)](https://vercel.com)
 [![Backend](https://img.shields.io/badge/Backend-Google_Apps_Script-34A853?logo=googleapps&logoColor=white)](https://script.google.com)
 
@@ -418,15 +418,15 @@ Detalle completo en [`docs/MANUAL_TECNICO.md`](docs/MANUAL_TECNICO.md) sección 
 
 ## 🧪 Testing
 
-Hay **351 pruebas** en 5 suites, ejecutadas y verificadas en esta ronda de
+Hay **354 pruebas** en 5 suites, ejecutadas y verificadas en esta ronda de
 documentación:
 
 | Suite | Pruebas | Qué cubre |
 |---|---:|---|
 | `src/helpers.test.js` | 171 | Lógica pura: fechas, slots, teléfono, duraciones, estados, finanzas, reportes |
-| `src/backend.test.js` | 156 | **Ejecuta el `Code.gs` real** en un sandbox (`node:vm`): API, reset, Calendar (incluido `SB_CALENDAR_ID`), reportes, Excel, destinatarios (`SB_AUTHORIZED_EMAIL` lista / `SB_REPORT_EMAIL` / `SB_BACKUP_EMAIL`), paridad correo/WhatsApp y marca de los correos (`SB_BIZ_NAME`) |
+| `src/backend.test.js` | 157 | **Ejecuta el `Code.gs` real** en un sandbox (`node:vm`): API, reset, Calendar (incluido `SB_CALENDAR_ID` y el diagnóstico `pruebaCalendario`), reportes, Excel, destinatarios (`SB_AUTHORIZED_EMAIL` lista / `SB_REPORT_EMAIL` / `SB_BACKUP_EMAIL`), paridad correo/WhatsApp y marca de los correos (`SB_BIZ_NAME`) |
 | `src/catalogs.test.js` | 14 | Catálogo inicial por tipo de negocio (`VITE_CATALOG` / `VITE_DEFAULT_SERVICES`) |
-| `src/api.test.js` | 7 | Transporte: mensajes de error, `loadData`/`saveData`, restablecimiento |
+| `src/api.test.js` | 9 | Transporte: mensajes de error, `loadData`/`saveData`, **tope de espera de 25 s**, restablecimiento |
 | `src/excel.test.js` | 3 | Libro Excel (`buildReportWorkbook`): Resumen/Movimientos/Citas, hoja Clientes y las 9 paletas |
 
 ```bash
