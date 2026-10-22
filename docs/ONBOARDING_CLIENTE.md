@@ -271,13 +271,25 @@ gestor de contraseñas.
 6. **Desplegar como Web App** (*Implementar → Nueva implementación*):
    ejecutar como **Yo**, acceso **Cualquier usuario**. Copia la URL
    `…/exec` → esa va en `VITE_SCRIPT_URL`.
-7. **Triggers** (una sola vez por cliente), según
-   [`MANUAL_USUARIO.md`](MANUAL_USUARIO.md) / `SETUP.md`:
-   - `setupAllReportTriggers()` → reportes automáticos.
-   - `setupDailyBackupTrigger()` → copia diaria 23:00 (crea las carpetas).
-   - `setupWeeklyEmailTrigger()` → correo de respaldo los sábados 9:00.
+7. **Triggers** (una sola vez por cliente). Ejecuta estas **3 funciones** y
+   comprueba que en **Activadores** queden **6 disparadores**:
+
+   | Disparador | Cuándo | A quién llega | Variable |
+   |---|---|---|---|
+   | `sendDailyReportEmail` | diario, 12:00 | **la usuaria** | `SB_REPORT_EMAIL` (si falta → `SB_AUTHORIZED_EMAIL`) |
+   | `sendWeeklyReportEmail` | domingos, 12:00 | **la usuaria** | igual |
+   | `sendMonthlyReportEmail` | dispara a diario, envía el **último día del mes** | **la usuaria** | igual |
+   | `sendYearlyReportEmail` | dispara a diario, envía el **31 de diciembre** | **la usuaria** | igual |
+   | `createDailyBackup` | diario, 23:00 | **nadie por correo**: va a Drive (`BACKUP-PROYECTO/Backups/<hoja>/`) | — |
+   | `sendWeeklyBackupEmail` | sábados, 9:00 | **el dueño del proyecto** | `SB_BACKUP_EMAIL` (si falta → `SB_AUTHORIZED_EMAIL`) |
+
+   Las funciones que los instalan son `setupAllReportTriggers()` (los 4 de
+   reportes), `setupDailyBackupTrigger()` (la copia diaria, que **crea las
+   carpetas**) y `setupWeeklyEmailTrigger()` (el correo del sábado). Detalle
+   en [`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) **E.9**.
    > Sin el trigger diario, el correo del sábado falla con «Carpeta de
-   > backups no encontrada».
+   > backups no encontrada». Los códigos de restablecimiento **no** usan
+   > triggers: se piden desde la app.
 8. **Zona horaria:** `appsscript.json` trae `America/Bogota`. Si el cliente
    está en otro huso, cámbialo **antes** de desplegar: toda la lógica de
    fechas asume UTC-5.

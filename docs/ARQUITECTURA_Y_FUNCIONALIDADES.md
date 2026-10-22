@@ -311,7 +311,7 @@ La hoja **Config** (clave/valor) no está en `JS_KEYS`: la definen
 
 ## 5. Operaciones de lectura y escritura
 
-### 5.1 `readSheet(ss, key)` — `Code.gs` 1989
+### 5.1 `readSheet(ss, key)` — `Code.gs` 2258
 
 | Situación | Comportamiento |
 |---|---|
@@ -321,7 +321,7 @@ La hoja **Config** (clave/valor) no está en `JS_KEYS`: la definen
 | Filas **sin ID en la columna A** | Se descartan |
 | Celdas | Todas se leen como texto; `cellStr` (1993) normaliza fechas y horas |
 
-### 5.2 `writeSheet(ss, key, arr)` — `Code.gs` 2009
+### 5.2 `writeSheet(ss, key, arr)` — `Code.gs` 2278
 
 ```
 sh.clearContents()  →  setNumberFormat('@')  →  setValues([[HEADERS_ES[key]], …filas])
@@ -334,7 +334,7 @@ sh.clearContents()  →  setNumberFormat('@')  →  setValues([[HEADERS_ES[key]]
 - **No** hay `autoResizeColumn` aquí (el ancho de columnas solo se ajusta en
   el Excel que genera `_buildReportXlsx`).
 
-### 5.3 `sanitizePayload(b)` — `Code.gs` 2054
+### 5.3 `sanitizePayload(b)` — `Code.gs` 2323
 
 Aplica a cada campo numérico una **clausura de saneamiento**
 (`sanitizeNumberField` / `sanitizeDurationField`, líneas 2018–2026):
@@ -360,7 +360,7 @@ por la UI no se marca como rechazado. ✅
 > este punto. *Antes se documentaba aquí un filtrado de `__proto__` /
 > `constructor` / `prototype` que **no existe en el código**.*
 
-### 5.4 `trackPriceChanges(oldSvcs, newSvcs)` — `Code.gs` 1938
+### 5.4 `trackPriceChanges(oldSvcs, newSvcs)` — `Code.gs` 2138
 
 Antes de guardar servicios, compara precio viejo vs. nuevo y registra cada
 cambio en **HistorialPrecios** con `Utilities.formatDate(..., 'yyyy-MM-dd')`.
@@ -733,7 +733,7 @@ explícitamente:
 | Editar | `ServicesTab` (3176): recalcula `price` con `Math.max(0, …)` |
 | Duración | Selector de 60 min por defecto; opciones 30/60/90/120/150/180 (`App.jsx` 301) |
 | Eliminar | `tryDelete` (3127) → `serviceDeletionCheck` → confirm → `SS(next)` |
-| Historial de precios | `trackPriceChanges` (`Code.gs` 1938) en el servidor |
+| Historial de precios | `trackPriceChanges` (`Code.gs` 2138) en el servidor |
 
 ### 11.3 Catálogo por defecto
 
@@ -791,7 +791,7 @@ datos, el catálogo real es el de Google Sheets. Detalle y paso a paso en
 > pero el de **Desde/Hasta** solo se limita entre sí (`max={to}` /
 > `min={from}`, 4045–4046): sirve para revisar citas ya agendadas con
 > antelación. Ningún predicado compara contra hoy — ni `inPeriod`
-> (`App.jsx` 3870–3877) ni `_inPeriod` (`Code.gs` 1161): solo hacen
+> (`App.jsx` 3870–3877) ni `_inPeriod` (`Code.gs` 1319): solo hacen
 > `desde ≤ fecha ≤ hasta`. 🧪
 
 ### 12.3 Detalle de gastos en el **texto del reporte** — regla de 8
@@ -1043,24 +1043,34 @@ Se aplica **como segundo criterio de la fecha** en las tres listas de gastos:
 - Si no hay número configurado, **el botón sale deshabilitado** (`App.jsx`
   272, 4175–4190). ✅
 
-### 13.3 Reportes por correo (Apps Script)
+### 13.3 Reportes y respaldos automáticos (los 6 disparadores)
 
-| Función | Línea | Dispara | Período | Guard |
-|---|---:|---|---|---|
-| `sendDailyReportEmail` | 1801 | diario 12:00 | hoy | — |
-| `sendWeeklyReportEmail` | 1815 | domingo 12:00 | Lun–Dom | si hoy no es domingo → `SKIP` |
-| `sendMonthlyReportEmail` | 1836 | diario 12:00 | mes en curso | si no es el último día → `SKIP` |
-| `sendYearlyReportEmail` | 1861 | diario 12:00 | 1 ene – 31 dic | si hoy no es 31 dic → `SKIP` |
+La app instala **6 disparadores** («Activadores» en el editor de Apps
+Script), todos ejecutados **como la cuenta del proyecto** y con la zona
+horaria de `appsscript.json` (`America/Bogota`):
 
-**`setupAllReportTriggers()` (1882) instala 4 triggers** de forma idempotente. ✅
+| Disparador | Cuándo dispara | Qué hace | A quién llega | Variable que lo controla | Quién lo instala |
+|---|---|---|---|---|---|
+| `sendDailyReportEmail` (2027) | Todos los días, 12:00 | Reporte de **hoy** + `.xlsx` | **La usuaria** | `SB_REPORT_EMAIL` → si falta, `SB_AUTHORIZED_EMAIL` | `setupAllReportTriggers()` (2108) |
+| `sendWeeklyReportEmail` (2041) | Domingos, 12:00 | Lun–Dom de la semana en curso | **La usuaria** | igual | `setupAllReportTriggers()` |
+| `sendMonthlyReportEmail` (2062) | Dispara a diario 12:00; **envía solo el último día del mes** | Mes en curso | **La usuaria** | igual | `setupAllReportTriggers()` |
+| `sendYearlyReportEmail` (2087) | Dispara a diario 12:00; **envía solo el 31 de diciembre** | 1 ene – 31 dic | **La usuaria** | igual | `setupAllReportTriggers()` |
+| `createDailyBackup` (1067) | Todos los días, 23:00 | Copia la hoja a Drive (`BACKUP-PROYECTO/Backups/<hoja>/`), retención 30 días | **Nadie por correo**: la copia vive en Drive | — | `setupDailyBackupTrigger()` (1124) |
+| `sendWeeklyBackupEmail` (1169) | Sábados, 9:00 | Adjunta el respaldo **más reciente** en `.xlsx` | **El dueño del proyecto** | `SB_BACKUP_EMAIL` → si falta, `SB_AUTHORIZED_EMAIL` | `setupWeeklyEmailTrigger()` (1246) |
 
-> 📌 **Por qué se disparan a diario:** Apps Script **no tiene** trigger de
+Los 4 de reporte van a la usuaria; el respaldo semanal va al dueño. Los
+códigos de restablecimiento **no** usan triggers: se piden desde la app.
+
+> 📌 **Por qué dos disparan a diario:** Apps Script **no tiene** trigger de
 > «último día del mes/año». Por eso la función misma decide no enviar. Ver
 > `SKIP …` en los registros es **normal**.
 
+> 🔁 Cada `setup*` **borra antes los suyos** y vuelve a crearlos: ejecutarlos
+> repetido no duplica disparadores. En el panel debería haber **exactamente 6**.
+
 ### 13.4 El adjunto `.xlsx` generado por Apps Script
 
-`_buildReportXlsx` (`Code.gs` 1401) — **no usa SheetJS**:
+`_buildReportXlsx` (`Code.gs` 1576) — **no usa SheetJS**:
 
 ```
 SpreadsheetApp.create()  →  poblar con setValues  →  SpreadsheetApp.flush()
@@ -1291,7 +1301,7 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 3 | **La validación de horarios es solo en el cliente**: doble reloj posible entre dos dispositivos | `checkSlot`, `helpers.js` 532 |
 | 4 | **No hay transaccionalidad Sheets ↔ Calendar**: posible evento huérfano | `deleteAppt`, `App.jsx` 625–657 |
 | 5 | **El reloj de la app** (agrupar por pasado/hoy, marcar horas vencidas) solo corre si el navegador está abierto | `apptGroup` / `apptLife`, `helpers.js` 231, 453 |
-| 6 | **`writeSheet` borra ediciones manuales** de la hoja | `Code.gs` 2009 |
+| 6 | **`writeSheet` borra ediciones manuales** de la hoja | `Code.gs` 2278 |
 | 7 | ~~Destinatario de reportes hardcodeado~~ → **CORREGIDO**: los tres envíos leen propiedades de script (`_authorizedEmail()` / `SB_AUTHORIZED_EMAIL` **lista**, `_reportEmail()` / `SB_REPORT_EMAIL`, `_backupEmail()` / `SB_BACKUP_EMAIL`) | `Code.gs`, sección «Configuración» |
 | 8 | **El guardado fallido no revierte la pantalla** de inmediato: espera al próximo polling (≤30 s). **Mitigado** con la franja roja + «↻ Reintentar guardar» y con `refresh()` protegido mientras el aviso esté activo | `sync`, `App.jsx` 517–520, 397–401 |
 | 9 | **Eventos de Calendar no se respaldan** | — |
@@ -1366,12 +1376,12 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 40 | Excel con 3 hojas (app) | `App.jsx` `exportExcel` (3967), SheetJS | ✅ | — |
 | 41 | Excel trae **todos** los gastos | `App.jsx` `exportExcel` | ✅ | 🧪 |
 | 41b | **Paginación en «Movimientos del período»** (>10) | `App.jsx` `Pager`, `ReportTab` | ✅ | — |
-| 41c | **Rango que llega al futuro** (revisar citas agendadas) | `App.jsx` `onFrom`/`onTo` (3854–3862) e `inPeriod` (3870–3877); backend `_inPeriod` (`Code.gs` 1161) | ✅ | 🧪 |
+| 41c | **Rango que llega al futuro** (revisar citas agendadas) | `App.jsx` `onFrom`/`onTo` (3854–3862) e `inPeriod` (3870–3877); backend `_inPeriod` (`Code.gs` 1319) | ✅ | 🧪 |
 | 42 | WhatsApp al admin | `App.jsx` `sendWA`, `wa.me` | ✅ | — |
 | 43 | Correo con adjunto `.xlsx` | `Code.gs` `_buildReportXlsx` (1375) | ✅ | 🧪 |
 | 44 | Fallback sin adjunto | `Code.gs` `_sendReportEmail` (1623) | ✅ | 🧪 |
 | 45 | Paridad WhatsApp ↔ correo | `backend.test.js` | ✅ | 🧪 |
-| 46 | Reportes automáticos (4) | `Code.gs` 1827–1887 | ✅ | 🧪 |
+| 46 | Reportes automáticos (4) y respaldos (2) | `Code.gs` 2027–2100 y 1067/1169 | ✅ | 🧪 |
 | 47 | Triggers idempotentes | `setupAllReportTriggers` (1882) | ✅ | 🧪 |
 | **SEGURIDAD** | | | | |
 | 48 | Token en Script Properties (fail closed) | `Code.gs` 15, 244 | ✅ | 🧪 |

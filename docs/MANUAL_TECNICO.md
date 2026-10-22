@@ -793,6 +793,39 @@ WhatsApp del admin).
 > reporte se omite y queda aviso en el log. Ninguna acción pública cambia ese
 > destinatario.
 
+### E.9 Los 6 disparadores, de un vistazo
+
+Es **lo que debe aparecer** en el panel **Activadores** («Disparadores») del
+editor de Apps Script, tras ejecutar los tres `setup*`:
+
+| # | Disparador | Cuándo | Qué hace | **A quién llega** | **Variable** | Se instala con |
+|---:|---|---|---|---|---|---|
+| 1 | `sendDailyReportEmail` | Diario, 12:00 | Reporte de **hoy** con `.xlsx` adjunto | **La usuaria** | `SB_REPORT_EMAIL` (si falta → `SB_AUTHORIZED_EMAIL`) | `setupAllReportTriggers()` |
+| 2 | `sendWeeklyReportEmail` | Domingos, 12:00 | Lun–Dom de la semana en curso | **La usuaria** | igual | `setupAllReportTriggers()` |
+| 3 | `sendMonthlyReportEmail` | Dispara a diario, **envía solo el último día del mes** | El mes en curso | **La usuaria** | igual | `setupAllReportTriggers()` |
+| 4 | `sendYearlyReportEmail` | Dispara a diario, **envía solo el 31 de diciembre** | 1 ene – 31 dic | **La usuaria** | igual | `setupAllReportTriggers()` |
+| 5 | `createDailyBackup` | Diario, 23:00 | Copia `.xlsx` de la hoja a Drive (`BACKUP-PROYECTO/Backups/<hoja>/`, retención 30 días) | **Nadie por correo**: la copia vive en Drive | — | `setupDailyBackupTrigger()` |
+| 6 | `sendWeeklyBackupEmail` | Sábados, 9:00 | Adjunta el respaldo **más reciente** | **El dueño del proyecto** | `SB_BACKUP_EMAIL` (si falta → `SB_AUTHORIZED_EMAIL`) | `setupWeeklyEmailTrigger()` |
+
+Tres ideas que evitan sustos:
+
+- **Los 4 reportes van a la usuaria; el respaldo semanal va a ti** (al dueño
+  de la cuenta del proyecto). Los **códigos de restablecimiento no usan
+  disparadores**: se piden desde la app.
+- **`setupAllReportTriggers()` no instala los respaldos**: los de Drive y el
+  correo del sábado se instalan con `setupDailyBackupTrigger()` y
+  `setupWeeklyEmailTrigger()` (E.7). Sin el diario, el sábado falla con
+  «Carpeta de backups no encontrada».
+- **Los `setup*` son idempotentes** (borran los suyos antes de crearlos), así
+  que ejecutarlos de nuevo no duplica disparadores. Si el panel muestra más
+  de 6 o algún duplicado, bórralo a mano.
+- Todos corren **como la cuenta del proyecto** y con la hora de
+  `appsscript.json` (`America/Bogota`, ver D.4).
+
+Verificación rápida: `createDailyBackup()` a mano → debe aparecer el archivo
+de hoy en Drive; `sendDailyReportEmail()` a mano → debe llegar el correo con
+el adjunto a `SB_REPORT_EMAIL`.
+
 ---
 
 ## F. Despliegue del frontend en Vercel

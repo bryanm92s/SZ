@@ -152,15 +152,23 @@ Con los pasos anteriores la app ya funciona. Estas funciones se activan
 aparte y están explicadas en detalle en
 [`docs/MANUAL_USUARIO.md`](docs/MANUAL_USUARIO.md):
 
-- **Reportes automáticos** (diario, semanal, mensual y anual por correo).
-  Se instalan ejecutando `setupAllReportTriggers()` **una sola vez**.
-- **Respaldos automáticos** en Drive. Se instalan con **dos** funciones
-  separadas — ninguna de ellas es `setupAllReportTriggers()`:
-  - `setupDailyBackupTrigger()` → copia diaria a las 23:00. **Es la que
-    crea** las carpetas `BACKUP-PROYECTO/Backups/<nombre de la hoja>/`.
-  - `setupWeeklyEmailTrigger()` → envía el último respaldo los sábados 9:00.
-  > ⚠️ El correo semanal **no funciona hasta que exista al menos una copia**,
-  > y la única que la genera es el trigger diario.
+- **Reportes automáticos y respaldos**: son **6 disparadores** en total
+  (panel **Activadores** de Apps Script), que se instalan con **3 funciones**
+  distintas ejecutadas **una sola vez**:
+
+  | Disparador | Cuándo | A quién llega | Variable | Se instala con |
+  |---|---|---|---|---|
+  | `sendDailyReportEmail` | diario, 12:00 | **la usuaria** | `SB_REPORT_EMAIL` (si falta → `SB_AUTHORIZED_EMAIL`) | `setupAllReportTriggers()` |
+  | `sendWeeklyReportEmail` | domingos, 12:00 | **la usuaria** | igual | `setupAllReportTriggers()` |
+  | `sendMonthlyReportEmail` | dispara a diario, envía el **último día del mes** | **la usuaria** | igual | `setupAllReportTriggers()` |
+  | `sendYearlyReportEmail` | dispara a diario, envía el **31 de diciembre** | **la usuaria** | igual | `setupAllReportTriggers()` |
+  | `createDailyBackup` | diario, 23:00 | **nadie por correo**: va a Drive | — | `setupDailyBackupTrigger()` |
+  | `sendWeeklyBackupEmail` | sábados, 9:00 | **el dueño del proyecto** | `SB_BACKUP_EMAIL` (si falta → `SB_AUTHORIZED_EMAIL`) | `setupWeeklyEmailTrigger()` |
+
+  > ⚠️ `setupDailyBackupTrigger()` **es la que crea** las carpetas
+  > `BACKUP-PROYECTO/Backups/<nombre de la hoja>/`, y el correo semanal
+  > **no funciona hasta que exista al menos una copia**.
+  > Los códigos de restablecimiento no usan triggers: se piden desde la app.
 - **Recuperación de acceso por código** — funciona sola, pero depende de que
   exista la propiedad `SB_AUTHORIZED_EMAIL`.
 

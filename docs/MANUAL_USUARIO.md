@@ -669,6 +669,11 @@ Si el administrador configuró los disparadores, llegan por correo (a las
 Cada correo trae el **Excel adjunto**. Si el Excel no se pudiera generar, el
 correo **igual llega**, pero sin adjunto y con un aviso en el cuerpo.
 
+> 📧 **A quién llega qué:** estos **4 reportes** van al correo de la
+> **usuaria**. Lo que va al correo del **dueño del proyecto** es otra cosa:
+> la **copia semanal de la hoja** (sábados 9:00) y los **códigos de
+> restablecimiento** (se piden desde la app, no son disparadores).
+
 > 📌 En los registros de ejecución verás a diario
 > `SKIP reporte mensual/anual: hoy no es el último día` — **eso es normal**:
 > esos disparadores corren a diario y deciden no enviar.

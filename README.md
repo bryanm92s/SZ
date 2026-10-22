@@ -382,9 +382,13 @@ tiene el procedimiento completo; el resumen:
    - **Quién tiene acceso:** Cualquier usuario
    - Autoriza los permisos (Sheets, Calendar, Gmail, Drive).
 4. **Copia la URL**: `https://script.google.com/macros/s/«…»/exec`.
-5. **Instala los triggers automáticos** ejecutando una sola vez
-   `setupAllReportTriggers()`, y si quieres respaldos, `setupDailyBackupTrigger()`
-   y `setupWeeklyEmailTrigger()`.
+5. **Instala los triggers automáticos** ejecutando **una sola vez**
+   `setupAllReportTriggers()`, `setupDailyBackupTrigger()` y
+   `setupWeeklyEmailTrigger()`. En el panel **Activadores** deben quedar
+   **6 disparadores**: 4 reportes (diario/semanal/mensual/anual → llegan a
+   `SB_REPORT_EMAIL`, y si no existe a `SB_AUTHORIZED_EMAIL`), el backup
+   diario a Drive (23:00) y el respaldo por correo los sábados 9:00 (→
+   `SB_BACKUP_EMAIL`). Detalle en `docs/MANUAL_TECNICO.md` **E.9**.
 
 > 🔄 **OJO:** cada vez que edites `Code.gs`, vuelve a
 > *Implementar → Gestionar → Nueva versión*. **Nunca crees una implementación
