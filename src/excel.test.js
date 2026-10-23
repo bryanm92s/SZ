@@ -139,25 +139,23 @@ describe('PALETTES — 12 paletas completas para el selector de Ajustes', () => 
     expect(c.emoji).toBe('⚫')
   })
 
-  it('burdeos: negro azabache, espresso, terciopelo burdeos y oro (oscuro elegante)', () => {
+  it('burdeos: tema claro crema con VINO de primario y espresso en el texto (sin dorados)', () => {
     const b = PALETTES.find(p => p.id === 'burdeos')
     expect(b.name).toBe('Burdeos')
     expect(b.emoji).toBe('🍷')
-    // Los 5 colores del encargo
-    expect(b.bg).toBe('#111114')                 // negro azabache
-    expect(b.surface).toBe('#2A1A12')            // espresso
-    expect(b.gold).toBe('#C9A227')               // oro
-    expect(b.t).toBe('#F7DFA3')                  // champán
-    expect(b.gradientSoft).toContain('#6B1E2E') // terciopelo burdeos en el gradiente suave
-    // El ORO es el primario (el vino no lee como texto sobre oscuro); texto negro sobre los rellenos dorados
-    expect(b.primary).toBe('#C9A227')
-    expect(b.pl).toBe('#2B151D')                  // tinte burdeos de chips/KPI: oro sobre él = 7.1:1
-    expect(b.gradT).toBe('#111114')
-    expect(b.gradT2).toBe('rgba(17, 17, 20, 0.75)')
-    expect(b.card).toBe('#1C1611')
-    expect(b.inputBg).toBe('#17110D')
-    // Gradiente del botón: bronce→oro con texto negro (4.8-11:1 por parada)
-    expect(b.gradient).toContain('#9C7D1F')
-    expect(b.gradient).toContain('#C9A227')
+    // El vino es el primario (el oro se retiró por petición)
+    expect(b.primary).toBe('#6B1E2E')
+    expect(b.pd).toBe('#4A1520')                // burdeos profundo del gradiente
+    expect(b.pl).toBe('#F5E2E5')                // tinte rosado: vino sobre él = 9.1:1
+    // Tema CLARO: crema cálido y superficies blancas por defecto
+    expect(b.bg).toBe('#FAF3F0')
+    expect(b.t).toBe('#2A1A12')                 // espresso
+    expect(b.t2).toBe('#756058')
+    expect(b.card).toBeUndefined()
+    expect(b.gradT).toBeUndefined()             // texto blanco por defecto sobre el vino
+    // Gradiente de botones: vino→burdeos con texto blanco (8.5-14.8:1)
+    expect(b.gradient).toContain('#4A1520')
+    expect(b.gradient).toContain('#6B1E2E')
+    expect(b.gradient).not.toContain('#C9A227') // ni rastro del oro
   })
 })
