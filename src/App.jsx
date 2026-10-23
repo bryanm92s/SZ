@@ -26,23 +26,23 @@ import { resolveCatalog } from './catalogs.js'
 export const PALETTES = [
   { 
     id:'rosa',    
-    name:'Rosa',    
+    name:'Palo de Rosa',    
     emoji:'🌸', 
-    primary:'#B5524A', 
-    pd:'#8E3E38', 
-    pl:'#FDF4F2', 
-    bg:'#F7F0EC', 
-    border:'#E8D0CC', 
-    t:'#1E0E0C', 
-    t2:'#7A5E5A',
-    gradient:'linear-gradient(135deg, #B5524A 0%, #D47A6A 50%, #E8A898 100%)',
-    gradientSoft:'linear-gradient(135deg, #FDF4F2 0%, #F7F0EC 50%, #E8D0CC 100%)',
-    glass:'rgba(181, 82, 74, 0.12)',
-    glassStrong:'rgba(181, 82, 74, 0.25)',
+    primary:'#A84B60', 
+    pd:'#83394C', 
+    pl:'#FAE9ED', 
+    bg:'#F9F1F3', 
+    border:'#EAD0D7', 
+    t:'#1F1014', 
+    t2:'#7A5E64',
+    gradient:'linear-gradient(135deg, #A84B60 0%, #C87D90 50%, #EDB8C6 100%)',
+    gradientSoft:'linear-gradient(135deg, #FAE9ED 0%, #F9F1F3 50%, #EAD0D7 100%)',
+    glass:'rgba(168, 75, 96, 0.12)',
+    glassStrong:'rgba(168, 75, 96, 0.25)',
     neoLight:'#FFFFFF',
-    neoDark:'#E8D0CC',
-    neoShadow:'rgba(181, 82, 74, 0.15)',
-    neoShadowDark:'rgba(142, 62, 56, 0.2)'
+    neoDark:'#EAD0D7',
+    neoShadow:'rgba(168, 75, 96, 0.15)',
+    neoShadowDark:'rgba(131, 57, 76, 0.2)'
   },
   { 
     id:'morado',  
@@ -145,26 +145,6 @@ export const PALETTES = [
     neoShadowDark:'rgba(144, 48, 96, 0.2)'
   },
   {
-    id:'coral',
-    name:'Coral',
-    emoji:'💅',
-    primary:'#D96A50',
-    pd:'#B04A34',
-    pl:'#FBEAE3',
-    bg:'#FAF3EF',
-    border:'#F2CFC5',
-    t:'#1E0F0A',
-    t2:'#8A6256',
-    gradient:'linear-gradient(135deg, #D96A50 0%, #E88A6E 50%, #F5B098 100%)',
-    gradientSoft:'linear-gradient(135deg, #FBEAE3 0%, #FAF3EF 50%, #F2CFC5 100%)',
-    glass:'rgba(217, 106, 80, 0.12)',
-    glassStrong:'rgba(217, 106, 80, 0.25)',
-    neoLight:'#FFFFFF',
-    neoDark:'#F2CFC5',
-    neoShadow:'rgba(217, 106, 80, 0.15)',
-    neoShadowDark:'rgba(176, 74, 52, 0.2)'
-  },
-  {
     id:'salvia',
     name:'Salvia',
     emoji:'🌿',
@@ -205,10 +185,10 @@ export const PALETTES = [
     neoShadowDark:'rgba(51, 60, 70, 0.2)'
   },
   {
-    /* Tema claro barbería: fondo blanco, texto negro, botones azul
-       brillante con gradiente negro→azul y acento rojo barbería.
-       Solo redefine los semánticos --red/--red-bg (los `??` de
-       applyTheme le dan el blanco/superficies por defecto). */
+    /* Tema barbería: los 4 colores del logo — fondo blanco, texto
+       negro, botones con gradiente negro→azul→rojo y acento rojo
+       barbería. Solo redefine los semánticos --red/--red-bg (los `??`
+       de applyTheme le dan el blanco/superficies por defecto). */
     id:'barberia',
     name:'Barbería',
     emoji:'🪒',
@@ -219,7 +199,7 @@ export const PALETTES = [
     border:'#E2E5EA',
     t:'#15181D',
     t2:'#5E6570',
-    gradient:'linear-gradient(135deg, #10192B 0%, #1D4FD7 50%, #5B8CF5 100%)',
+    gradient:'linear-gradient(135deg, #10192B 0%, #1D4FD7 55%, #C8102E 100%)',
     gradientSoft:'linear-gradient(135deg, #E8EDF6 0%, #FCFCFD 50%, #DDE3ED 100%)',
     glass:'rgba(29, 79, 215, 0.12)',
     glassStrong:'rgba(29, 79, 215, 0.25)',
@@ -229,28 +209,6 @@ export const PALETTES = [
     neoShadowDark:'rgba(16, 25, 43, 0.2)',
     red:'#C8102E',
     redBg:'#FCE9EB'
-  },
-  {
-    id:'crema',
-    name:'Crema',
-    emoji:'🤍',
-    primary:'#6B5D49',
-    pd:'#544A3A',
-    pl:'#F1E9D6',
-    bg:'#FAF6EC',
-    border:'#E7DECD',
-    t:'#26211A',
-    t2:'#8A8172',
-    gradient:'linear-gradient(135deg, #6B5D49 0%, #8A7A61 50%, #BBA98A 100%)',
-    gradientSoft:'linear-gradient(135deg, #F1E9D6 0%, #FAF6EC 50%, #E7DECD 100%)',
-    glass:'rgba(107, 93, 73, 0.12)',
-    glassStrong:'rgba(107, 93, 73, 0.25)',
-    neoLight:'#FFFFFF',
-    neoDark:'#E7DECD',
-    neoShadow:'rgba(107, 93, 73, 0.15)',
-    neoShadowDark:'rgba(84, 74, 58, 0.2)',
-    gold:'#8A6700',
-    goldBg:'#FAF4E3'
   },
   {
     id:'marino',
@@ -1232,7 +1190,7 @@ function GS() { return <style>{`
     border-color:var(--primary);
     box-shadow:0 0 0 3px var(--glass), var(--shadow-inner);
   }
-  .inp::placeholder{color:var(--t2);opacity:.6}
+  .inp::placeholder{color:var(--t2)}
   
   /* ── Labels ── */
   .lbl{
@@ -2935,14 +2893,14 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
         <div>
           <label className="lbl">Nombre (mín. 3 caracteres)</label>
           <input className="inp" placeholder="Nombre completo" value={newName} onChange={e=>setNN(e.target.value)}
-            style={{borderColor:newName&&!nameValid(newName)?'var(--red)':'var(--border)'}}/>
+            style={{fontSize:13,borderColor:newName&&!nameValid(newName)?'var(--red)':'var(--border)'}}/>
           {newName&&!nameValid(newName)&&<div style={{fontSize:11,color:'var(--red)',marginTop:3}}>Mínimo 3 caracteres</div>}
         </div>
         <div>
           <label className="lbl">Celular (10 dígitos)</label>
           <input className="inp" type="tel" placeholder="3001234567" value={newPhone}
             onChange={e=>setNP(e.target.value.replace(/\D/g,'').slice(0,10))}
-            style={{borderColor:newPhone&&!phoneValid(newPhone)?'var(--red)':'var(--border)'}}/>
+            style={{fontSize:13,borderColor:newPhone&&!phoneValid(newPhone)?'var(--red)':'var(--border)'}}/>
           {newPhone&&!phoneValid(newPhone)&&<div style={{fontSize:11,color:'var(--red)',marginTop:3}}>Mínimo 10 dígitos</div>}
         </div>
       </div>
@@ -3136,14 +3094,14 @@ function ClientsTab({clients,appts,SC,confirm,infoModal,setTab}) {
         <div>
           <label className="lbl">Nombre (mín. 3)</label>
           <input className="inp" placeholder="Nombre completo" value={name} onChange={e=>setN(e.target.value)}
-            style={{borderColor:name&&!nameValid(name)?'var(--red)':'var(--border)'}}/>
+            style={{fontSize:13,borderColor:name&&!nameValid(name)?'var(--red)':'var(--border)'}}/>
           {name&&!nameValid(name)&&<div style={{fontSize:11,color:'var(--red)',marginTop:3}}>Mínimo 3 caracteres</div>}
         </div>
         <div>
           <label className="lbl">Celular (10 dígitos)</label>
           <input className="inp" type="tel" placeholder="3001234567" value={phone}
             onChange={e=>setP(e.target.value.replace(/\D/g,'').slice(0,10))}
-            style={{borderColor:phone&&!phoneValid(phone)?'var(--red)':'var(--border)'}}/>
+            style={{fontSize:13,borderColor:phone&&!phoneValid(phone)?'var(--red)':'var(--border)'}}/>
           {phone&&!phoneValid(phone)&&<div style={{fontSize:11,color:'var(--red)',marginTop:3}}>Mínimo 10 dígitos</div>}
         </div>
       </div>
@@ -4838,7 +4796,7 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
       <div className="card-glass" style={{marginBottom:14}}>
         <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>💰 Saldo inicial</div>
         <div style={{fontSize:12,color:'var(--t2)',lineHeight:1.5,marginBottom:12}}>
-          El dinero con el que abriste el negocio. El Panel lo muestra <strong>aparte</strong>, a la derecha del Balance Neto (vista General), nunca mezclado. No puede ser negativo. Se guarda en <strong>Google Sheets</strong> (hoja «Config»): al cambiarlo aquí se actualiza en todos tus dispositivos, y también puedes editar la celda directo en la hoja.
+          Dinero con el que abriste el negocio. El Panel lo muestra <strong>aparte</strong> del Balance Neto, nunca mezclado. Se guarda en Google Sheets y se actualiza en todos tus dispositivos.
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           <span style={{fontSize:18,fontWeight:700,color:'var(--t2)'}}>$</span>

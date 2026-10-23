@@ -72,35 +72,44 @@ describe('buildReportWorkbook — fuente única del Excel (reportes y respaldo)'
   })
 })
 
-describe('PALETTES — 12 paletas completas para el selector de Ajustes', () => {
+describe('PALETTES — 10 paletas completas para el selector de Ajustes', () => {
   const REQUIRED = ['id', 'name', 'emoji', 'primary', 'pd', 'pl', 'bg', 'border',
     't', 't2', 'gradient', 'gradientSoft', 'glass', 'glassStrong',
     'neoLight', 'neoDark', 'neoShadow', 'neoShadowDark']
 
-  it('las 12 existen, con id único y los 18 campos que applyTheme vuelca', () => {
-    expect(PALETTES).toHaveLength(12)
-    expect(new Set(PALETTES.map(p => p.id)).size).toBe(12)
+  it('las 10 existen, con id único y los 18 campos que applyTheme vuelca', () => {
+    expect(PALETTES).toHaveLength(10)
+    expect(new Set(PALETTES.map(p => p.id)).size).toBe(10)
     PALETTES.forEach(p => REQUIRED.forEach(k => expect(p[k], `${p.id}.${k}`).toBeTruthy()))
-    expect(PALETTES.map(p => p.id)).toContain('coral')
+    expect(PALETTES.map(p => p.id)).toContain('rosa')
     expect(PALETTES.map(p => p.id)).toContain('salvia')
     expect(PALETTES.map(p => p.id)).toContain('carbon')
-  })
-
-  it('los 3 temas nuevos (barberia oscuro, crema, marino) están', () => {
-    expect(PALETTES.map(p => p.id)).toContain('barberia')
-    expect(PALETTES.map(p => p.id)).toContain('crema')
     expect(PALETTES.map(p => p.id)).toContain('marino')
   })
 
-  it('barberia: fondo claro negro/azul y acento rojo barbería', () => {
+  it('rosa es el palo de rosa fusionado (ex rosa + coral), legible sobre su tinte', () => {
+    const r = PALETTES.find(p => p.id === 'rosa')
+    expect(r.name).toBe('Palo de Rosa')
+    expect(r.primary).toBe('#A84B60')
+    expect(r.pl).toBe('#FAE9ED')
+  })
+
+  it('coral y crema se retiraron (fusión coral+rosa y limpieza de temas)', () => {
+    expect(PALETTES.map(p => p.id)).not.toContain('coral')
+    expect(PALETTES.map(p => p.id)).not.toContain('crema')
+  })
+
+  it('barberia: los 4 colores del logo — blanco, negro, azul y rojo', () => {
     const b = PALETTES.find(p => p.id === 'barberia')
     // Fondo claro (no reescribe superficies: usa los blancos por defecto)
     expect(b.card).toBeUndefined()
     expect(b.chromeBgr).toBeUndefined()
-    // Trio negro-azul-rojo
-    expect(b.primary).toBe('#1D4FD7')          // azul de los botones
-    expect(b.pd).toBe('#10192B')               // negro en el gradiente
-    expect(b.red).toBe('#C8102E')              // acento rojo barbería (override)
-    expect(b.red).not.toBe('#B03030')          // ≠ el rojo por defecto
+    expect(b.bg).toBe('#FCFCFD')                 // blanco
+    expect(b.pd).toBe('#10192B')                 // negro en el gradiente
+    expect(b.primary).toBe('#1D4FD7')             // azul de los botones
+    expect(b.red).toBe('#C8102E')                // acento rojo barbería (override)
+    expect(b.gradient).toContain('#10192B')      // gradiente negro→azul→rojo
+    expect(b.gradient).toContain('#1D4FD7')
+    expect(b.gradient).toContain('#C8102E')
   })
 })

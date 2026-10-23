@@ -8,7 +8,7 @@
    :root); el fallback crema solo existe antes del primer render. */
 html, body {
   height: 100%;
-  background: var(--bg, #FDF6F0);
+  background: var(--bg, #F9F1F3);
 }
 
 #root {
