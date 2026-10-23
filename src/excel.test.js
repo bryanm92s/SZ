@@ -139,8 +139,7 @@ describe('PALETTES — 12 paletas completas para el selector de Ajustes', () => 
     expect(c.emoji).toBe('⚫')
   })
 
-  it('burdeos: tema claro crema con VINO de primario y espresso en el texto (sin dorados)', () => {
-    const b = PALETTES.find(p => p.id === 'burdeos')
+  it('burdeos: tema claro crema con VINO de primario y espresso en el texto (sin dorados)', () => {    const b = PALETTES.find(p => p.id === 'burdeos')
     expect(b.name).toBe('Burdeos')
     expect(b.emoji).toBe('🍷')
     // El vino es el primario (el oro se retiró por petición)
@@ -157,5 +156,60 @@ describe('PALETTES — 12 paletas completas para el selector de Ajustes', () => 
     expect(b.gradient).toContain('#4A1520')
     expect(b.gradient).toContain('#6B1E2E')
     expect(b.gradient).not.toContain('#C9A227') // ni rastro del oro
+  })
+})
+
+describe('PALETTES — contraste AA por paleta (regresión de la auditoría UX/UI)', () => {
+  const lum = h => {
+    const v = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255)
+      .map(x => x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4))
+    return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]
+  }
+  const cr = (a, b) => {
+    const x = lum(a), y = lum(b)
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+  }
+  const WHITE = '#FFFFFF'
+  const stops = g => [...String(g).matchAll(/#[0-9a-f]{6}/gi)].map(m => m[0])
+
+  it('el primario lee como texto sobre blanco, su tinte (pl) y su fondo', () => {
+    for (const p of PALETTES) {
+      for (const ground of [WHITE, p.pl, p.bg]) {
+        expect(cr(p.primary, ground), `${p.id}: primary sobre ${ground}`).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+
+  it('t y t2 leen sobre el fondo del tema', () => {
+    for (const p of PALETTES) {
+      expect(cr(p.t, p.bg), `${p.id}: t sobre bg`).toBeGreaterThanOrEqual(4.5)
+      expect(cr(p.t2, p.bg), `${p.id}: t2 sobre bg`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('el texto del botón supera 4.5 sobre las paradas 0% y 50% del gradiente (donde vive el texto)', () => {
+    for (const p of PALETTES) {
+      const [s0, s50] = stops(p.gradient)
+      const gt = p.gradT || WHITE
+      expect(cr(gt, s0), `${p.id}: texto sobre 0%`).toBeGreaterThanOrEqual(4.5)
+      expect(cr(gt, s50), `${p.id}: texto sobre 50%`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('la tarjeta de balance (primary→pd) lee con el texto del gradiente', () => {
+    for (const p of PALETTES) {
+      const gt = p.gradT || WHITE
+      expect(cr(gt, p.primary), `${p.id}: texto sobre primary`).toBeGreaterThanOrEqual(4.5)
+      expect(cr(gt, p.pd), `${p.id}: texto sobre pd`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('los semánticos (gold/green/red/warn) leen sobre sus fondos', () => {
+    for (const p of PALETTES) {
+      expect(cr(p.gold ?? '#8A6700', p.goldBg ?? '#FFF8E6'), `${p.id}: gold`).toBeGreaterThanOrEqual(4.5)
+      expect(cr(p.green ?? '#2E7D52', p.greenBg ?? '#EDF7F0'), `${p.id}: green`).toBeGreaterThanOrEqual(4.5)
+      expect(cr(p.red ?? '#B03030', p.redBg ?? '#FFF0F0'), `${p.id}: red`).toBeGreaterThanOrEqual(4.5)
+      expect(cr(p.warnT ?? '#7A5000', p.warnBg ?? '#FFF4DC'), `${p.id}: warn`).toBeGreaterThanOrEqual(4.5)
+    }
   })
 })
