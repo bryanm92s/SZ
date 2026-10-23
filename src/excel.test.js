@@ -113,21 +113,29 @@ describe('PALETTES — 11 paletas completas para el selector de Ajustes', () => 
     expect(b.gradient).toContain('#C8102E')
   })
 
-  it('gala (Noche de Gala): negro azabache + dorado con texto negro sobre el oro', () => {
+  it('gala: crema champán + oro antiguo (claro elegante, nada de amarillo ni negro)', () => {
     const g = PALETTES.find(p => p.id === 'gala')
-    expect(g.name).toBe('Noche de Gala')
-    // Los tonos del usuario: negro, gris oscuro, oro, crema y plata
-    expect(g.primary).toBe('#D4AF37')            // oro
-    expect(g.bg).toBe('#0A0B0D')                // negro azabache
-    expect(g.pl).toBe('#2A2F38')                // gris pizarra oscuro
-    expect(g.t).toBe('#F5E6C8')                 // crema
-    expect(g.t2).toBe('#AEB6C2')                // plata
-    // Tema oscuro: redefine superficies y semánticos
-    expect(g.card).toBe('#121316')
-    expect(g.surface).toBe('#16181D')
-    expect(g.greenBg).toBe('#12291E')
-    // Texto NEGRO sobre los rellenos dorados (el blanco no pasa 4.5:1 sobre #D4AF37)
-    expect(g.gradT).toBe('#0B0B0C')
-    expect(g.gradT2).toBe('rgba(11, 11, 12, 0.72)')
+    expect(g.name).toBe('Gala')
+    expect(g.emoji).toBe('🎩')
+    // Oro ANTIGUO profundo y crema champán del encargo
+    expect(g.primary).toBe('#8A6A1C')            // oro antiguo (no amarillo)
+    expect(g.pd).toBe('#5C4712')                 // bronce del gradiente
+    expect(g.pl).toBe('#F9F3E6')                 // tinte champán (4.6:1 con el oro)
+    expect(g.bg).toBe('#F8F2E5')                 // fondo crema champán (no negro)
+    expect(g.t).toBe('#1A1B1F')                  // carbón del encargo
+    expect(g.t2).toBe('#6B6355')                 // gris taupe
+    expect(g.gradientSoft).toContain('#F5E6C8') // el champán exacto del encargo
+    // Tema CLARO: sin overrides de superficies ni de texto (blanco sobre oro pasa 5-8.9:1)
+    expect(g.card).toBeUndefined()
+    expect(g.gradT).toBeUndefined()
+    expect(g.gradient).toContain('#5C4712')
+    expect(g.gradient).toContain('#8A6A1C')
+  })
+
+  it('emojis: Barbería usa el símbolo de barbería; Carbón el punto negro', () => {
+    const b = PALETTES.find(p => p.id === 'barberia')
+    const c = PALETTES.find(p => p.id === 'carbon')
+    expect(b.emoji).toBe('💈')
+    expect(c.emoji).toBe('⚫')
   })
 })

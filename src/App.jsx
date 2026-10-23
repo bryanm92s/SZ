@@ -167,7 +167,7 @@ export const PALETTES = [
   {
     id:'carbon',
     name:'Carbón',
-    emoji:'💈',
+    emoji:'⚫',
     primary:'#4A5560',
     pd:'#333C46',
     pl:'#EAEDF0',
@@ -191,7 +191,7 @@ export const PALETTES = [
        de applyTheme le dan el blanco/superficies por defecto). */
     id:'barberia',
     name:'Barbería',
-    emoji:'🪒',
+    emoji:'💈',
     primary:'#1D4FD7',
     pd:'#10192B',
     pl:'#E8EDF6',
@@ -211,46 +211,31 @@ export const PALETTES = [
     redBg:'#FCE9EB'
   },
   {
-    /* Noche de Gala — negro azabache con dorado y crema: el
-       traje de gala de los temas. Sobre los rellenos DORADOS el
-       texto pasa a negro (gradT): el blanco no supera 2.1:1 sobre
-       #D4AF37, el negro llega a 9.6:1. Los semánticos verdes/rojos
-       se aclaran para leerse sobre fondos oscuros, como en el
-       tema oscuro original. */
+    /* Gala — la invitación de lujo: crema champán con ORO ANTIGUO
+       (marrón-dorado, nunca amarillo chillón) y acentos carbón.
+       Tema CLARO elegante: el gradiente bronce→oro lleva texto
+       blanco (5-8.9:1 en cada parada) y las superficies usan los
+       blancos por defecto. El champán #F5E6C8 del encargo vive en
+       el gradiente suave y el tinte va en #F9F3E6 (4.6:1 con el
+       oro). */
     id:'gala',
-    name:'Noche de Gala',
+    name:'Gala',
     emoji:'🎩',
-    primary:'#D4AF37',
-    pd:'#B08D28',
-    pl:'#2A2F38',
-    bg:'#0A0B0D',
-    border:'#2A2F38',
-    t:'#F5E6C8',
-    t2:'#AEB6C2',
-    gradient:'linear-gradient(135deg, #B08D28 0%, #D4AF37 50%, #E8C860 100%)',
-    gradientSoft:'linear-gradient(135deg, #16181D 0%, #0A0B0D 50%, #1A1B1F 100%)',
-    glass:'rgba(212, 175, 55, 0.14)',
-    glassStrong:'rgba(212, 175, 55, 0.28)',
-    neoLight:'#16181D',
-    neoDark:'#0A0B0D',
-    neoShadow:'rgba(0, 0, 0, 0.5)',
-    neoShadowDark:'rgba(0, 0, 0, 0.65)',
-    card:'#121316',
-    surface:'#16181D',
-    inputBg:'#101216',
-    green:'#3FC48C',
-    greenBg:'#12291E',
-    red:'#E23B48',
-    redBg:'#2B1114',
-    gold:'#D4AF37',
-    goldBg:'#28210F',
-    warnBg:'#2E2310',
-    warnT:'#EFC568',
-    chromeBg:'rgba(255, 255, 255, 0.055)',
-    chromeBgr:'#17181C',
-    chromeBrd:'rgba(255, 255, 255, 0.08)',
-    gradT:'#0B0B0C',
-    gradT2:'rgba(11, 11, 12, 0.72)'
+    primary:'#8A6A1C',
+    pd:'#5C4712',
+    pl:'#F9F3E6',
+    bg:'#F8F2E5',
+    border:'#E6DBC6',
+    t:'#1A1B1F',
+    t2:'#6B6355',
+    gradient:'linear-gradient(135deg, #5C4712 0%, #75591B 50%, #8A6A1C 100%)',
+    gradientSoft:'linear-gradient(135deg, #F5E6C8 0%, #F8F2E5 50%, #E6DBC6 100%)',
+    glass:'rgba(138, 106, 28, 0.10)',
+    glassStrong:'rgba(138, 106, 28, 0.22)',
+    neoLight:'#FFFFFF',
+    neoDark:'#E6DBC6',
+    neoShadow:'rgba(92, 71, 18, 0.15)',
+    neoShadowDark:'rgba(60, 46, 10, 0.2)'
   },
   {
     id:'marino',
@@ -304,9 +289,8 @@ const applyTheme = (pid) => {
   r.setProperty('--input-bg',  p.inputBg ?? '#FFFFFF')
 
   /* ── Texto sobre rellenos saturados (gradientes del tema, chips de
-     --primary y las tarjetas verde/rojo del neto): los temas claros
-     usan blanco; los de relleno claro (p.ej. el dorado de Noche de
-     Gala) necesitan texto oscuro para pasar contraste. ── */
+     --primary y las tarjetas verde/rojo del neto): blanco por defecto;
+     una paleta con rellenos claros puede redefinirlo a oscuro. ── */
   r.setProperty('--grad-t',    p.gradT ?? '#FFFFFF')
   r.setProperty('--grad-t2',   p.gradT2 ?? 'rgba(255,255,255,0.75)')
 
@@ -4863,7 +4847,7 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
       <div className="card-glass" style={{marginBottom:14}}>
         <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>💰 Saldo inicial</div>
         <div style={{fontSize:12,color:'var(--t2)',lineHeight:1.5,marginBottom:12}}>
-          Dinero con el que abriste el negocio. El Panel lo muestra <strong>aparte</strong> del Balance Neto, nunca mezclado. Se guarda en Google Sheets y se actualiza en todos tus dispositivos.
+          Dinero con el que abriste el negocio. El Panel lo muestra <strong>aparte</strong> del Balance Neto, nunca mezclado. Se guarda y se actualiza en todos tus dispositivos.
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           <span style={{fontSize:18,fontWeight:700,color:'var(--t2)'}}>$</span>
