@@ -257,6 +257,49 @@ export const PALETTES = [
     neoShadow:'rgba(31, 63, 122, 0.15)',
     neoShadowDark:'rgba(21, 44, 85, 0.2)'
   },
+  {
+    /* Burdeos — el lounge de vinos: negro azabache, espresso,
+       terciopelo burdeos y oro. El ORO es el primario (el vino es
+       demasiado oscuro para leerse como texto sobre superficies
+       oscuras): brilla como texto (6.9-7.8:1) y como relleno con
+       texto negro #111114 (4.8-11:1 por parada). El burdeos vive en
+       los tintes (chips/KPI sobre #2B151D), el vidrio de la nav y el
+       gradiente suave; el champán #F7DFA3 es el texto principal. */
+    id:'burdeos',
+    name:'Burdeos',
+    emoji:'🍷',
+    primary:'#C9A227',
+    pd:'#9C7D1F',
+    pl:'#2B151D',
+    bg:'#111114',
+    border:'#33241B',
+    t:'#F7DFA3',
+    t2:'#B5A68B',
+    gradient:'linear-gradient(135deg, #9C7D1F 0%, #C9A227 50%, #E3C860 100%)',
+    gradientSoft:'linear-gradient(135deg, #2A1A12 0%, #111114 50%, #6B1E2E 100%)',
+    glass:'rgba(107, 30, 46, 0.16)',
+    glassStrong:'rgba(107, 30, 46, 0.3)',
+    neoLight:'#2A1A12',
+    neoDark:'#0B0B0D',
+    neoShadow:'rgba(0, 0, 0, 0.5)',
+    neoShadowDark:'rgba(0, 0, 0, 0.65)',
+    card:'#1C1611',
+    surface:'#2A1A12',
+    inputBg:'#17110D',
+    green:'#3FC48C',
+    greenBg:'#12291E',
+    red:'#E23B48',
+    redBg:'#2B1114',
+    gold:'#C9A227',
+    goldBg:'#2E2410',
+    warnBg:'#2E2310',
+    warnT:'#EFC568',
+    chromeBg:'rgba(255, 255, 255, 0.055)',
+    chromeBgr:'#1A1016',
+    chromeBrd:'rgba(255, 255, 255, 0.08)',
+    gradT:'#111114',
+    gradT2:'rgba(17, 17, 20, 0.75)'
+  },
 ]
 
 const applyTheme = (pid) => {

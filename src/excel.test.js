@@ -72,14 +72,14 @@ describe('buildReportWorkbook — fuente única del Excel (reportes y respaldo)'
   })
 })
 
-describe('PALETTES — 11 paletas completas para el selector de Ajustes', () => {
+describe('PALETTES — 12 paletas completas para el selector de Ajustes', () => {
   const REQUIRED = ['id', 'name', 'emoji', 'primary', 'pd', 'pl', 'bg', 'border',
     't', 't2', 'gradient', 'gradientSoft', 'glass', 'glassStrong',
     'neoLight', 'neoDark', 'neoShadow', 'neoShadowDark']
 
-  it('las 11 existen, con id único y los 18 campos que applyTheme vuelca', () => {
-    expect(PALETTES).toHaveLength(11)
-    expect(new Set(PALETTES.map(p => p.id)).size).toBe(11)
+  it('las 12 existen, con id único y los 18 campos que applyTheme vuelca', () => {
+    expect(PALETTES).toHaveLength(12)
+    expect(new Set(PALETTES.map(p => p.id)).size).toBe(12)
     PALETTES.forEach(p => REQUIRED.forEach(k => expect(p[k], `${p.id}.${k}`).toBeTruthy()))
     expect(PALETTES.map(p => p.id)).toContain('rosa')
     expect(PALETTES.map(p => p.id)).toContain('salvia')
@@ -137,5 +137,27 @@ describe('PALETTES — 11 paletas completas para el selector de Ajustes', () => 
     const c = PALETTES.find(p => p.id === 'carbon')
     expect(b.emoji).toBe('💈')
     expect(c.emoji).toBe('⚫')
+  })
+
+  it('burdeos: negro azabache, espresso, terciopelo burdeos y oro (oscuro elegante)', () => {
+    const b = PALETTES.find(p => p.id === 'burdeos')
+    expect(b.name).toBe('Burdeos')
+    expect(b.emoji).toBe('🍷')
+    // Los 5 colores del encargo
+    expect(b.bg).toBe('#111114')                 // negro azabache
+    expect(b.surface).toBe('#2A1A12')            // espresso
+    expect(b.gold).toBe('#C9A227')               // oro
+    expect(b.t).toBe('#F7DFA3')                  // champán
+    expect(b.gradientSoft).toContain('#6B1E2E') // terciopelo burdeos en el gradiente suave
+    // El ORO es el primario (el vino no lee como texto sobre oscuro); texto negro sobre los rellenos dorados
+    expect(b.primary).toBe('#C9A227')
+    expect(b.pl).toBe('#2B151D')                  // tinte burdeos de chips/KPI: oro sobre él = 7.1:1
+    expect(b.gradT).toBe('#111114')
+    expect(b.gradT2).toBe('rgba(17, 17, 20, 0.75)')
+    expect(b.card).toBe('#1C1611')
+    expect(b.inputBg).toBe('#17110D')
+    // Gradiente del botón: bronce→oro con texto negro (4.8-11:1 por parada)
+    expect(b.gradient).toContain('#9C7D1F')
+    expect(b.gradient).toContain('#C9A227')
   })
 })
