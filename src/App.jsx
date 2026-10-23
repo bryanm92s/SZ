@@ -205,43 +205,30 @@ export const PALETTES = [
     neoShadowDark:'rgba(51, 60, 70, 0.2)'
   },
   {
-    /* Tema OSCURO: fondo negro, texto blanco nítido, bloques gris mate,
-       botones azul brillante y acento rojo barbería en --red/--red-bg.
-       Es el único que redefine card/surface/inputBg/chrome porque la
-       arquitectura era solo-clara; las demás paletas reutilizan los
-       defaults (#FFFFFF / rgba blancos) via `??` en applyTheme. */
+    /* Tema claro barbería: fondo blanco, texto negro, botones azul
+       brillante con gradiente negro→azul y acento rojo barbería.
+       Solo redefine los semánticos --red/--red-bg (los `??` de
+       applyTheme le dan el blanco/superficies por defecto). */
     id:'barberia',
     name:'Barbería',
     emoji:'🪒',
-    primary:'#3B72EC',
-    pd:'#1E4FBF',
-    pl:'#1C2740',
-    bg:'#0B0E13',
-    border:'#232A34',
-    t:'#F5F7FA',
-    t2:'#9AA4B2',
-    gradient:'linear-gradient(135deg, #1E4FBF 0%, #3B72EC 50%, #6E9BF6 100%)',
-    gradientSoft:'linear-gradient(135deg, #161F31 0%, #121621 50%, #232B3C 100%)',
-    glass:'rgba(59, 114, 236, 0.16)',
-    glassStrong:'rgba(59, 114, 236, 0.3)',
-    neoLight:'#151B23',
-    neoDark:'#07090C',
-    neoShadow:'rgba(0, 0, 0, 0.5)',
-    neoShadowDark:'rgba(0, 0, 0, 0.65)',
-    card:'#12161D',
-    surface:'#171C24',
-    inputBg:'#10151C',
-    green:'#3FC48C',
-    greenBg:'#12291E',
-    red:'#E23B48',
-    redBg:'#2B1114',
-    gold:'#E3B341',
-    goldBg:'#28210F',
-    warnBg:'#2E2310',
-    warnT:'#EFC568',
-    chromeBg:'rgba(255, 255, 255, 0.055)',
-    chromeBgr:'#171D25',
-    chromeBrd:'rgba(255, 255, 255, 0.08)'
+    primary:'#1D4FD7',
+    pd:'#10192B',
+    pl:'#E8EDF6',
+    bg:'#FCFCFD',
+    border:'#E2E5EA',
+    t:'#15181D',
+    t2:'#5E6570',
+    gradient:'linear-gradient(135deg, #10192B 0%, #1D4FD7 50%, #5B8CF5 100%)',
+    gradientSoft:'linear-gradient(135deg, #E8EDF6 0%, #FCFCFD 50%, #DDE3ED 100%)',
+    glass:'rgba(29, 79, 215, 0.12)',
+    glassStrong:'rgba(29, 79, 215, 0.25)',
+    neoLight:'#FFFFFF',
+    neoDark:'#E2E5EA',
+    neoShadow:'rgba(21, 24, 29, 0.15)',
+    neoShadowDark:'rgba(16, 25, 43, 0.2)',
+    red:'#C8102E',
+    redBg:'#FCE9EB'
   },
   {
     id:'crema',

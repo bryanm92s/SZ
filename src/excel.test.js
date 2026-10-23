@@ -92,13 +92,15 @@ describe('PALETTES — 12 paletas completas para el selector de Ajustes', () => 
     expect(PALETTES.map(p => p.id)).toContain('marino')
   })
 
-  it('barberia es el único oscuro y redefine superficies + semánticos', () => {
+  it('barberia: fondo claro negro/azul y acento rojo barbería', () => {
     const b = PALETTES.find(p => p.id === 'barberia')
-    // Los overrides que applyTheme resuelve con `??`
-    expect(b.card).toBe('#12161D')
-    expect(b.card).not.toBe('#FFFFFF')
-    expect(b.red).toBeTruthy()          // acento rojo barbería
-    expect(b.greenBg).toBeTruthy()      // chip verde legible sobre fondo oscuro
-    expect(b.chromeBgr).toBeTruthy()    // modal sin blanco puro
+    // Fondo claro (no reescribe superficies: usa los blancos por defecto)
+    expect(b.card).toBeUndefined()
+    expect(b.chromeBgr).toBeUndefined()
+    // Trio negro-azul-rojo
+    expect(b.primary).toBe('#1D4FD7')          // azul de los botones
+    expect(b.pd).toBe('#10192B')               // negro en el gradiente
+    expect(b.red).toBe('#C8102E')              // acento rojo barbería (override)
+    expect(b.red).not.toBe('#B03030')          // ≠ el rojo por defecto
   })
 })
