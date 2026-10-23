@@ -211,6 +211,48 @@ export const PALETTES = [
     redBg:'#FCE9EB'
   },
   {
+    /* Noche de Gala — negro azabache con dorado y crema: el
+       traje de gala de los temas. Sobre los rellenos DORADOS el
+       texto pasa a negro (gradT): el blanco no supera 2.1:1 sobre
+       #D4AF37, el negro llega a 9.6:1. Los semánticos verdes/rojos
+       se aclaran para leerse sobre fondos oscuros, como en el
+       tema oscuro original. */
+    id:'gala',
+    name:'Noche de Gala',
+    emoji:'🎩',
+    primary:'#D4AF37',
+    pd:'#B08D28',
+    pl:'#2A2F38',
+    bg:'#0A0B0D',
+    border:'#2A2F38',
+    t:'#F5E6C8',
+    t2:'#AEB6C2',
+    gradient:'linear-gradient(135deg, #B08D28 0%, #D4AF37 50%, #E8C860 100%)',
+    gradientSoft:'linear-gradient(135deg, #16181D 0%, #0A0B0D 50%, #1A1B1F 100%)',
+    glass:'rgba(212, 175, 55, 0.14)',
+    glassStrong:'rgba(212, 175, 55, 0.28)',
+    neoLight:'#16181D',
+    neoDark:'#0A0B0D',
+    neoShadow:'rgba(0, 0, 0, 0.5)',
+    neoShadowDark:'rgba(0, 0, 0, 0.65)',
+    card:'#121316',
+    surface:'#16181D',
+    inputBg:'#101216',
+    green:'#3FC48C',
+    greenBg:'#12291E',
+    red:'#E23B48',
+    redBg:'#2B1114',
+    gold:'#D4AF37',
+    goldBg:'#28210F',
+    warnBg:'#2E2310',
+    warnT:'#EFC568',
+    chromeBg:'rgba(255, 255, 255, 0.055)',
+    chromeBgr:'#17181C',
+    chromeBrd:'rgba(255, 255, 255, 0.08)',
+    gradT:'#0B0B0C',
+    gradT2:'rgba(11, 11, 12, 0.72)'
+  },
+  {
     id:'marino',
     name:'Marino',
     emoji:'⚓',
@@ -260,6 +302,13 @@ const applyTheme = (pid) => {
   r.setProperty('--warn-bg',   p.warnBg  ?? '#FFF4DC')
   r.setProperty('--warn-t',    p.warnT   ?? '#7A5000')
   r.setProperty('--input-bg',  p.inputBg ?? '#FFFFFF')
+
+  /* ── Texto sobre rellenos saturados (gradientes del tema, chips de
+     --primary y las tarjetas verde/rojo del neto): los temas claros
+     usan blanco; los de relleno claro (p.ej. el dorado de Noche de
+     Gala) necesitan texto oscuro para pasar contraste. ── */
+  r.setProperty('--grad-t',    p.gradT ?? '#FFFFFF')
+  r.setProperty('--grad-t2',   p.gradT2 ?? 'rgba(255,255,255,0.75)')
 
   /* ── Superficies translúcidas (chrome): nav, footer, card-glass y
      modales consumen estas vars; Clara = rgba blancos, Oscura = vidrio
@@ -474,6 +523,14 @@ export default function App() {
   const [saveFailed, setSaveFailed] = useState(false)
   const [saveErr,    setSaveErr]    = useState('')
 
+  // Banner «Modo sin conexión» cerrable: el reintento automático de
+  // loadData ya se come los fallos transitorios (frío/404 puntual);
+  // el que llega hasta aquí es un fallo REAL. Con el ✕ se oculta
+  // hasta la próxima reconexión (el SyncBadge del header sigue
+  // informando el estado en silencio). Vuelve a aparecer tras una
+  // reconexión exitosa y un nuevo fallo.
+  const [errHidden, setErrHidden] = useState(false)
+
   // Reenvía el payload que falló. No vuelve a aplicar los cambios al
   // estado local: ya están aplicados (se hicieron de forma optimista).
   const retrySave = useCallback(async () => {
@@ -497,6 +554,9 @@ export default function App() {
     applyTheme(themePalette)
     try{ localStorage.setItem('sz_palette',themePalette) }catch{}
   },[themePalette])
+
+  // Reconexión exitosa → el banner se rearma para un próximo fallo.
+  useEffect(()=>{ if(status!=='error') setErrHidden(false) },[status])
 
   // ── Un SOLO efecto de branding ─────────────────────────────────
   // El de la línea 360 es el único que escribe `document.title`, el
@@ -718,12 +778,12 @@ export default function App() {
             : <div style={{fontSize:28,filter:'drop-shadow(0 2px 4px rgba(0,0,0,0.15))'}}>{BIZ_EMOJI}</div>
           }
           <div>
-            <div style={{fontFamily:'Georgia,serif',fontSize:16,color:'white',fontWeight:700}}>{BIZ_NAME}</div>
-            <div style={{fontSize:11,color:'rgba(255,255,255,0.85)',letterSpacing:'0.14em',textTransform:'uppercase',fontWeight:500}}>{BIZ_SUBTITLE||BIZ_NAME}</div>
+            <div style={{fontFamily:'Georgia,serif',fontSize:16,color:'var(--grad-t)',fontWeight:700}}>{BIZ_NAME}</div>
+            <div style={{fontSize:11,color:'var(--grad-t2)',letterSpacing:'0.14em',textTransform:'uppercase',fontWeight:500}}>{BIZ_SUBTITLE||BIZ_NAME}</div>
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={()=>refresh(true)} style={{background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:20,padding:'6px 12px',color:'white',fontSize:14,cursor:'pointer',fontFamily:'inherit',fontWeight:600,backdropFilter:'var(--glass-blur-sm)',WebkitBackdropFilter:'var(--glass-blur-sm)',transition:'all .15s'}} onMouseOver={e=>e.target.style.background='rgba(255,255,255,0.3)'} onMouseOut={e=>e.target.style.background='rgba(255,255,255,0.2)'}>↻</button>
+          <button onClick={()=>refresh(true)} style={{background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:20,padding:'6px 12px',color:'var(--grad-t)',fontSize:14,cursor:'pointer',fontFamily:'inherit',fontWeight:600,backdropFilter:'var(--glass-blur-sm)',WebkitBackdropFilter:'var(--glass-blur-sm)',transition:'all .15s'}} onMouseOver={e=>e.target.style.background='rgba(255,255,255,0.3)'} onMouseOut={e=>e.target.style.background='rgba(255,255,255,0.2)'}>↻</button>
           <SyncBadge status={status} lastSync={lastSync}/>
         </div>
       </header>
@@ -754,10 +814,16 @@ export default function App() {
               ⚠️ <strong>No se pudo guardar.</strong> Tus cambios solo están en este celular.
               {saveErr ? ` (${saveErr})` : ''}
             </span>
-            <button className="btn-sm" onClick={retrySave} style={{background:'var(--red)',color:'white',border:'none'}}>↻ Reintentar guardar</button>
+            <button className="btn-sm" onClick={retrySave} style={{background:'var(--red)',color:'var(--grad-t)',border:'none'}}>↻ Reintentar guardar</button>
           </div>
         )}
-        {!saveFailed && status==='error' && <div className="warn-box">⚠️ Modo sin conexión — {errMsg}</div>}
+        {!saveFailed && status==='error' && !errHidden && (
+          <div className="warn-box" style={{display:'flex',alignItems:'flex-start',gap:10}}>
+            <span style={{flex:'1 1 auto',minWidth:0}}>⚠️ Modo sin conexión — {errMsg}</span>
+            <button onClick={()=>setErrHidden(true)} aria-label="Ocultar aviso de conexión"
+              style={{background:'none',border:'none',cursor:'pointer',fontSize:16,padding:'2px 6px',lineHeight:1,flexShrink:0}}>✕</button>
+          </div>
+        )}
         {tab==='dashboard'     && <Dashboard      {...p}/>}
         {tab==='appointments'  && <ApptsTab       {...p}/>}
         {tab==='clients'       && <ClientsTab     {...p}/>}
@@ -1045,19 +1111,20 @@ function CirclePager({ page, total, onPage, size=ITEM_PAGE_SIZE }) {
 function GS() { return <style>{`
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
   :root{
-    --primary:#B5524A;--primary-d:#8E3E38;--primary-l:#FAEAE8;
-    --bg:#F7F0EC;--card:#FFFFFF;--surface:#FFFFFF;--border:#E8D0CC;
-    --t:#1E0E0C;--t2:#7A5E5A;--gold:#8A6700;--gold-bg:#FFF8E6;
+    --primary:#A84B60;--primary-d:#83394C;--primary-l:#FAE9ED;
+    --bg:#F9F1F3;--card:#FFFFFF;--surface:#FFFFFF;--border:#EAD0D7;
+    --t:#1F1014;--t2:#7A5E64;--gold:#8A6700;--gold-bg:#FFF8E6;
     --green:#2E7D52;--green-bg:#EDF7F0;--red:#B03030;--red-bg:#FFF0F0;
     --warn-bg:#FFF4DC;--warn-t:#7A5000;--input-bg:#FFFFFF;
+    --grad-t:#FFFFFF;--grad-t2:rgba(255,255,255,0.75);
     /* Superficies translúcidas (chrome): nav/footer/tarjetas glass/modales.
        applyTheme las actualiza por paleta; el oscuro las redefine. */
     --chrome-bg:rgba(255,255,255,0.75);
     --chrome-bgr:rgba(255,255,255,0.96);
     --chrome-brd:rgba(255,255,255,0.5);
     /* Gradient & Glassmorphism (updated by applyTheme) */
-    --gradient:linear-gradient(135deg, #B5524A 0%, #D47A6A 50%, #E8A898 100%);
-    --gradient-soft:linear-gradient(135deg, #FAEAE8 0%, #F7F0EC 50%, #E8D0CC 100%);
+    --gradient:linear-gradient(135deg, #A84B60 0%, #C87D90 50%, #EDB8C6 100%);
+    --gradient-soft:linear-gradient(135deg, #FAE9ED 0%, #F9F1F3 50%, #EAD0D7 100%);
     --glass:rgba(181, 82, 74, 0.12);
     --glass-strong:rgba(181, 82, 74, 0.25);
     /* Neumorphism */
@@ -1206,7 +1273,7 @@ function GS() { return <style>{`
   /* ── Buttons ── */
   .btn{
     background:var(--gradient);
-    color:white;
+    color:var(--grad-t);
     border:none;
     border-radius:12px;
     padding:14px 24px;
@@ -1796,21 +1863,21 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
     <div className="card" style={{marginBottom:14,padding:0,overflow:'hidden'}}>
       <div style={{background:netoPos?'linear-gradient(135deg,var(--primary),var(--primary-d))':'linear-gradient(135deg,#B04040,#843030)',padding:'16px 18px',cursor:'pointer'}} onClick={()=>setTab('finances')}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
-          <div style={{fontSize:11,color:'rgba(255,255,255,0.8)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.09em'}}>
+          <div style={{fontSize:11,color:'var(--grad-t2)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.09em'}}>
             {isMonth?'Balance \u2014 '+new Date(selMonth+'-01T12:00:00').toLocaleDateString('es-CO',{month:'long',year:'numeric'}):'Balance Neto'}
           </div>
-          <span style={{fontSize:11,color:'rgba(255,255,255,0.6)'}}>Ver finanzas {'\u2192'}</span>
+          <span style={{fontSize:11,color:'var(--grad-t2)'}}>Ver finanzas {'\u2192'}</span>
         </div>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:12}}>
-          <div style={{fontFamily:'Georgia,serif',fontSize:30,fontWeight:700,color:'white'}}>{fmtM(aNeto)}</div>
+          <div style={{fontFamily:'Georgia,serif',fontSize:30,fontWeight:700,color:'var(--grad-t)'}}>{fmtM(aNeto)}</div>
           {conInit!==null&&(
-            <div style={{fontSize:11,color:'rgba(255,255,255,0.7)',textAlign:'right',lineHeight:1.5,minWidth:0,flexShrink:1}}>
+            <div style={{fontSize:11,color:'var(--grad-t2)',textAlign:'right',lineHeight:1.5,minWidth:0,flexShrink:1}}>
               + Saldo inicial {fmtM(openingBalance)}<br/>
-              <b style={{fontSize:12,color:'rgba(255,255,255,0.92)'}}>Con saldo inicial {fmtM(conInit)}</b>
+              <b style={{fontSize:12,color:'var(--grad-t)'}}>Con saldo inicial {fmtM(conInit)}</b>
             </div>
           )}
         </div>
-        <div style={{fontSize:11,color:'rgba(255,255,255,0.65)',marginTop:4}}>
+        <div style={{fontSize:11,color:'var(--grad-t2)',marginTop:4}}>
           Recibido {fmtM(aRevDone)} {'\u2212'} Gastos {fmtM(aExp)}
         </div>
       </div>
@@ -1997,7 +2064,7 @@ function MonthlyBalance({appts,expenses,selMonth,setSelMonth,setTab}) {
       </div>
 
       {/* Net headline */}
-      <div style={{background:netoPos?'linear-gradient(135deg,var(--green),#3d7a55)':'linear-gradient(135deg,var(--red),#a04040)',borderRadius:12,padding:'12px 16px',marginBottom:12,color:'white',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <div style={{background:netoPos?'linear-gradient(135deg,var(--green),#3d7a55)':'linear-gradient(135deg,var(--red),#a04040)',borderRadius:12,padding:'12px 16px',marginBottom:12,color:'var(--grad-t)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div>
           <div style={{fontSize:11,opacity:.8,textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600}}>Neto {monthLabel}</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700,marginTop:2}}>{fmtM(neto)}</div>
@@ -2360,7 +2427,7 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
   const brdMap = {done:'#B0DDC0', noshow:'#F5C0B0', pending: past?'#E0D8D5':'var(--border)'}
   return (
     <div id={`appt-${appt.id}`} className={focused?'appt-flash':''} style={{background:bgMap[status],borderRadius:12,border:`1.5px solid ${remindNow?'var(--primary)':brdMap[status]}`,padding:14,marginTop:8,boxShadow:remindNow?'0 0 0 3px var(--primary-l)':'none'}}>
-      {remindNow && <div style={{background:'var(--primary)',color:'white',borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:700,marginBottom:8,display:'inline-block',animation:'remindPing 1.4s ease-in-out infinite'}}>
+      {remindNow && <div style={{background:'var(--primary)',color:'var(--grad-t)',borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:700,marginBottom:8,display:'inline-block',animation:'remindPing 1.4s ease-in-out infinite'}}>
         ⏰ Recordar ahora · {fmtTime(appt.time)}
       </div>}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
@@ -2604,7 +2671,7 @@ function EditAppt({appt,services,appts,SA,priceHistory,onClose}) {
         <button key={s.id} className={`so${svcIds.includes(s.id)?' sel':''}`} onClick={()=>toggleSvc(s.id)}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${svcIds.includes(s.id)?'var(--primary)':'#ccc'}`,background:svcIds.includes(s.id)?'var(--primary)':'white',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-              {svcIds.includes(s.id)&&<span style={{color:'white',fontSize:11}}>✓</span>}
+              {svcIds.includes(s.id)&&<span style={{color:'var(--grad-t)',fontSize:11}}>✓</span>}
             </div>
             <div><div style={{fontWeight:600,fontSize:14}}>{s.name}</div><div style={{fontSize:11,color:'var(--t2)'}}>⏱ {fmtDuration(svcDuration(s))}</div></div>
           </div>
@@ -2912,7 +2979,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
     {step===3 && <div className="card">
       {/* Client banner */}
       <div style={{background:'var(--primary-l)',borderRadius:10,padding:'10px 14px',marginBottom:14,display:'flex',alignItems:'center',gap:10}}>
-        <div style={{width:34,height:34,borderRadius:'50%',background:'var(--primary)',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:700,fontSize:15,flexShrink:0}}>
+        <div style={{width:34,height:34,borderRadius:'50%',background:'var(--primary)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--grad-t)',fontWeight:700,fontSize:15,flexShrink:0}}>
           {String(fc?.name||'?').charAt(0).toUpperCase()}
         </div>
         <div>
@@ -2940,7 +3007,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
         <button key={s.id} className={`so${svcIds.includes(s.id)?' sel':''}`} onClick={()=>toggleSvc(s.id)}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <div style={{width:20,height:20,borderRadius:4,border:`2px solid ${svcIds.includes(s.id)?'var(--primary)':'#ccc'}`,background:svcIds.includes(s.id)?'var(--primary)':'white',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-              {svcIds.includes(s.id)&&<span style={{color:'white',fontSize:13}}>✓</span>}
+              {svcIds.includes(s.id)&&<span style={{color:'var(--grad-t)',fontSize:13}}>✓</span>}
             </div>
             <div><div style={{fontWeight:600,fontSize:14}}>{s.name}</div><div style={{fontSize:11,color:'var(--t2)'}}>⏱ {fmtDuration(svcDuration(s))}</div></div>
           </div>
@@ -2981,7 +3048,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
     {step===4 && <div className="card">
       {/* Client banner */}
       <div style={{background:'var(--primary-l)',borderRadius:10,padding:'8px 14px',marginBottom:14,display:'flex',alignItems:'center',gap:8}}>
-        <div style={{width:28,height:28,borderRadius:'50%',background:'var(--primary)',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:700,fontSize:13,flexShrink:0}}>{String(fc?.name||'?').charAt(0).toUpperCase()}</div>
+        <div style={{width:28,height:28,borderRadius:'50%',background:'var(--primary)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--grad-t)',fontWeight:700,fontSize:13,flexShrink:0}}>{String(fc?.name||'?').charAt(0).toUpperCase()}</div>
         <span style={{fontWeight:700,fontSize:14}}>{fc?.name}</span>
         <span style={{fontSize:12,color:'var(--t2)'}}>· {selSvcs.map(s=>s.name).join(', ')}</span>
       </div>
@@ -3479,7 +3546,7 @@ function ClientHistory({appts,services,setTab,tabExtra}) {
       </div>
 
       {/* Client card */}
-      <div style={{background:'linear-gradient(135deg,var(--primary),var(--primary-d))',borderRadius:16,padding:'18px 20px',marginBottom:14,color:'white',display:'flex',alignItems:'center',gap:14}}>
+      <div style={{background:'linear-gradient(135deg,var(--primary),var(--primary-d))',borderRadius:16,padding:'18px 20px',marginBottom:14,color:'var(--grad-t)',display:'flex',alignItems:'center',gap:14}}>
         <div style={{width:52,height:52,borderRadius:'50%',background:'rgba(255,255,255,0.22)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Georgia,serif',fontSize:24,fontWeight:700,flexShrink:0}}>
           {String(client.name||'?').charAt(0).toUpperCase()}
         </div>
@@ -3838,7 +3905,7 @@ function TopServices({appts,services,priceHistory,setTab}) {
       </div>
 
       {/* Total summary */}
-      <div style={{background:'linear-gradient(135deg,var(--primary),var(--primary-d))',borderRadius:14,padding:'14px 18px',marginBottom:18,color:'white',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <div style={{background:'linear-gradient(135deg,var(--primary),var(--primary-d))',borderRadius:14,padding:'14px 18px',marginBottom:18,color:'var(--grad-t)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div>
           <div style={{fontSize:11,opacity:.8,textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600,marginBottom:4}}>Total generado</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700}}>{fmtM(totalRev)}</div>
@@ -4131,7 +4198,7 @@ function ReportTab({appts,expenses,services,setTab}) {
       {/* ══ Resumen financiero ══ */}
       <div className="rep-sec">💰 Resumen financiero</div>
       {/* Total ingresos: contexto del neto (servicios + domicilios ya separados) */}
-      <div style={{background:'var(--gradient)',borderRadius:14,padding:'14px 18px',marginBottom:8,color:'white'}}>
+      <div style={{background:'var(--gradient)',borderRadius:14,padding:'14px 18px',marginBottom:8,color:'var(--grad-t)'}}>
         <div style={{fontSize:11,opacity:.85,textTransform:'uppercase',letterSpacing:'.05em',fontWeight:600,marginBottom:4}}>Total ingresos (servicios + domicilios)</div>
         <div style={{fontFamily:'Georgia,serif',fontSize:28,fontWeight:700}}>{fmtM(revenue)}</div>
         <div style={{fontSize:12,opacity:.9,marginTop:6}}>Servicios {fmtM(ledger.totalService)} + 🛵 Domicilios {fmtM(ledger.totalDelivery)}</div>
@@ -4308,7 +4375,7 @@ function IncomeDetail({appts,setTab,tabExtra}) {
         <div key={v} onClick={()=>setF(v)} style={{background:filter===v?col:bg,borderRadius:12,padding:'12px 8px',textAlign:'center',cursor:'pointer',border:`2px solid ${filter===v?col:'transparent'}`,transition:'all .15s'}}>
           <div style={{fontSize:11,color:filter===v?'white':col,fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>{l}</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:filter===v?'white':col}}>{val}</div>
-          <div style={{fontSize:11,color:filter===v?'rgba(255,255,255,0.8)':col,marginTop:2}}>{cnt} citas</div>
+          <div style={{fontSize:11,color:filter===v?'var(--grad-t2)':col,marginTop:2}}>{cnt} citas</div>
         </div>
       ))}
     </div>
@@ -4628,7 +4695,7 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
         <div style={{display:'flex',gap:10}}>
           <button className="btn-o" style={{flex:1}} onClick={()=>setStep(0)}>Cancelar</button>
           <button onClick={()=>setStep(2)}
-            style={{flex:1,background:'linear-gradient(135deg, #B03030 0%, #D04040 100%)',color:'white',border:'none',borderRadius:10,padding:'12px 22px',fontWeight:700,fontSize:15,cursor:'pointer',fontFamily:'inherit',boxShadow:'var(--shadow-sm)'}}>
+            style={{flex:1,background:'linear-gradient(135deg, #B03030 0%, #D04040 100%)',color:'var(--grad-t)',border:'none',borderRadius:10,padding:'12px 22px',fontWeight:700,fontSize:15,cursor:'pointer',fontFamily:'inherit',boxShadow:'var(--shadow-sm)'}}>
             Sí, continuar →
           </button>
         </div>
@@ -4782,9 +4849,9 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
             const sel = themePalette===pal.id
             return (
               <button key={pal.id} onClick={()=>setThemePalette(pal.id)}
-                style={{background:sel?pal.gradient:'var(--neo-light)',border:`2px solid ${sel?pal.primary:'var(--border)'}`,borderRadius:16,padding:'16px 8px',cursor:'pointer',fontFamily:'inherit',transition:'all .2s',display:'flex',flexDirection:'column',alignItems:'center',gap:6,boxShadow:sel?'var(--shadow-md)':'var(--shadow-sm)',color:sel?'white':'var(--t)'}}>
+                style={{background:sel?pal.gradient:'var(--neo-light)',border:`2px solid ${sel?pal.primary:'var(--border)'}`,borderRadius:16,padding:'16px 8px',cursor:'pointer',fontFamily:'inherit',transition:'all .2s',display:'flex',flexDirection:'column',alignItems:'center',gap:6,boxShadow:sel?'var(--shadow-md)':'var(--shadow-sm)',color:sel?'var(--grad-t)':'var(--t)'}}>
                 <div style={{width:36,height:36,borderRadius:'50%',background:pal.gradient,boxShadow:sel?`0 0 0 3px var(--surface), 0 0 0 5px ${pal.primary}`:'0 4px 12px rgba(0,0,0,0.15)',transition:'all .2s'}}/>
-                <span style={{fontSize:12,fontWeight:700,color:sel?'white':'var(--t)'}}>{pal.emoji} {pal.name}</span>
+                <span style={{fontSize:12,fontWeight:700,color:sel?'var(--grad-t)':'var(--t)'}}>{pal.emoji} {pal.name}</span>
                 {sel && <span style={{fontSize:11,color:sel?'rgba(255,255,255,0.85)':'var(--t2)',letterSpacing:'.05em'}}>ACTIVO</span>}
               </button>
             )
@@ -4967,7 +5034,7 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
     <select className="inp" value={month} onChange={e=>setM(e.target.value)} style={{marginBottom:14}}>
       {months.map(m=><option key={m} value={m}>{new Date(m+'-01T12:00:00').toLocaleDateString('es-CO',{month:'long',year:'numeric'})}</option>)}
     </select>
-    <div style={{background:'linear-gradient(135deg,var(--primary),var(--primary-d))',borderRadius:14,padding:'16px 18px',marginBottom:14,color:'white',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+    <div style={{background:'linear-gradient(135deg,var(--primary),var(--primary-d))',borderRadius:14,padding:'16px 18px',marginBottom:14,color:'var(--grad-t)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
       <div><div style={{fontSize:11,opacity:.8,textTransform:'uppercase',letterSpacing:'.07em',fontWeight:600}}>Total del mes</div><div style={{fontFamily:'Georgia,serif',fontSize:26,fontWeight:700,marginTop:3}}>{fmtM(tot)}</div></div>
       <div style={{fontSize:32}}>📊</div>
     </div>
@@ -5447,7 +5514,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                     }}>
                     <div style={{
                       fontSize: 12, fontWeight: isToday || isSel ? 700 : 500,
-                      color: isSel ? 'white' : isToday ? 'var(--primary)' : 'var(--t)',
+                      color: isSel ? 'var(--grad-t)' : isToday ? 'var(--primary)' : 'var(--t)',
                       lineHeight: 1,
                     }}>
                       {parseInt(dateStr.slice(8), 10)}
@@ -5459,7 +5526,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                           : (
                             <div style={{
                               fontSize: 11, fontWeight: 700,
-                              color: isSel ? 'white' : 'var(--primary)',
+                              color: isSel ? 'var(--grad-t)' : 'var(--primary)',
                               background: isSel ? 'rgba(255,255,255,0.2)' : 'var(--primary-l)',
                               borderRadius: 8, padding: '1px 4px', display: 'inline-block', marginTop: 1,
                             }}>{count}</div>
@@ -5512,14 +5579,14 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                       border: isToday && !isSel ? '1.5px solid var(--primary)' : '1.5px solid transparent',
                       transition: 'background .12s',
                     }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: isSel ? 'rgba(255,255,255,0.8)' : 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: isSel ? 'var(--grad-t2)' : 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
                       {d.toLocaleDateString('es-CO', { weekday: 'short' }).replace('.', '')}
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: isSel ? 'white' : isToday ? 'var(--primary)' : 'var(--t)', marginTop: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: isSel ? 'var(--grad-t)' : isToday ? 'var(--primary)' : 'var(--t)', marginTop: 1 }}>
                       {d.getDate()}
                     </div>
                     {dayAppts.length > 0 && (
-                      <div style={{ fontSize: 11, color: isSel ? 'rgba(255,255,255,0.9)' : 'var(--primary)', fontWeight: 700, marginTop: 2 }}>
+                      <div style={{ fontSize: 11, color: isSel ? 'var(--grad-t)' : 'var(--primary)', fontWeight: 700, marginTop: 2 }}>
                         {dayAppts.length} cita{dayAppts.length !== 1 ? 's' : ''}
                       </div>
                     )}

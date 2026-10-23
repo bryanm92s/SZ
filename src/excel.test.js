@@ -72,14 +72,14 @@ describe('buildReportWorkbook — fuente única del Excel (reportes y respaldo)'
   })
 })
 
-describe('PALETTES — 10 paletas completas para el selector de Ajustes', () => {
+describe('PALETTES — 11 paletas completas para el selector de Ajustes', () => {
   const REQUIRED = ['id', 'name', 'emoji', 'primary', 'pd', 'pl', 'bg', 'border',
     't', 't2', 'gradient', 'gradientSoft', 'glass', 'glassStrong',
     'neoLight', 'neoDark', 'neoShadow', 'neoShadowDark']
 
-  it('las 10 existen, con id único y los 18 campos que applyTheme vuelca', () => {
-    expect(PALETTES).toHaveLength(10)
-    expect(new Set(PALETTES.map(p => p.id)).size).toBe(10)
+  it('las 11 existen, con id único y los 18 campos que applyTheme vuelca', () => {
+    expect(PALETTES).toHaveLength(11)
+    expect(new Set(PALETTES.map(p => p.id)).size).toBe(11)
     PALETTES.forEach(p => REQUIRED.forEach(k => expect(p[k], `${p.id}.${k}`).toBeTruthy()))
     expect(PALETTES.map(p => p.id)).toContain('rosa')
     expect(PALETTES.map(p => p.id)).toContain('salvia')
@@ -111,5 +111,23 @@ describe('PALETTES — 10 paletas completas para el selector de Ajustes', () => 
     expect(b.gradient).toContain('#10192B')      // gradiente negro→azul→rojo
     expect(b.gradient).toContain('#1D4FD7')
     expect(b.gradient).toContain('#C8102E')
+  })
+
+  it('gala (Noche de Gala): negro azabache + dorado con texto negro sobre el oro', () => {
+    const g = PALETTES.find(p => p.id === 'gala')
+    expect(g.name).toBe('Noche de Gala')
+    // Los tonos del usuario: negro, gris oscuro, oro, crema y plata
+    expect(g.primary).toBe('#D4AF37')            // oro
+    expect(g.bg).toBe('#0A0B0D')                // negro azabache
+    expect(g.pl).toBe('#2A2F38')                // gris pizarra oscuro
+    expect(g.t).toBe('#F5E6C8')                 // crema
+    expect(g.t2).toBe('#AEB6C2')                // plata
+    // Tema oscuro: redefine superficies y semánticos
+    expect(g.card).toBe('#121316')
+    expect(g.surface).toBe('#16181D')
+    expect(g.greenBg).toBe('#12291E')
+    // Texto NEGRO sobre los rellenos dorados (el blanco no pasa 4.5:1 sobre #D4AF37)
+    expect(g.gradT).toBe('#0B0B0C')
+    expect(g.gradT2).toBe('rgba(11, 11, 12, 0.72)')
   })
 })
