@@ -30,13 +30,13 @@ export const PALETTES = [
     emoji:'🌸', 
     primary:'#B5524A', 
     pd:'#8E3E38', 
-    pl:'#FAEAE8', 
+    pl:'#FDF4F2', 
     bg:'#F7F0EC', 
     border:'#E8D0CC', 
     t:'#1E0E0C', 
     t2:'#7A5E5A',
     gradient:'linear-gradient(135deg, #B5524A 0%, #D47A6A 50%, #E8A898 100%)',
-    gradientSoft:'linear-gradient(135deg, #FAEAE8 0%, #F7F0EC 50%, #E8D0CC 100%)',
+    gradientSoft:'linear-gradient(135deg, #FDF4F2 0%, #F7F0EC 50%, #E8D0CC 100%)',
     glass:'rgba(181, 82, 74, 0.12)',
     glassStrong:'rgba(181, 82, 74, 0.25)',
     neoLight:'#FFFFFF',
@@ -70,13 +70,13 @@ export const PALETTES = [
     emoji:'💙', 
     primary:'#3A6FBD', 
     pd:'#2A5290', 
-    pl:'#E6EEF8', 
+    pl:'#F1F6FD', 
     bg:'#F0F4FA', 
     border:'#C8D8EE', 
     t:'#0E1A2C', 
     t2:'#5A6A80',
     gradient:'linear-gradient(135deg, #3A6FBD 0%, #5A8FD8 50%, #8AAEF0 100%)',
-    gradientSoft:'linear-gradient(135deg, #E6EEF8 0%, #F0F4FA 50%, #C8D8EE 100%)',
+    gradientSoft:'linear-gradient(135deg, #F1F6FD 0%, #F0F4FA 50%, #C8D8EE 100%)',
     glass:'rgba(58, 111, 189, 0.12)',
     glassStrong:'rgba(58, 111, 189, 0.25)',
     neoLight:'#FFFFFF',
@@ -90,13 +90,13 @@ export const PALETTES = [
     emoji:'💚', 
     primary:'#2E7D52', 
     pd:'#1F5C3C', 
-    pl:'#E6F5EC', 
+    pl:'#F0FAF5', 
     bg:'#F0F8F4', 
     border:'#C0E0CC', 
     t:'#0A1E14', 
     t2:'#4A7060',
     gradient:'linear-gradient(135deg, #2E7D52 0%, #4A9D6E 50%, #7AC898 100%)',
-    gradientSoft:'linear-gradient(135deg, #E6F5EC 0%, #F0F8F4 50%, #C0E0CC 100%)',
+    gradientSoft:'linear-gradient(135deg, #F0FAF5 0%, #F0F8F4 50%, #C0E0CC 100%)',
     glass:'rgba(46, 125, 82, 0.12)',
     glassStrong:'rgba(46, 125, 82, 0.25)',
     neoLight:'#FFFFFF',
@@ -249,7 +249,7 @@ export const PALETTES = [
     neoDark:'#E7DECD',
     neoShadow:'rgba(107, 93, 73, 0.15)',
     neoShadowDark:'rgba(84, 74, 58, 0.2)',
-    gold:'#B08A2E',
+    gold:'#8A6700',
     goldBg:'#FAF4E3'
   },
   {
@@ -295,7 +295,7 @@ const applyTheme = (pid) => {
      los define y usa los valores fijos de siempre. ── */
   r.setProperty('--green',     p.green   ?? '#2E7D52')
   r.setProperty('--green-bg',  p.greenBg ?? '#EDF7F0')
-  r.setProperty('--gold',      p.gold    ?? '#C49A1A')
+  r.setProperty('--gold',      p.gold    ?? '#8A6700')
   r.setProperty('--gold-bg',   p.goldBg  ?? '#FFF8E6')
   r.setProperty('--red',       p.red     ?? '#B03030')
   r.setProperty('--red-bg',    p.redBg   ?? '#FFF0F0')
@@ -760,8 +760,8 @@ export default function App() {
             : <div style={{fontSize:28,filter:'drop-shadow(0 2px 4px rgba(0,0,0,0.15))'}}>{BIZ_EMOJI}</div>
           }
           <div>
-            <div style={{fontFamily:'Georgia,serif',fontSize:16,color:'white',fontWeight:700,textShadow:'0 1px 3px rgba(0,0,0,0.2)'}}>{BIZ_NAME}</div>
-            <div style={{fontSize:9,color:'rgba(255,255,255,0.85)',letterSpacing:'0.14em',textTransform:'uppercase',fontWeight:500}}>{BIZ_SUBTITLE||BIZ_NAME}</div>
+            <div style={{fontFamily:'Georgia,serif',fontSize:16,color:'white',fontWeight:700}}>{BIZ_NAME}</div>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.85)',letterSpacing:'0.14em',textTransform:'uppercase',fontWeight:500}}>{BIZ_SUBTITLE||BIZ_NAME}</div>
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -770,7 +770,7 @@ export default function App() {
         </div>
       </header>
 
-      <nav style={{background:'var(--chrome-bg)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)',borderBottom:'1px solid rgba(0,0,0,0.04)',display:'flex',overflowX:'auto',padding:'0 2px',scrollbarWidth:'none',boxShadow:'var(--shadow-sm)'}}>
+      <nav style={{background:'var(--chrome-bg)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)',borderBottom:'1px solid rgba(0,0,0,0.04)',display:'flex',overflowX:'auto',padding:'0 4px',scrollbarWidth:'none',boxShadow:'var(--shadow-sm)'}}>
         {[
           ['dashboard',  'grid',   'Panel'],
           ['appointments','cal',   'Citas'],
@@ -783,13 +783,13 @@ export default function App() {
           <button key={id} onClick={()=>setTab(id)} className={`nb${tab===id?' act':''}`}
             style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,paddingTop:9,paddingBottom:9,paddingLeft:12,paddingRight:12}}>
             <NavIcon type={ic} active={tab===id}/>
-            <span style={{fontSize:10,letterSpacing:'.02em'}}>{lb}</span>
+            <span style={{fontSize:11,letterSpacing:'.02em'}}>{lb}</span>
           </button>
         ))}
       </nav>
       </div>
 
-      <main style={{padding:'16px max(14px, env(safe-area-inset-right, 0px)) 16px max(14px, env(safe-area-inset-left, 0px))',maxWidth:680,margin:'0 auto'}}>
+      <main style={{padding:'16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px))',maxWidth:680,margin:'0 auto'}}>
         {saveFailed && (
           <div className="warn-box" style={{background:'var(--red-bg)',border:'1.5px solid var(--red)',color:'var(--red)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
             <span style={{flex:'1 1 auto',minWidth:0}}>
@@ -1089,7 +1089,7 @@ function GS() { return <style>{`
   :root{
     --primary:#B5524A;--primary-d:#8E3E38;--primary-l:#FAEAE8;
     --bg:#F7F0EC;--card:#FFFFFF;--surface:#FFFFFF;--border:#E8D0CC;
-    --t:#1E0E0C;--t2:#7A5E5A;--gold:#C49A1A;--gold-bg:#FFF8E6;
+    --t:#1E0E0C;--t2:#7A5E5A;--gold:#8A6700;--gold-bg:#FFF8E6;
     --green:#2E7D52;--green-bg:#EDF7F0;--red:#B03030;--red-bg:#FFF0F0;
     --warn-bg:#FFF4DC;--warn-t:#7A5000;--input-bg:#FFFFFF;
     /* Superficies translúcidas (chrome): nav/footer/tarjetas glass/modales.
@@ -1789,7 +1789,7 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
     })()}
 
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-      <div style={{fontFamily:'Georgia,serif',fontSize:21,fontWeight:600,color:'var(--t)'}}>Bienvenida {'\u2728'}</div>
+      <h1 style={{fontFamily:'Georgia,serif',fontSize:21,fontWeight:600,color:'var(--t)',margin:0}}>Bienvenida {'\u2728'}</h1>
       <div style={{fontSize:11,color:'var(--t2)'}}>{new Date().toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'})}</div>
     </div>
 
@@ -1825,28 +1825,28 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
         <NavIcon type="people" active={false}/>
         <div style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700,marginTop:6}}>{clients.length}</div>
         <div style={{fontSize:11,color:'var(--t2)',textTransform:'uppercase',letterSpacing:'.06em',fontWeight:600,marginTop:2}}>Clientes</div>
-        <div style={{fontSize:10,color:'var(--primary)',marginTop:3,fontWeight:600}}>Ver todas {'\u2192'}</div>
+        <div style={{fontSize:11,color:'var(--primary)',marginTop:3,fontWeight:600}}>Ver todas {'\u2192'}</div>
       </div>
       <div className="stat" onClick={()=>setTab('appointments')}>
         <NavIcon type="cal" active={false}/>
         <div style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700,marginTop:6}}>{ta.length}</div>
         <div style={{fontSize:11,color:'var(--t2)',textTransform:'uppercase',letterSpacing:'.06em',fontWeight:600,marginTop:2}}>Citas hoy</div>
-        <div style={{fontSize:10,color:'var(--primary)',marginTop:3,fontWeight:600}}>Ver citas {'\u2192'}</div>
+        <div style={{fontSize:11,color:'var(--primary)',marginTop:3,fontWeight:600}}>Ver citas {'\u2192'}</div>
       </div>
     </div>
 
     <div className="card" style={{marginBottom:14,padding:0,overflow:'hidden'}}>
       <div style={{background:netoPos?'linear-gradient(135deg,var(--primary),var(--primary-d))':'linear-gradient(135deg,#B04040,#843030)',padding:'16px 18px',cursor:'pointer'}} onClick={()=>setTab('finances')}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
-          <div style={{fontSize:10,color:'rgba(255,255,255,0.8)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.09em'}}>
+          <div style={{fontSize:11,color:'rgba(255,255,255,0.8)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.09em'}}>
             {isMonth?'Balance \u2014 '+new Date(selMonth+'-01T12:00:00').toLocaleDateString('es-CO',{month:'long',year:'numeric'}):'Balance Neto'}
           </div>
-          <span style={{fontSize:10,color:'rgba(255,255,255,0.6)'}}>Ver finanzas {'\u2192'}</span>
+          <span style={{fontSize:11,color:'rgba(255,255,255,0.6)'}}>Ver finanzas {'\u2192'}</span>
         </div>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:12}}>
           <div style={{fontFamily:'Georgia,serif',fontSize:30,fontWeight:700,color:'white'}}>{fmtM(aNeto)}</div>
           {conInit!==null&&(
-            <div style={{fontSize:10,color:'rgba(255,255,255,0.7)',textAlign:'right',lineHeight:1.5,whiteSpace:'nowrap'}}>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.7)',textAlign:'right',lineHeight:1.5,minWidth:0,flexShrink:1}}>
               + Saldo inicial {fmtM(openingBalance)}<br/>
               <b style={{fontSize:12,color:'rgba(255,255,255,0.92)'}}>Con saldo inicial {fmtM(conInit)}</b>
             </div>
@@ -1877,19 +1877,19 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:10,padding:'14px 16px'}}>
         <div style={{textAlign:'center',background:'var(--green-bg)',borderRadius:12,padding:'11px 6px',cursor:'pointer'}} onClick={()=>setTab('income-detail', isMonth?{month:selMonth,origin:'dashboard'}:{origin:'dashboard'})}>
-          <div style={{fontSize:10,color:'var(--green)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Recibido</div>
+          <div style={{fontSize:11,color:'var(--green)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Recibido</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--green)'}}>{fmtM(aRevDone)}</div>
-          <div style={{fontSize:10,color:'var(--green)',marginTop:2}}>{aDone.length} citas</div>
+          <div style={{fontSize:11,color:'var(--green)',marginTop:2}}>{aDone.length} citas</div>
         </div>
         <div style={{textAlign:'center',background:'var(--gold-bg)',borderRadius:12,padding:'11px 6px',cursor:'pointer'}} onClick={()=>setTab('income-detail', isMonth?{filter:'pending',month:selMonth,origin:'dashboard'}:{filter:'pending',origin:'dashboard'})}>
-          <div style={{fontSize:10,color:'var(--gold)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Pendiente</div>
+          <div style={{fontSize:11,color:'var(--gold)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Pendiente</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--gold)'}}>{fmtM(aRevPend)}</div>
-          <div style={{fontSize:10,color:'var(--gold)',marginTop:2}}>{aPend.length} {'\u2192'}</div>
+          <div style={{fontSize:11,color:'var(--gold)',marginTop:2}}>{aPend.length} {'\u2192'}</div>
         </div>
         <div style={{textAlign:'center',background:'var(--primary-l)',borderRadius:12,padding:'11px 6px'}}>
-          <div style={{fontSize:10,color:'var(--primary)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Proyectado</div>
+          <div style={{fontSize:11,color:'var(--primary)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Proyectado</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--primary)'}}>{fmtM(aRevAll)}</div>
-          <div style={{fontSize:10,color:'var(--primary)',marginTop:2}}>{aAll.length} citas</div>
+          <div style={{fontSize:11,color:'var(--primary)',marginTop:2}}>{aAll.length} citas</div>
         </div>
       </div>
 
@@ -1976,19 +1976,19 @@ function MonthlyIncomeState({appts,selMonth,setSelMonth,setTab}) {
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,marginBottom:10}}>
         <div style={{textAlign:'center',background:'var(--green-bg)',borderRadius:12,padding:'12px 8px',cursor:'pointer'}} onClick={()=>setTab('income-detail',{month:selMonth})}>
-          <div style={{fontSize:10,color:'var(--green)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Recibido</div>
+          <div style={{fontSize:11,color:'var(--green)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Recibido</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.8vw,15px)',fontWeight:700,color:'var(--green)'}}>{fmtM(revDone)}</div>
-          <div style={{fontSize:10,color:'var(--green)',marginTop:2}}>{done.length} citas {'\u2713'}</div>
+          <div style={{fontSize:11,color:'var(--green)',marginTop:2}}>{done.length} citas {'\u2713'}</div>
         </div>
         <div style={{textAlign:'center',background:'var(--gold-bg)',borderRadius:12,padding:'12px 8px',cursor:'pointer'}} onClick={()=>setTab('income-detail',{filter:'pending',month:selMonth})}>
-          <div style={{fontSize:10,color:'var(--gold)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Pendiente</div>
+          <div style={{fontSize:11,color:'var(--gold)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Pendiente</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.8vw,15px)',fontWeight:700,color:'var(--gold)'}}>{fmtM(revPend)}</div>
-          <div style={{fontSize:10,color:'var(--gold)',marginTop:2}}>{pend.length} citas {'\u2192'}</div>
+          <div style={{fontSize:11,color:'var(--gold)',marginTop:2}}>{pend.length} citas {'\u2192'}</div>
         </div>
         <div style={{textAlign:'center',background:'var(--primary-l)',borderRadius:12,padding:'12px 8px'}}>
-          <div style={{fontSize:10,color:'var(--primary)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Proyectado</div>
+          <div style={{fontSize:11,color:'var(--primary)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Proyectado</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.8vw,15px)',fontWeight:700,color:'var(--primary)'}}>{fmtM(revTotal)}</div>
-          <div style={{fontSize:10,color:'var(--primary)',marginTop:2}}>{ma.length} citas</div>
+          <div style={{fontSize:11,color:'var(--primary)',marginTop:2}}>{ma.length} citas</div>
         </div>
       </div>
       {revTotal>revDone && (
@@ -2041,7 +2041,7 @@ function MonthlyBalance({appts,expenses,selMonth,setSelMonth,setTab}) {
       {/* Net headline */}
       <div style={{background:netoPos?'linear-gradient(135deg,var(--green),#3d7a55)':'linear-gradient(135deg,var(--red),#a04040)',borderRadius:12,padding:'12px 16px',marginBottom:12,color:'white',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div>
-          <div style={{fontSize:10,opacity:.8,textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600}}>Neto {monthLabel}</div>
+          <div style={{fontSize:11,opacity:.8,textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600}}>Neto {monthLabel}</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700,marginTop:2}}>{fmtM(neto)}</div>
         </div>
         <div style={{fontSize:28,opacity:.85}}>{netoPos?'💚':'📉'}</div>
@@ -2050,19 +2050,19 @@ function MonthlyBalance({appts,expenses,selMonth,setSelMonth,setTab}) {
       {/* 3 pills */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8}}>
         <div style={{background:'var(--green-bg)',borderRadius:10,padding:'10px 8px',textAlign:'center',cursor:'pointer'}} onClick={()=>setTab('income-detail',{month:selMonth})}>
-          <div style={{fontSize:10,color:'var(--green)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Recibido</div>
+          <div style={{fontSize:11,color:'var(--green)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Recibido</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--green)'}}>{fmtM(revDone)}</div>
-          <div style={{fontSize:10,color:'var(--green)',marginTop:1}}>{ma.filter(a=>bool(a.completed)).length} citas</div>
+          <div style={{fontSize:11,color:'var(--green)',marginTop:1}}>{ma.filter(a=>bool(a.completed)).length} citas</div>
         </div>
         <div style={{background:'var(--gold-bg)',borderRadius:10,padding:'10px 8px',textAlign:'center',cursor:'pointer'}} onClick={()=>setTab('income-detail',{filter:'pending',month:selMonth})}>
-          <div style={{fontSize:10,color:'var(--gold)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Pendiente</div>
+          <div style={{fontSize:11,color:'var(--gold)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Pendiente</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--gold)'}}>{fmtM(revPend)}</div>
-          <div style={{fontSize:10,color:'var(--gold)',marginTop:1}}>{ma.filter(a=>!bool(a.completed)&&!isPastAppt(a)).length} citas</div>
+          <div style={{fontSize:11,color:'var(--gold)',marginTop:1}}>{ma.filter(a=>!bool(a.completed)&&!isPastAppt(a)).length} citas</div>
         </div>
         <div style={{background:'var(--primary-l)',borderRadius:10,padding:'10px 8px',textAlign:'center'}}>
-          <div style={{fontSize:10,color:'var(--primary)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Proyectado</div>
+          <div style={{fontSize:11,color:'var(--primary)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Proyectado</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--primary)'}}>{fmtM(revTotal)}</div>
-          <div style={{fontSize:10,color:'var(--primary)',marginTop:1}}>{ma.length} citas</div>
+          <div style={{fontSize:11,color:'var(--primary)',marginTop:1}}>{ma.length} citas</div>
         </div>
       </div>
 
@@ -2222,7 +2222,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
 
   return <>
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-      <span style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)'}}>Citas</span>
+      <h1 style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',margin:0}}>Citas</h1>
       <button className="btn" onClick={()=>setNew(true)}>+ Nueva cita</button>
     </div>
     {payFor && <PayModal appt={payFor.appt} onPick={pickPayment} onCancel={()=>setPayFor(null)}/>}
@@ -2415,7 +2415,7 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
             {status==='noshow' ? <span style={{textDecoration:'line-through',opacity:.6}}>{fmtM(appt.totalPrice||appt.servicePrice)}</span> : fmtM(appt.totalPrice||appt.servicePrice)}
           </div>
           {dom && <div style={{fontSize:11,color:'var(--gold)'}}>🛵 +{fmtM(appt.domicilioPrice)}</div>}
-          <div style={{fontSize:10,color:calOk?'var(--green)':'#ccc',marginTop:1}}>{calOk?'📅 Cal':'📅 —'}</div>
+          <div style={{fontSize:11,color:calOk?'var(--green)':'#ccc',marginTop:1}}>{calOk?'📅 Cal':'📅 —'}</div>
         </div>
       </div>
       <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:10}}>
@@ -2630,7 +2630,7 @@ function EditAppt({appt,services,appts,SA,priceHistory,onClose}) {
   return <div>
     <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
       <button className="btn-sm" onClick={onClose}>← Volver</button>
-      <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>Editar Cita</span>
+      <h1 style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600,margin:0}}>Editar Cita</h1>
     </div>
 
     {/* Client summary */}
@@ -2654,8 +2654,8 @@ function EditAppt({appt,services,appts,SA,priceHistory,onClose}) {
             <span style={{fontWeight:700,color:'var(--primary)',fontSize:14}}>{fmtM(getPriceFor(s.id))}</span>
             {originalIds.includes(s.id) && savedPrices[s.id] !== undefined && toN(savedPrices[s.id]) !== toN(s.price) &&
               <div style={{marginTop:2,textAlign:'right'}}>
-                <span style={{fontSize:10,color:'var(--t2)',textDecoration:'line-through'}}>{fmtM(toN(s.price))}</span>
-                <span style={{fontSize:10,color:'var(--t2)',marginLeft:3}}>nuevo</span>
+                <span style={{fontSize:11,color:'var(--t2)',textDecoration:'line-through'}}>{fmtM(toN(s.price))}</span>
+                <span style={{fontSize:11,color:'var(--t2)',marginLeft:3}}>nuevo</span>
               </div>}
           </div>
         </button>
@@ -2696,7 +2696,7 @@ function EditAppt({appt,services,appts,SA,priceHistory,onClose}) {
 
       {/* Total preview */}
       {svcIds.length>0 && <div style={{background:'var(--primary-l)',borderRadius:10,padding:10,fontSize:14,marginBottom:14}}>
-        {svcIds.map(id=>{ const s=safeSvcs.find(x=>x.id===id); if(!s)return null; const p=getPriceFor(id); const isOrig=originalIds.includes(id)&&savedPrices[id]!==undefined&&toN(savedPrices[id])!==toN(s.price); return <div key={id} style={{display:'flex',justifyContent:'space-between',marginBottom:2}}><span style={{color:'var(--t2)'}}>{s.name}{isOrig?<span style={{fontSize:10,color:'var(--t2)',marginLeft:4}}>(precio guardado)</span>:''}</span><span style={{fontWeight:600}}>{fmtM(p)}</span></div> })}
+        {svcIds.map(id=>{ const s=safeSvcs.find(x=>x.id===id); if(!s)return null; const p=getPriceFor(id); const isOrig=originalIds.includes(id)&&savedPrices[id]!==undefined&&toN(savedPrices[id])!==toN(s.price); return <div key={id} style={{display:'flex',justifyContent:'space-between',marginBottom:2}}><span style={{color:'var(--t2)'}}>{s.name}{isOrig?<span style={{fontSize:11,color:'var(--t2)',marginLeft:4}}>(precio guardado)</span>:''}</span><span style={{fontWeight:600}}>{fmtM(p)}</span></div> })}
         {dom&&<div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}><span style={{color:'var(--t2)'}}>Domicilio</span><span style={{fontWeight:600}}>{fmtM(domP)}</span></div>}
         <div style={{display:'flex',justifyContent:'space-between',borderTop:'1px solid var(--border)',paddingTop:5,marginTop:4}}><span style={{fontWeight:700}}>Total</span><span style={{fontWeight:700,color:'var(--primary)',fontSize:16}}>{fmtM(grand)}</span></div>
       </div>}
@@ -2896,7 +2896,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
   return <div>
     <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
       <button className="btn-sm" onClick={onClose}>← Volver</button>
-      <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>Nueva Cita</span>
+      <h1 style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600,margin:0}}>Nueva Cita</h1>
     </div>
     {!done&&!loading&&<Dots/>}
 
@@ -3129,7 +3129,7 @@ function ClientsTab({clients,appts,SC,confirm,infoModal,setTab}) {
   const filt = safe.filter(c=>String(c.name||'').toLowerCase().includes(srch.toLowerCase())||phoneMatch(c.phone, srch))
 
   return <>
-    <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',marginBottom:16}}>Clientes</div>
+    <h1 style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',margin:'0 0 16px'}}>Clientes</h1>
     <div className="card">
       <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>✨ Agregar cliente</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
@@ -3223,7 +3223,7 @@ function ServicesTab({services,appts,SS,confirm,infoModal}) {
     })
   }
   return <>
-    <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',marginBottom:16}}>Servicios</div>
+    <h1 style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',margin:'0 0 16px'}}>Servicios</h1>
     <div className="card">
       <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>✨ Agregar servicio</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
@@ -3262,7 +3262,7 @@ function ServicesTab({services,appts,SS,confirm,infoModal}) {
                 <button className="btn" style={{padding:'6px 12px',fontSize:13}} disabled={Number(eP)<0} onClick={()=>{SS(safe.map(x=>x.id===s.id?{...x,price:Math.max(0,Number(eP)||0),duration:eD}:x));setEI(null)}}>✓</button>
                 <button className="btn-del" onClick={()=>setEI(null)}>✕</button>
               </div>
-              {Number(eP)<0&&<div style={{color:'var(--red)',fontSize:10,whiteSpace:'nowrap'}}>El precio del servicio no puede ser negativo</div>}
+              {Number(eP)<0&&<div style={{color:'var(--red)',fontSize:11,whiteSpace:'nowrap'}}>El precio del servicio no puede ser negativo</div>}
             </div>
             :<div style={{display:'flex',alignItems:'center',gap:6}}>
               <span style={{fontWeight:700,color:'var(--primary)',fontSize:15}}>{fmtM(s.price)}</span>
@@ -3334,7 +3334,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
   const saveEdit=()=>{if(Number(editData.amount)<0)return;SE(safe.map(e=>e.id===editId?{...e,...editData,amount:Math.max(0,toN(editData.amount))}:e));setEI(null)}
 
   return <>
-    <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',marginBottom:16}}>Finanzas</div>
+    <h1 style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',margin:'0 0 16px'}}>Finanzas</h1>
     <div style={{marginBottom:14}}>
       <label className="lbl">Ver mes</label>
       <select className="inp" value={month} onChange={e=>setM(e.target.value)}>
@@ -3345,12 +3345,12 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
       <div style={{background:'var(--green-bg)',borderRadius:14,padding:'14px 10px',textAlign:'center',cursor:'pointer'}} onClick={()=>setTab('income-detail',{month})}>
         <div style={{fontSize:11,color:'var(--green)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Recibido</div>
         <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.8vw,15px)',fontWeight:700,color:'var(--green)'}}>{fmtM(revDone)}</div>
-        <div style={{fontSize:10,color:'var(--green)',marginTop:2}}>Ver →</div>
+        <div style={{fontSize:11,color:'var(--green)',marginTop:2}}>Ver →</div>
       </div>
       <div style={{background:'var(--red-bg)',borderRadius:14,padding:'14px 10px',textAlign:'center',cursor:'pointer'}} onClick={()=>setTab('expense-detail',{month})}>
         <div style={{fontSize:11,color:'var(--red)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Gastos</div>
         <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.8vw,15px)',fontWeight:700,color:'var(--red)'}}>{fmtM(tot)}</div>
-        <div style={{fontSize:10,color:'var(--red)',marginTop:2}}>Ver →</div>
+        <div style={{fontSize:11,color:'var(--red)',marginTop:2}}>Ver →</div>
       </div>
       <div style={{background:revDone-tot>=0?'var(--green-bg)':'var(--red-bg)',borderRadius:14,padding:'14px 10px',textAlign:'center',border:`1px solid ${revDone-tot>=0?'var(--green)':'var(--red)'}`}}>
         <div style={{fontSize:11,color:revDone-tot>=0?'var(--green)':'var(--red)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Neto</div>
@@ -3373,7 +3373,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
         <div style={{fontWeight:700,fontSize:13,color:'var(--t)'}}>Servicios rentables</div>
         <div style={{fontSize:11,color:'var(--t2)',marginTop:3}}>Ver ranking →</div>
       </div>
-      <div className="card" style={{marginBottom:0,cursor:'pointer',textAlign:'center',padding:'16px 12px'}} onClick={()=>setTab('report')}>
+      <div className="card" style={{marginBottom:0,cursor:'pointer',textAlign:'center',padding:'16px 12px',gridColumn:'span 2'}} onClick={()=>setTab('report')}>
         <div style={{fontSize:26,marginBottom:6}}><svg width="26" height="22" viewBox="0 0 26 22" fill="none"><rect x="2" y="2" width="22" height="18" rx="2" stroke="var(--primary)" strokeWidth="2" fill="none"/><path d="M6 8h14M6 12h14M6 16h8" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round"/></svg></div>
         <div style={{fontWeight:700,fontSize:13,color:'var(--t)'}}>Reporte y Excel</div>
         <div style={{fontSize:11,color:'var(--t2)',marginTop:3}}>Día, mes, rango o año · Excel →</div>
@@ -3419,7 +3419,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
               <div key={cat} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'7px 10px',borderRadius:8,background:'var(--bg2)',opacity:isHidden?0.5:1}}>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
                   <span style={{fontSize:13,fontWeight:600}}>{cat}</span>
-                  {inUse&&<span style={{fontSize:10,background:'var(--primary-l)',color:'var(--primary)',borderRadius:10,padding:'1px 7px',fontWeight:600}}>{safe.filter(e=>e.category===cat).length} gasto{safe.filter(e=>e.category===cat).length!==1?'s':''}</span>}
+                  {inUse&&<span style={{fontSize:11,background:'var(--primary-l)',color:'var(--primary)',borderRadius:10,padding:'1px 7px',fontWeight:600}}>{safe.filter(e=>e.category===cat).length} gasto{safe.filter(e=>e.category===cat).length!==1?'s':''}</span>}
                 </div>
                 {!inUse
                   ? isHidden
@@ -3517,7 +3517,7 @@ function ClientHistory({appts,services,setTab,tabExtra}) {
     <div>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
         <button className="btn-sm" onClick={()=>setTab('clients')}>{'←'} Volver</button>
-        <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>Historial de cliente</span>
+        <h1 style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600,margin:0}}>Historial de cliente</h1>
       </div>
 
       {/* Client card */}
@@ -3552,7 +3552,7 @@ function ClientHistory({appts,services,setTab,tabExtra}) {
         ].map(([v,l,col,bg])=>(
           <div key={l} style={{background:bg,borderRadius:12,padding:'10px 6px',textAlign:'center'}}>
             <div style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:700,color:col}}>{v}</div>
-            <div style={{fontSize:10,color:col,fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginTop:2}}>{l}</div>
+            <div style={{fontSize:11,color:col,fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginTop:2}}>{l}</div>
           </div>
         ))}
       </div>
@@ -3598,7 +3598,7 @@ function ClientHistory({appts,services,setTab,tabExtra}) {
               <div key={a.id} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 0',borderBottom:'1px solid var(--border)'}}>
                 <div style={{textAlign:'center',flexShrink:0}}>
                   <div style={{fontWeight:700,fontSize:12,color:'var(--primary)'}}>{fmtTime(a.time)}</div>
-                  <div style={{fontSize:10,color:'var(--t2)',marginTop:1}}>{fmtDate(a.date)}</div>
+                  <div style={{fontSize:11,color:'var(--t2)',marginTop:1}}>{fmtDate(a.date)}</div>
                 </div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.serviceNames}</div>
@@ -3606,7 +3606,7 @@ function ClientHistory({appts,services,setTab,tabExtra}) {
                 </div>
                 <div style={{textAlign:'right',flexShrink:0}}>
                   <div style={{fontSize:13,fontWeight:700,color:stCfg.col,textDecoration:st==='noshow'?'line-through':''}}>{fmtM(a.totalPrice||a.servicePrice)}</div>
-                  <div style={{background:stCfg.bg,color:stCfg.col,borderRadius:20,padding:'1px 8px',fontSize:10,fontWeight:700,marginTop:2,display:'flex',alignItems:'center'}}>{stCfg.lbl}{st==='done'&&payMethodOf(a)&&<> · <PayIcon m={payMethodOf(a)} h={12}/>{payMethodOf(a)}</>}</div>
+                  <div style={{background:stCfg.bg,color:stCfg.col,borderRadius:20,padding:'1px 8px',fontSize:11,fontWeight:700,marginTop:2,display:'flex',alignItems:'center'}}>{stCfg.lbl}{st==='done'&&payMethodOf(a)&&<> · <PayIcon m={payMethodOf(a)} h={12}/>{payMethodOf(a)}</>}</div>
                 </div>
               </div>
             )
@@ -3694,7 +3694,7 @@ function MonthComparison({appts,expenses,setTab}) {
     <div>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
         <button className="btn-sm" onClick={()=>setTab('finances')}>{'←'} Volver</button>
-        <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>Comparar meses</span>
+        <h1 style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600,margin:0}}>Comparar meses</h1>
       </div>
 
       {/* Month selectors */}
@@ -3721,10 +3721,10 @@ function MonthComparison({appts,expenses,setTab}) {
 
       <div className="card">
         <Bar label="Ingresos recibidos" valA={dA.recv}  valB={dB.recv}  colorA="var(--primary)" colorB="var(--gold)"/>
-        <Bar label="Gastos"             valA={dA.exp}   valB={dB.exp}   colorA="var(--red)"    colorB="#C49A1A"/>
+        <Bar label="Gastos"             valA={dA.exp}   valB={dB.exp}   colorA="var(--red)"    colorB="var(--gold)"/>
         <Bar label="Balance neto"       valA={Math.max(dA.neto,0)} valB={Math.max(dB.neto,0)} colorA="var(--green)" colorB="#3A8A50"/>
         <Bar label="Citas totales" valA={dA.citas} valB={dB.citas} colorA="var(--primary)" colorB="var(--gold)" fmt={pxFmt}/>
-        <Bar label="No asistió"    valA={dA.noShow} valB={dB.noShow} colorA="var(--red)" colorB="#C49A1A" fmt={pxFmt}/>
+        <Bar label="No asistió"    valA={dA.noShow} valB={dB.noShow} colorA="var(--red)" colorB="var(--gold)" fmt={pxFmt}/>
       </div>
 
       {/* Net summary cards — explicit, no .map() to avoid key collision */}
@@ -3734,7 +3734,7 @@ function MonthComparison({appts,expenses,setTab}) {
           {key:'cardB',m:mB,d:dB,col:'var(--gold)'},
         ].map(({key,m,d,col})=>(
           <div key={key} style={{background:'var(--surface)',borderRadius:14,border:`2px solid ${col}`,padding:'14px 12px'}}>
-            <div style={{fontSize:10,color:col,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>{monthLabel(m)}</div>
+            <div style={{fontSize:11,color:col,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>{monthLabel(m)}</div>
             <div style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'4px 0',borderBottom:'1px solid var(--border)'}}><span style={{color:'var(--t2)'}}>Recibido</span><span style={{fontWeight:700,color:'var(--green)'}}>{fmtM(d.recv)}</span></div>
             <div style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'4px 0',borderBottom:'1px solid var(--border)'}}><span style={{color:'var(--t2)'}}>Gastos</span><span style={{fontWeight:700,color:'var(--red)'}}>{fmtM(d.exp)}</span></div>
             <div style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'4px 0',borderBottom:'1px solid var(--border)'}}><span style={{color:'var(--t2)'}}>Citas</span><span style={{fontWeight:700,color:'var(--t)'}}>{d.citas}</span></div>
@@ -3866,7 +3866,7 @@ function TopServices({appts,services,priceHistory,setTab}) {
     <div>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
         <button className="btn-sm" onClick={()=>setTab('finances')}>{'←'} Volver</button>
-        <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>Servicios rentables</span>
+        <h1 style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600,margin:0}}>Servicios rentables</h1>
       </div>
 
       {/* Period filter */}
@@ -3882,7 +3882,7 @@ function TopServices({appts,services,priceHistory,setTab}) {
       {/* Total summary */}
       <div style={{background:'linear-gradient(135deg,var(--primary),var(--primary-d))',borderRadius:14,padding:'14px 18px',marginBottom:18,color:'white',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div>
-          <div style={{fontSize:10,opacity:.8,textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600,marginBottom:4}}>Total generado</div>
+          <div style={{fontSize:11,opacity:.8,textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600,marginBottom:4}}>Total generado</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700}}>{fmtM(totalRev)}</div>
           <div style={{fontSize:11,opacity:.7,marginTop:2}}>{completedAppts.length} citas completadas · {byRevenue.length} servicios</div>
         </div>
@@ -4242,7 +4242,7 @@ function ReportTab({appts,expenses,services,setTab}) {
               </div>
               <div style={{flexShrink:0,textAlign:'right'}}>
                 <div style={{fontWeight:700,color:r.kind==='in'?'var(--green)':'var(--red)'}}>{r.kind==='in'?'+':'−'}{fmtM(r.amount)}</div>
-                {r.kind==='in'&&r.payMethod&&<div style={{fontSize:10,color:'var(--t2)',marginTop:2,display:'flex',alignItems:'center',justifyContent:'flex-end'}}><PayIcon m={r.payMethod} h={11}/>{r.payMethod}</div>}
+                {r.kind==='in'&&r.payMethod&&<div style={{fontSize:11,color:'var(--t2)',marginTop:2,display:'flex',alignItems:'center',justifyContent:'flex-end'}}><PayIcon m={r.payMethod} h={11}/>{r.payMethod}</div>}
               </div>
             </div>
           ))}
@@ -4350,7 +4350,7 @@ function IncomeDetail({appts,setTab,tabExtra}) {
         <div key={v} onClick={()=>setF(v)} style={{background:filter===v?col:bg,borderRadius:12,padding:'12px 8px',textAlign:'center',cursor:'pointer',border:`2px solid ${filter===v?col:'transparent'}`,transition:'all .15s'}}>
           <div style={{fontSize:11,color:filter===v?'white':col,fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>{l}</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:filter===v?'white':col}}>{val}</div>
-          <div style={{fontSize:10,color:filter===v?'rgba(255,255,255,0.8)':col,marginTop:2}}>{cnt} citas</div>
+          <div style={{fontSize:11,color:filter===v?'rgba(255,255,255,0.8)':col,marginTop:2}}>{cnt} citas</div>
         </div>
       ))}
     </div>
@@ -4389,7 +4389,7 @@ function IncomeDetail({appts,setTab,tabExtra}) {
             </div>
             <div style={{flexShrink:0,textAlign:'right'}}>
               <div style={{fontWeight:700,color:bool(a.completed)?'var(--green)':'var(--gold)',fontSize:13}}>{fmtM(a.totalPrice||a.servicePrice)}</div>
-              <div style={{fontSize:10,color:bool(a.completed)?'var(--green)':'var(--gold)'}}>{bool(a.completed)?(<>✓ Recibido{payMethodOf(a)&&<> · <PayIcon m={payMethodOf(a)} h={12}/>{payMethodOf(a)}</>}</>):'Pendiente'}</div>
+              <div style={{fontSize:11,color:bool(a.completed)?'var(--green)':'var(--gold)'}}>{bool(a.completed)?(<>✓ Recibido{payMethodOf(a)&&<> · <PayIcon m={payMethodOf(a)} h={12}/>{payMethodOf(a)}</>}</>):'Pendiente'}</div>
             </div>
           </div>)}
           {/* Números en círculo: solo si el día tiene más de 5 citas. */}
@@ -4814,7 +4814,7 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
           </span>
         </div>
       )}
-      <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',marginBottom:20}}>⚙️ Ajustes</div>
+      <h1 style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',margin:'0 0 20px'}}>⚙️ Ajustes</h1>
 
       {/* ── Paleta ── */}
       <div className="card-glass" style={{marginBottom:14}}>
@@ -4827,7 +4827,7 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
                 style={{background:sel?pal.gradient:'var(--neo-light)',border:`2px solid ${sel?pal.primary:'var(--border)'}`,borderRadius:16,padding:'16px 8px',cursor:'pointer',fontFamily:'inherit',transition:'all .2s',display:'flex',flexDirection:'column',alignItems:'center',gap:6,boxShadow:sel?'var(--shadow-md)':'var(--shadow-sm)',color:sel?'white':'var(--t)'}}>
                 <div style={{width:36,height:36,borderRadius:'50%',background:pal.gradient,boxShadow:sel?`0 0 0 3px var(--surface), 0 0 0 5px ${pal.primary}`:'0 4px 12px rgba(0,0,0,0.15)',transition:'all .2s'}}/>
                 <span style={{fontSize:12,fontWeight:700,color:sel?'white':'var(--t)'}}>{pal.emoji} {pal.name}</span>
-                {sel && <span style={{fontSize:9,color:sel?'rgba(255,255,255,0.85)':'var(--t2)',letterSpacing:'.05em'}}>ACTIVO</span>}
+                {sel && <span style={{fontSize:11,color:sel?'rgba(255,255,255,0.85)':'var(--t2)',letterSpacing:'.05em'}}>ACTIVO</span>}
               </button>
             )
           })}
@@ -5259,11 +5259,11 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
           <span style={{ fontWeight: 700, fontSize: 11, color: col }}>{fmtTime(a.time)}</span>
-          {done && <span style={{ fontSize: 9, fontWeight: 700, color: col }}>✓</span>}
-          {noshow && <span style={{ fontSize: 9, fontWeight: 700, color: col }}>✗</span>}
+          {done && <span style={{ fontSize: 11, fontWeight: 700, color: col }}>✓</span>}
+          {noshow && <span style={{ fontSize: 11, fontWeight: 700, color: col }}>✗</span>}
         </div>
         <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--t)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.clientName}</div>
-        <div style={{ fontSize: 10, color: 'var(--t2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.serviceNames}</div>
+        <div style={{ fontSize: 11, color: 'var(--t2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.serviceNames}</div>
       </div>
     )
   }
@@ -5289,14 +5289,14 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
             textAlign: 'center', minWidth: 58, flexShrink: 0,
           }}>
             <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 13 }}>{fmtTime(a.time)}</div>
-            {bool(a.domicilio) && <div style={{ fontSize: 9, color: 'var(--primary)', marginTop: 2, fontWeight: 600 }}>🛵 Dom</div>}
+            {bool(a.domicilio) && <div style={{ fontSize: 11, color: 'var(--primary)', marginTop: 2, fontWeight: 600 }}>🛵 Dom</div>}
           </div>
 
           {/* Info */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--t)' }}>{a.clientName}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: status.color, background: status.bg, borderRadius: 6, padding: '2px 7px', display: 'inline-flex', alignItems: 'center' }}>{status.label}{done && payMethodOf(a) && <> · <PayIcon m={payMethodOf(a)} h={12}/>{payMethodOf(a)}</>}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: status.color, background: status.bg, borderRadius: 6, padding: '2px 7px', display: 'inline-flex', alignItems: 'center' }}>{status.label}{done && payMethodOf(a) && <> · <PayIcon m={payMethodOf(a)} h={12}/>{payMethodOf(a)}</>}</span>
             </div>
             <div style={{ fontSize: 12, color: 'var(--t2)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.serviceNames}</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)', marginTop: 5 }}>{fmtM(a.totalPrice || a.servicePrice)}</div>
@@ -5418,17 +5418,17 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
           <button onClick={goBack} style={{ background: 'var(--primary-l)', border: 'none', borderRadius: 10, width: 36, height: 36, fontSize: 18, cursor: 'pointer', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
 
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: 'Georgia,serif', fontSize: 17, fontWeight: 700, color: 'var(--t)', textTransform: 'capitalize' }}>
+            <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 17, fontWeight: 700, color: 'var(--t)', margin: 0 }}>
               {view === 'week'
                 ? (() => {
                     const ws = new Date(weekDays[0] + 'T12:00:00')
                     const we = new Date(weekDays[6] + 'T12:00:00')
                     return `${ws.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })} – ${we.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}`
                   })()
-                : monthLabel
+                : capFirst(monthLabel)
               }
-            </div>
-            <button onClick={goToday} style={{ background: 'none', border: 'none', fontSize: 10, color: 'var(--primary)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, marginTop: 1, padding: '2px 6px', borderRadius: 6 }}>
+            </h1>
+            <button onClick={goToday} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--primary)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, marginTop: 1, padding: '2px 6px', borderRadius: 6 }}>
               Hoy
             </button>
           </div>
@@ -5448,7 +5448,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
           ].map(s => (
             <div key={s.label} style={{ background: s.bg, borderRadius: 12, padding: '10px 6px', textAlign: 'center' }}>
               <div style={{ fontFamily: 'Georgia,serif', fontSize: 20, fontWeight: 700, color: s.color }}>{s.val}</div>
-              <div style={{ fontSize: 9, color: s.color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', marginTop: 2, lineHeight: 1.3 }}>{s.label}</div>
+              <div style={{ fontSize: 11, color: s.color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', marginTop: 2, lineHeight: 1.3 }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -5462,7 +5462,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
           {/* Day-of-week headers */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', marginBottom: 4 }}>
             {['D', 'L', 'M', 'X', 'J', 'V', 'S'].map(d => (
-              <div key={d} style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.06em', paddingBottom: 4 }}>{d}</div>
+              <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.06em', paddingBottom: 4 }}>{d}</div>
             ))}
           </div>
 
@@ -5500,7 +5500,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                           ? <DayDots dateStr={dateStr} />
                           : (
                             <div style={{
-                              fontSize: 9, fontWeight: 700,
+                              fontSize: 11, fontWeight: 700,
                               color: isSel ? 'white' : 'var(--primary)',
                               background: isSel ? 'rgba(255,255,255,0.2)' : 'var(--primary-l)',
                               borderRadius: 8, padding: '1px 4px', display: 'inline-block', marginTop: 1,
@@ -5523,7 +5523,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
               ['var(--t2)', 'Pasada'],
               ['var(--red)', 'No asistió'],
             ].map(([color, label]) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--t2)' }}>
+              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--t2)' }}>
                 <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
                 {label}
               </div>
@@ -5554,14 +5554,14 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                       border: isToday && !isSel ? '1.5px solid var(--primary)' : '1.5px solid transparent',
                       transition: 'background .12s',
                     }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: isSel ? 'rgba(255,255,255,0.8)' : 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: isSel ? 'rgba(255,255,255,0.8)' : 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
                       {d.toLocaleDateString('es-CO', { weekday: 'short' }).replace('.', '')}
                     </div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: isSel ? 'white' : isToday ? 'var(--primary)' : 'var(--t)', marginTop: 1 }}>
                       {d.getDate()}
                     </div>
                     {dayAppts.length > 0 && (
-                      <div style={{ fontSize: 9, color: isSel ? 'rgba(255,255,255,0.9)' : 'var(--primary)', fontWeight: 700, marginTop: 2 }}>
+                      <div style={{ fontSize: 11, color: isSel ? 'rgba(255,255,255,0.9)' : 'var(--primary)', fontWeight: 700, marginTop: 2 }}>
                         {dayAppts.length} cita{dayAppts.length !== 1 ? 's' : ''}
                       </div>
                     )}
@@ -5572,7 +5572,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
 
                   {/* Empty day hint */}
                   {dayAppts.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '6px 2px', fontSize: 10, color: 'var(--border)' }}>—</div>
+                    <div style={{ textAlign: 'center', padding: '6px 2px', fontSize: 11, color: 'var(--border)' }}>—</div>
                   )}
                 </div>
               )
@@ -5588,9 +5588,9 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
         <div style={{ animation: 'slideDown .18s ease forwards' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <div>
-              <div style={{ fontFamily: 'Georgia,serif', fontSize: 16, fontWeight: 700, color: 'var(--t)', textTransform: 'capitalize' }}>
-                {new Date(selDay + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
-              </div>
+              <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 16, fontWeight: 700, color: 'var(--t)', margin: 0 }}>
+                {capFirst(new Date(selDay + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' }))}
+              </h1>
               <div style={{ fontSize: 11, color: 'var(--t2)', marginTop: 2 }}>
                 {selAppts.length === 0 ? 'Sin citas' : `${selAppts.length} cita${selAppts.length !== 1 ? 's' : ''}`}
                 {selAppts.length > 0 && ` · ${fmtM(selAppts.reduce((s, a) => s + toN(a.totalPrice || a.servicePrice || 0), 0))} total`}

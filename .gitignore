@@ -11,3 +11,4 @@ SZ-ROLES
 # · Los tests (src/backend.test.js) lo leen del disco: en un clone nuevo
 #   hay que copiar esta carpeta desde la plantilla antes de correr npm test.
 apps-script/
+.taste-skill/
