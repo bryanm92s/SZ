@@ -204,6 +204,87 @@ export const PALETTES = [
     neoShadow:'rgba(74, 85, 96, 0.15)',
     neoShadowDark:'rgba(51, 60, 70, 0.2)'
   },
+  {
+    /* Tema OSCURO: fondo negro, texto blanco nítido, bloques gris mate,
+       botones azul brillante y acento rojo barbería en --red/--red-bg.
+       Es el único que redefine card/surface/inputBg/chrome porque la
+       arquitectura era solo-clara; las demás paletas reutilizan los
+       defaults (#FFFFFF / rgba blancos) via `??` en applyTheme. */
+    id:'barberia',
+    name:'Barbería',
+    emoji:'🪒',
+    primary:'#3B72EC',
+    pd:'#1E4FBF',
+    pl:'#1C2740',
+    bg:'#0B0E13',
+    border:'#232A34',
+    t:'#F5F7FA',
+    t2:'#9AA4B2',
+    gradient:'linear-gradient(135deg, #1E4FBF 0%, #3B72EC 50%, #6E9BF6 100%)',
+    gradientSoft:'linear-gradient(135deg, #161F31 0%, #121621 50%, #232B3C 100%)',
+    glass:'rgba(59, 114, 236, 0.16)',
+    glassStrong:'rgba(59, 114, 236, 0.3)',
+    neoLight:'#151B23',
+    neoDark:'#07090C',
+    neoShadow:'rgba(0, 0, 0, 0.5)',
+    neoShadowDark:'rgba(0, 0, 0, 0.65)',
+    card:'#12161D',
+    surface:'#171C24',
+    inputBg:'#10151C',
+    green:'#3FC48C',
+    greenBg:'#12291E',
+    red:'#E23B48',
+    redBg:'#2B1114',
+    gold:'#E3B341',
+    goldBg:'#28210F',
+    warnBg:'#2E2310',
+    warnT:'#EFC568',
+    chromeBg:'rgba(255, 255, 255, 0.055)',
+    chromeBgr:'#171D25',
+    chromeBrd:'rgba(255, 255, 255, 0.08)'
+  },
+  {
+    id:'crema',
+    name:'Crema',
+    emoji:'🤍',
+    primary:'#6B5D49',
+    pd:'#544A3A',
+    pl:'#F1E9D6',
+    bg:'#FAF6EC',
+    border:'#E7DECD',
+    t:'#26211A',
+    t2:'#8A8172',
+    gradient:'linear-gradient(135deg, #6B5D49 0%, #8A7A61 50%, #BBA98A 100%)',
+    gradientSoft:'linear-gradient(135deg, #F1E9D6 0%, #FAF6EC 50%, #E7DECD 100%)',
+    glass:'rgba(107, 93, 73, 0.12)',
+    glassStrong:'rgba(107, 93, 73, 0.25)',
+    neoLight:'#FFFFFF',
+    neoDark:'#E7DECD',
+    neoShadow:'rgba(107, 93, 73, 0.15)',
+    neoShadowDark:'rgba(84, 74, 58, 0.2)',
+    gold:'#B08A2E',
+    goldBg:'#FAF4E3'
+  },
+  {
+    id:'marino',
+    name:'Marino',
+    emoji:'⚓',
+    primary:'#1F3F7A',
+    pd:'#152C55',
+    pl:'#E6EBF3',
+    bg:'#F6F8FB',
+    border:'#D3DCE8',
+    t:'#0C1626',
+    t2:'#5F6E83',
+    gradient:'linear-gradient(135deg, #1F3F7A 0%, #3A5FA0 50%, #7C99C8 100%)',
+    gradientSoft:'linear-gradient(135deg, #E6EBF3 0%, #F6F8FB 50%, #D3DCE8 100%)',
+    glass:'rgba(31, 63, 122, 0.12)',
+    glassStrong:'rgba(31, 63, 122, 0.25)',
+    neoLight:'#FFFFFF',
+    neoDark:'#D3DCE8',
+    neoShadow:'rgba(31, 63, 122, 0.15)',
+    neoShadowDark:'rgba(21, 44, 85, 0.2)'
+  },
 ]
 
 const applyTheme = (pid) => {
@@ -214,20 +295,33 @@ const applyTheme = (pid) => {
   r.setProperty('--primary-d', p.pd)
   r.setProperty('--primary-l', p.pl)
   r.setProperty('--bg',        p.bg)
-  r.setProperty('--card',      '#FFFFFF')
-  r.setProperty('--surface',   '#FFFFFF')
+  /* Superficies por paleta — solo el tema oscuro las redefine; para las
+     claras el `??` mantiene el blanco de siempre. */
+  r.setProperty('--card',      p.card    ?? '#FFFFFF')
+  r.setProperty('--surface',   p.surface ?? '#FFFFFF')
   r.setProperty('--border',    p.border)
   r.setProperty('--t',         p.t)
   r.setProperty('--t2',        p.t2)
-  r.setProperty('--green',     '#2E7D52')
-  r.setProperty('--green-bg',  '#EDF7F0')
-  r.setProperty('--gold',      '#C49A1A')
-  r.setProperty('--gold-bg',   '#FFF8E6')
-  r.setProperty('--red',       '#B03030')
-  r.setProperty('--red-bg',    '#FFF0F0')
-  r.setProperty('--warn-bg',   '#FFF4DC')
-  r.setProperty('--warn-t',    '#7A5000')
-  r.setProperty('--input-bg',  '#FFFFFF')
+
+  /* ── Colores semánticos (verde/gold/rojo/warn) por paleta:
+     el tema oscuro los aclara/oscurece para legibilidad; el resto no
+     los define y usa los valores fijos de siempre. ── */
+  r.setProperty('--green',     p.green   ?? '#2E7D52')
+  r.setProperty('--green-bg',  p.greenBg ?? '#EDF7F0')
+  r.setProperty('--gold',      p.gold    ?? '#C49A1A')
+  r.setProperty('--gold-bg',   p.goldBg  ?? '#FFF8E6')
+  r.setProperty('--red',       p.red     ?? '#B03030')
+  r.setProperty('--red-bg',    p.redBg   ?? '#FFF0F0')
+  r.setProperty('--warn-bg',   p.warnBg  ?? '#FFF4DC')
+  r.setProperty('--warn-t',    p.warnT   ?? '#7A5000')
+  r.setProperty('--input-bg',  p.inputBg ?? '#FFFFFF')
+
+  /* ── Superficies translúcidas (chrome): nav, footer, card-glass y
+     modales consumen estas vars; Clara = rgba blancos, Oscura = vidrio
+     leve sobre el negro. ── */
+  r.setProperty('--chrome-bg',  p.chromeBg  ?? 'rgba(255,255,255,0.75)')
+  r.setProperty('--chrome-bgr', p.chromeBgr ?? 'rgba(255,255,255,0.96)')
+  r.setProperty('--chrome-brd', p.chromeBrd ?? 'rgba(255,255,255,0.5)')
   
   /* ── Gradient & Glassmorphism ── */
   r.setProperty('--gradient',       p.gradient)
@@ -689,7 +783,7 @@ export default function App() {
         </div>
       </header>
 
-      <nav style={{background:'rgba(255,255,255,0.8)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)',borderBottom:'1px solid rgba(0,0,0,0.04)',display:'flex',overflowX:'auto',padding:'0 2px',scrollbarWidth:'none',boxShadow:'var(--shadow-sm)'}}>
+      <nav style={{background:'var(--chrome-bg)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)',borderBottom:'1px solid rgba(0,0,0,0.04)',display:'flex',overflowX:'auto',padding:'0 2px',scrollbarWidth:'none',boxShadow:'var(--shadow-sm)'}}>
         {[
           ['dashboard',  'grid',   'Panel'],
           ['appointments','cal',   'Citas'],
@@ -734,7 +828,7 @@ export default function App() {
         {tab==='report'          && <ReportTab       {...p}/>}
       </main>
 
-      <footer style={{textAlign:'center',padding:'20px 14px calc(28px + env(safe-area-inset-bottom, 0px))',borderTop:'1px solid var(--border)',marginTop:8,background:'rgba(255,255,255,0.7)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)'}}>
+      <footer style={{textAlign:'center',padding:'20px 14px calc(28px + env(safe-area-inset-bottom, 0px))',borderTop:'1px solid var(--border)',marginTop:8,background:'var(--chrome-bg)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)'}}>
         <span style={{fontSize:11,color:'var(--t2)',letterSpacing:'.03em',display:'inline-flex',alignItems:'center',gap:6,flexWrap:'wrap',justifyContent:'center'}}>
           <span>{BIZ_EMOJI} {BIZ_NAME}</span>
           <span style={{color:'var(--border)'}}>|</span>
@@ -754,7 +848,7 @@ export default function App() {
 function Modal({msg, onOk, onCancel, okLabel='Eliminar', cancelLabel='Cancelar'}) {
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20,backdropFilter:'var(--glass-blur-sm)',WebkitBackdropFilter:'var(--glass-blur-sm)'}}>
-      <div style={{background:'rgba(255,255,255,0.95)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)',borderRadius:24,padding:32,maxWidth:360,width:'100%',maxHeight:'calc(100dvh - 40px)',overflowY:'auto',textAlign:'center',boxShadow:'var(--shadow-xl)',border:'1px solid rgba(255,255,255,0.5)'}}>
+      <div style={{background:'var(--chrome-bgr)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)',borderRadius:24,padding:32,maxWidth:360,width:'100%',maxHeight:'calc(100dvh - 40px)',overflowY:'auto',textAlign:'center',boxShadow:'var(--shadow-xl)',border:'1px solid var(--chrome-brd)'}}>
         <div style={{fontSize:40,marginBottom:16}}>⚠️</div>
         <div style={{fontSize:15,fontWeight:600,color:'var(--t)',marginBottom:22,lineHeight:1.5}}>{msg}</div>
         <div style={{display:'flex',gap:10,justifyContent:'center'}}>
@@ -785,7 +879,7 @@ function PayIcon({m, h=18}) {
 function PayModal({appt, onPick, onCancel}) {
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}} onClick={onCancel}>
-      <div style={{background:'rgba(255,255,255,0.97)',borderRadius:24,padding:28,maxWidth:360,width:'100%',maxHeight:'calc(100dvh - 40px)',overflowY:'auto',textAlign:'center',boxShadow:'0 10px 40px rgba(0,0,0,.2)'}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:'var(--chrome-bgr)',borderRadius:24,padding:28,maxWidth:360,width:'100%',maxHeight:'calc(100dvh - 40px)',overflowY:'auto',textAlign:'center',boxShadow:'0 10px 40px rgba(0,0,0,.2)'}} onClick={e=>e.stopPropagation()}>
         <div style={{fontSize:36,marginBottom:10}}>💳</div>
         <div style={{fontSize:16,fontWeight:700,color:'var(--t)',marginBottom:4}}>¿Cómo se pagó el servicio?</div>
         <div style={{fontSize:12,color:'var(--t2)',marginBottom:18}}>{appt.clientName} · {fmtM(appt.totalPrice||appt.servicePrice)}</div>
@@ -1011,6 +1105,11 @@ function GS() { return <style>{`
     --t:#1E0E0C;--t2:#7A5E5A;--gold:#C49A1A;--gold-bg:#FFF8E6;
     --green:#2E7D52;--green-bg:#EDF7F0;--red:#B03030;--red-bg:#FFF0F0;
     --warn-bg:#FFF4DC;--warn-t:#7A5000;--input-bg:#FFFFFF;
+    /* Superficies translúcidas (chrome): nav/footer/tarjetas glass/modales.
+       applyTheme las actualiza por paleta; el oscuro las redefine. */
+    --chrome-bg:rgba(255,255,255,0.75);
+    --chrome-bgr:rgba(255,255,255,0.96);
+    --chrome-brd:rgba(255,255,255,0.5);
     /* Gradient & Glassmorphism (updated by applyTheme) */
     --gradient:linear-gradient(135deg, #B5524A 0%, #D47A6A 50%, #E8A898 100%);
     --gradient-soft:linear-gradient(135deg, #FAEAE8 0%, #F7F0EC 50%, #E8D0CC 100%);
@@ -1066,10 +1165,10 @@ function GS() { return <style>{`
     border-radius:16px;
   }
   .glass-card{
-    background:rgba(255,255,255,0.7);
+    background:var(--chrome-bg);
     backdrop-filter:var(--glass-blur);
     -webkit-backdrop-filter:var(--glass-blur);
-    border:1px solid rgba(255,255,255,0.5);
+    border:1px solid var(--chrome-brd);
     border-radius:20px;
     box-shadow:var(--shadow-md);
   }
@@ -1117,10 +1216,10 @@ function GS() { return <style>{`
     margin-bottom:14px;
   }
   .card-glass{
-    background:rgba(255,255,255,0.75);
+    background:var(--chrome-bg);
     backdrop-filter:var(--glass-blur);
     -webkit-backdrop-filter:var(--glass-blur);
-    border:1px solid rgba(255,255,255,0.5);
+    border:1px solid var(--chrome-brd);
     border-radius:20px;
     box-shadow:var(--shadow-md);
     padding:20px;
@@ -1588,7 +1687,7 @@ function GS() { return <style>{`
   
   @keyframes spin{to{transform:rotate(360deg)}}
   @keyframes pulse{0%,100%{opacity:.7}50%{opacity:1}}
-  @keyframes remindPing{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(181,82,74,.4)}50%{transform:scale(1.03);box-shadow:0 0 0 8px rgba(181,82,74,0)}}
+  @keyframes remindPing{0%,100%{transform:scale(1);box-shadow:0 0 0 0 transparent}50%{transform:scale(1.03);box-shadow:0 0 0 8px var(--glass)}}
   @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
   .slide-in{animation:slideDown .18s ease forwards}
   @keyframes toastUp{from{opacity:0;transform:translate(-50%,18px)}to{opacity:1;transform:translate(-50%,0)}}
@@ -1603,7 +1702,7 @@ function GS() { return <style>{`
   
   /* ── Glass header ── */
   .glass-header{
-    background:rgba(255,255,255,0.85);
+    background:var(--chrome-bgr);
     backdrop-filter:var(--glass-blur);
     -webkit-backdrop-filter:var(--glass-blur);
     border-bottom:1px solid rgba(0,0,0,0.04);
@@ -1834,7 +1933,7 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
                 <div style={{fontSize:12,color:'var(--t2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.serviceNames}</div>
               </div>
               {bool(a.completed)&&<span className="tag-g" style={{flexShrink:0,fontSize:11}}>{'\u2713'}</span>}
-              {apptStatus(a)==='noshow'&&<span style={{flexShrink:0,fontSize:11,display:'inline-block',background:'#FFF0EC',color:'var(--red)',borderRadius:'999px',padding:'4px 10px',fontWeight:600}}>✗ No asistió</span>}
+              {apptStatus(a)==='noshow'&&<span style={{flexShrink:0,fontSize:11,display:'inline-block',background:'var(--red-bg)',color:'var(--red)',borderRadius:'999px',padding:'4px 10px',fontWeight:600}}>✗ No asistió</span>}
               <div style={{fontWeight:700,color:'var(--primary)',fontSize:14,flexShrink:0}}>{fmtM(a.totalPrice||a.servicePrice)}</div>
             </div>
             {/* Acciones explícitas e independientes entre sí. */}
@@ -1943,7 +2042,7 @@ function MonthlyBalance({appts,expenses,selMonth,setSelMonth,setTab}) {
     : selMonth
 
   return (
-    <div className="card" style={{marginBottom:14,background:'linear-gradient(160deg,#FBF0EE,#FAF5F0)',border:'1.5px solid var(--border)'}}>
+    <div className="card" style={{marginBottom:14,background:'var(--card)',border:'1.5px solid var(--border)'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
         <span style={{fontWeight:700,fontSize:14,color:'var(--t)'}}>📅 Balance por mes</span>
         <select value={selMonth} onChange={e=>setSelMonth(e.target.value)}
@@ -2341,7 +2440,7 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
         {status==='done'   && (payMethodOf(appt)
           ? <span className="tag-g" style={{fontSize:11,cursor:onChangePay?'pointer':'default'}} title="Cambiar método de pago" onClick={onChangePay}><PayIcon m={payMethodOf(appt)} h={14}/>{payMethodOf(appt)}</span>
           : <span className="tag-gold" style={{fontSize:11,cursor:onChangePay?'pointer':'default'}} title="Registrar método de pago" onClick={onChangePay}>💳 Sin método de pago · registrar</span>)}
-        {status==='noshow' && <span style={{display:'inline-block',background:'#FFF0EC',color:'var(--red)',borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>✗ No asistió</span>}
+        {status==='noshow' && <span style={{display:'inline-block',background:'var(--red-bg)',color:'var(--red)',borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>✗ No asistió</span>}
         {status==='pending'&& past && <span className="tag-past" style={{fontSize:11}}>● Pasada</span>}
       </div>
       <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
@@ -2586,7 +2685,7 @@ function EditAppt({appt,services,appts,SA,priceHistory,onClose}) {
           .map(r => String(r.name||'').trim())
           .filter(Boolean)
         return deletedNames.length>0 ? (
-          <div style={{background:'#FBF0F3',borderRadius:10,padding:'10px 14px',marginBottom:8,fontSize:13,color:'var(--t2)'}}>
+          <div style={{background:'var(--primary-l)',borderRadius:10,padding:'10px 14px',marginBottom:8,fontSize:13,color:'var(--t2)'}}>
             <span style={{fontWeight:600}}>Servicios eliminados del catálogo:</span> {deletedNames.join(', ')} — solo aparecen en el historial, no se pueden re-seleccionar.
           </div>
         ) : null
@@ -3337,7 +3436,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
                 </div>
                 {!inUse
                   ? isHidden
-                    ? <button onClick={()=>showCategory(cat)} style={{border:'1px solid var(--border)',background:'white',borderRadius:6,padding:'3px 10px',fontSize:11,cursor:'pointer',color:'var(--t2)',fontFamily:'inherit'}}>Restaurar</button>
+                    ? <button onClick={()=>showCategory(cat)} style={{border:'1px solid var(--border)',background:'var(--surface)',borderRadius:6,padding:'3px 10px',fontSize:11,cursor:'pointer',color:'var(--t2)',fontFamily:'inherit'}}>Restaurar</button>
                     : <button onClick={()=>hideCategory(cat)} style={{border:'1px solid var(--red)',background:'var(--red-bg)',borderRadius:6,padding:'3px 10px',fontSize:11,cursor:'pointer',color:'var(--red)',fontFamily:'inherit'}}>Eliminar</button>
                   : <span style={{fontSize:11,color:'var(--t2)'}}>En uso</span>
                 }

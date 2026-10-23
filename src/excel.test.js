@@ -72,17 +72,33 @@ describe('buildReportWorkbook — fuente única del Excel (reportes y respaldo)'
   })
 })
 
-describe('PALETTES — 9 paletas completas para el selector de Ajustes', () => {
+describe('PALETTES — 12 paletas completas para el selector de Ajustes', () => {
   const REQUIRED = ['id', 'name', 'emoji', 'primary', 'pd', 'pl', 'bg', 'border',
     't', 't2', 'gradient', 'gradientSoft', 'glass', 'glassStrong',
     'neoLight', 'neoDark', 'neoShadow', 'neoShadowDark']
 
-  it('las 9 existen, con id único y los 18 campos que applyTheme vuelca', () => {
-    expect(PALETTES).toHaveLength(9)
-    expect(new Set(PALETTES.map(p => p.id)).size).toBe(9)
+  it('las 12 existen, con id único y los 18 campos que applyTheme vuelca', () => {
+    expect(PALETTES).toHaveLength(12)
+    expect(new Set(PALETTES.map(p => p.id)).size).toBe(12)
     PALETTES.forEach(p => REQUIRED.forEach(k => expect(p[k], `${p.id}.${k}`).toBeTruthy()))
     expect(PALETTES.map(p => p.id)).toContain('coral')
     expect(PALETTES.map(p => p.id)).toContain('salvia')
     expect(PALETTES.map(p => p.id)).toContain('carbon')
+  })
+
+  it('los 3 temas nuevos (barberia oscuro, crema, marino) están', () => {
+    expect(PALETTES.map(p => p.id)).toContain('barberia')
+    expect(PALETTES.map(p => p.id)).toContain('crema')
+    expect(PALETTES.map(p => p.id)).toContain('marino')
+  })
+
+  it('barberia es el único oscuro y redefine superficies + semánticos', () => {
+    const b = PALETTES.find(p => p.id === 'barberia')
+    // Los overrides que applyTheme resuelve con `??`
+    expect(b.card).toBe('#12161D')
+    expect(b.card).not.toBe('#FFFFFF')
+    expect(b.red).toBeTruthy()          // acento rojo barbería
+    expect(b.greenBg).toBeTruthy()      // chip verde legible sobre fondo oscuro
+    expect(b.chromeBgr).toBeTruthy()    // modal sin blanco puro
   })
 })
