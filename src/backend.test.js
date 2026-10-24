@@ -3746,6 +3746,25 @@ describe('ENVIAR POR CORREO — sendReportEmailNow (botón de reportes)', () => 
     expect(g.store.mail[0].body).toBe('reporte legado')
   })
 
+  it('🛠️ el texto plano TORCIDO por el transporte se REPARA: emojis de 4 bytes reconstruidos', () => {
+    const g = env()
+    // Simulación FIEL del bug de Apps Script: los caracteres de 1-3
+    // bytes UTF-8 cruzan bien (✨ • é) pero los de 4 bytes (🗓 📈 💰)
+    // llegan como 4 caracteres Latin-1 basura — byte a byte.
+    const mangleAstral = (s) => s.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, (m) =>
+      Buffer.from(m, 'utf8').toString('latin1'))
+    const original = '✨ *Reporte de actividad*\n🗓 octubre de 2026\n• Completadas: 3\n📈 ingresos é í ó'
+    const r = post(g, {
+      action: 'sendReportEmailNow', to: 'x@y.com', reportText: mangleAstral(original),
+    })
+    expect(r.data.ok).toBe(true)
+    // El correo sale EXACTO al original: emojis de 4 bytes reparados,
+    // los de 3 bytes y los acentos intactos.
+    expect(g.store.mail[0].body).toBe(original)
+    expect(g.store.mail[0].htmlBody).toContain('🗓 octubre')
+    expect(g.store.mail[0].htmlBody).toContain('📈')
+  })
+
   it('el rótulo del período se sanea en el asunto (sin saltos ni etiquetas)', () => {
     const g = env()
     const r = post(g, {
