@@ -3765,6 +3765,25 @@ describe('ENVIAR POR CORREO — sendReportEmailNow (botón de reportes)', () => 
     expect(g.store.mail[0].htmlBody).toContain('📈')
   })
 
+  it('🛠️ _b64ToUtf8: decodificación byte a byte con aritmética PURA (sin Utilities)', () => {
+    const g = env()
+    // El decodificador de Utilities (getDataAsString) es el que torcía
+    // los emojis en producción; el de aquí es JS puro — el MISMO código
+    // corre en el sandbox y en Apps Script. Se prueba directo:
+    const samples = [
+      '🗓 Reporte de actividad\n💰 Neto: $330.000\n✨ • é í ó ú ñ á',
+      'a', 'acentos: María José ñ',
+      'línea 1\nlínea 2\n\nemoji final 📅',
+      '🛵 domicilio + 📊 total',
+    ]
+    for (const s of samples) {
+      expect(g.call('_b64ToUtf8', Buffer.from(s, 'utf8').toString('base64'))).toBe(s)
+    }
+    // Con padding y con caracteres de ruido (saltos) alrededor:
+    const noisy = '\n' + Buffer.from('🗓 x', 'utf8').toString('base64') + '\n=='
+    expect(g.call('_b64ToUtf8', noisy)).toBe('🗓 x')
+  })
+
   it('el rótulo del período se sanea en el asunto (sin saltos ni etiquetas)', () => {
     const g = env()
     const r = post(g, {
