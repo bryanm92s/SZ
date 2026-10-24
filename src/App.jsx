@@ -4209,9 +4209,7 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
             : '\n\n⚠️ La copia a tu correo no se pudo enviar: falta configurar el correo de reportes (SB_REPORT_EMAIL). Avísale a quien te instaló la app.') +
           (r.attached
             ? '\n\n📎 El correo incluye el Excel del período.'
-            : (excelBase64
-              ? '\n\n⚠️ El Excel no se pudo adjuntar; el correo salió solo con el resumen.'
-              : '\n\n(El período no tenía movimientos para un Excel.)')),
+            : '\n\n⚠️ El Excel no se pudo adjuntar; el correo salió solo con el resumen.'),
         )
       } else {
         setEmailErr((r && r.error) || 'No se pudo enviar el correo. Inténtalo de nuevo.')
