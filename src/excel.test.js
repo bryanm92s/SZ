@@ -118,7 +118,7 @@ describe('PALETTES — 12 paletas completas para el selector de Ajustes', () => 
     expect(g.name).toBe('Gala')
     expect(g.emoji).toBe('🎩')
     // Oro ANTIGUO profundo y crema champán del encargo
-    expect(g.primary).toBe('#8A6A1C')            // oro antiguo (no amarillo)
+    expect(g.primary).toBe('#846317')            // oro antiguo (no amarillo)
     expect(g.pd).toBe('#5C4712')                 // bronce del gradiente
     expect(g.pl).toBe('#F9F3E6')                 // tinte champán (4.6:1 con el oro)
     expect(g.bg).toBe('#F8F2E5')                 // fondo crema champán (no negro)
@@ -129,7 +129,7 @@ describe('PALETTES — 12 paletas completas para el selector de Ajustes', () => 
     expect(g.card).toBeUndefined()
     expect(g.gradT).toBeUndefined()
     expect(g.gradient).toContain('#5C4712')
-    expect(g.gradient).toContain('#8A6A1C')
+    expect(g.gradient).toContain('#846317')
   })
 
   it('emojis: Barbería usa el símbolo de barbería; Carbón el punto negro', () => {
@@ -187,12 +187,15 @@ describe('PALETTES — contraste AA por paleta (regresión de la auditoría UX/U
     }
   })
 
-  it('el texto del botón supera 4.5 sobre las paradas 0% y 50% del gradiente (donde vive el texto)', () => {
+  it('gradiente legible de punta a punta: paradas de texto (todas menos la última) >=4.5 con el texto, punta >=3.0 (WCAG 1.4.11 componentes)', () => {
     for (const p of PALETTES) {
-      const [s0, s50] = stops(p.gradient)
+      const s = stops(p.gradient)
       const gt = p.gradT || WHITE
-      expect(cr(gt, s0), `${p.id}: texto sobre 0%`).toBeGreaterThanOrEqual(4.5)
-      expect(cr(gt, s50), `${p.id}: texto sobre 50%`).toBeGreaterThanOrEqual(4.5)
+      for (let i = 0; i < s.length - 1; i++) {
+        expect(cr(gt, s[i]), `${p.id}: texto sobre ${s[i]}`).toBeGreaterThanOrEqual(4.5)
+      }
+      const tip = s[s.length - 1]
+      expect(cr(gt, tip), `${p.id}: punta decorativa ${tip}`).toBeGreaterThanOrEqual(3.0)
     }
   })
 
@@ -207,7 +210,7 @@ describe('PALETTES — contraste AA por paleta (regresión de la auditoría UX/U
   it('los semánticos (gold/green/red/warn) leen sobre sus fondos', () => {
     for (const p of PALETTES) {
       expect(cr(p.gold ?? '#8A6700', p.goldBg ?? '#FFF8E6'), `${p.id}: gold`).toBeGreaterThanOrEqual(4.5)
-      expect(cr(p.green ?? '#2E7D52', p.greenBg ?? '#EDF7F0'), `${p.id}: green`).toBeGreaterThanOrEqual(4.5)
+      expect(cr(p.green ?? '#2E7D52', p.greenBg ?? '#F2FBF6'), `${p.id}: green`).toBeGreaterThanOrEqual(4.5)
       expect(cr(p.red ?? '#B03030', p.redBg ?? '#FFF0F0'), `${p.id}: red`).toBeGreaterThanOrEqual(4.5)
       expect(cr(p.warnT ?? '#7A5000', p.warnBg ?? '#FFF4DC'), `${p.id}: warn`).toBeGreaterThanOrEqual(4.5)
     }

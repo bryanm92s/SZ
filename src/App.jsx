@@ -35,7 +35,7 @@ export const PALETTES = [
     border:'#EAD0D7', 
     t:'#1F1014', 
     t2:'#7A5E64',
-    gradient:'linear-gradient(135deg, #A84B60 0%, #B45A6E 50%, #EDB8C6 100%)',
+    gradient:'linear-gradient(135deg, #A84B60 0%, #B45A6E 50%, #C57F93 100%)',
     gradientSoft:'linear-gradient(135deg, #FAE9ED 0%, #F9F1F3 50%, #EAD0D7 100%)',
     glass:'rgba(168, 75, 96, 0.12)',
     glassStrong:'rgba(168, 75, 96, 0.25)',
@@ -55,7 +55,7 @@ export const PALETTES = [
     border:'#D8CFF0', 
     t:'#1A1228', 
     t2:'#6A5A80',
-    gradient:'linear-gradient(135deg, #7C4DBD 0%, #7E55BE 50%, #B898F0 100%)',
+    gradient:'linear-gradient(135deg, #7C4DBD 0%, #7E55BE 50%, #A583D8 100%)',
     gradientSoft:'linear-gradient(135deg, #EDE6F8 0%, #F4F0FA 50%, #D8CFF0 100%)',
     glass:'rgba(124, 77, 189, 0.12)',
     glassStrong:'rgba(124, 77, 189, 0.25)',
@@ -68,14 +68,14 @@ export const PALETTES = [
     id:'azul',    
     name:'Azul',    
     emoji:'💙', 
-    primary:'#3A6FBD', 
+    primary:'#3566B3', 
     pd:'#2A5290', 
     pl:'#F1F6FD', 
     bg:'#F0F4FA', 
     border:'#C8D8EE', 
     t:'#0E1A2C', 
     t2:'#5A6A80',
-    gradient:'linear-gradient(135deg, #3A6FBD 0%, #4272C4 50%, #8AAEF0 100%)',
+    gradient:'linear-gradient(135deg, #3566B3 0%, #4272C4 50%, #6490D2 100%)',
     gradientSoft:'linear-gradient(135deg, #F1F6FD 0%, #F0F4FA 50%, #C8D8EE 100%)',
     glass:'rgba(58, 111, 189, 0.12)',
     glassStrong:'rgba(58, 111, 189, 0.25)',
@@ -95,7 +95,7 @@ export const PALETTES = [
     border:'#C0E0CC', 
     t:'#0A1E14', 
     t2:'#4A7060',
-    gradient:'linear-gradient(135deg, #2E7D52 0%, #317C55 50%, #7AC898 100%)',
+    gradient:'linear-gradient(135deg, #2E7D52 0%, #317C55 50%, #4FA371 100%)',
     gradientSoft:'linear-gradient(135deg, #F0FAF5 0%, #F0F8F4 50%, #C0E0CC 100%)',
     glass:'rgba(46, 125, 82, 0.12)',
     glassStrong:'rgba(46, 125, 82, 0.25)',
@@ -108,14 +108,14 @@ export const PALETTES = [
     id:'dorado',  
     name:'Dorado',  
     emoji:'✨', 
-    primary:'#8F6C1C',
+    primary:'#896514',
     pd:'#785A14',
     pl:'#FDF8EA',
     bg:'#FCF8F3',
     border:'#E8DEB8',
     t:'#241C08',
     t2:'#7A7040',
-    gradient:'linear-gradient(135deg, #8F6C1C 0%, #8F6E1A 50%, #E8C858 100%)',
+    gradient:'linear-gradient(135deg, #896514 0%, #8F6E1A 50%, #B08F1D 100%)',
     gradientSoft:'linear-gradient(135deg, #FDF8EA 0%, #FCF8F3 50%, #E8DEB8 100%)',
     glass:'rgba(160, 120, 32, 0.12)',
     glassStrong:'rgba(160, 120, 32, 0.25)',
@@ -135,7 +135,7 @@ export const PALETTES = [
     border:'#ECC8DF',
     t:'#230A18',
     t2:'#7A5070',
-    gradient:'linear-gradient(135deg, #B04078 0%, #B84C84 50%, #F098C8 100%)',
+    gradient:'linear-gradient(135deg, #B04078 0%, #B84C84 50%, #D073A4 100%)',
     gradientSoft:'linear-gradient(135deg, #FCE6F2 0%, #FDF0F8 50%, #ECC8DF 100%)',
     glass:'rgba(192, 74, 130, 0.12)',
     glassStrong:'rgba(192, 74, 130, 0.25)',
@@ -155,7 +155,7 @@ export const PALETTES = [
     border:'#CFE0D5',
     t:'#0F1B12',
     t2:'#5E7468',
-    gradient:'linear-gradient(135deg, #4A6E57 0%, #527D5F 50%, #A8C7B2 100%)',
+    gradient:'linear-gradient(135deg, #4A6E57 0%, #527D5F 50%, #6F9A7B 100%)',
     gradientSoft:'linear-gradient(135deg, #EAF2EC 0%, #F2F6F3 50%, #CFE0D5 100%)',
     glass:'rgba(98, 140, 112, 0.12)',
     glassStrong:'rgba(98, 140, 112, 0.25)',
@@ -175,7 +175,7 @@ export const PALETTES = [
     border:'#CDD4DA',
     t:'#101418',
     t2:'#5C6670',
-    gradient:'linear-gradient(135deg, #4A5560 0%, #525E69 50%, #8B97A1 100%)',
+    gradient:'linear-gradient(135deg, #4A5560 0%, #525E69 50%, #7A8794 100%)',
     gradientSoft:'linear-gradient(135deg, #EAEDF0 0%, #F2F4F6 50%, #CDD4DA 100%)',
     glass:'rgba(74, 85, 96, 0.12)',
     glassStrong:'rgba(74, 85, 96, 0.25)',
@@ -221,14 +221,14 @@ export const PALETTES = [
     id:'gala',
     name:'Gala',
     emoji:'🎩',
-    primary:'#8A6A1C',
+    primary:'#846317',
     pd:'#5C4712',
     pl:'#F9F3E6',
     bg:'#F8F2E5',
     border:'#E6DBC6',
     t:'#1A1B1F',
     t2:'#6B6355',
-    gradient:'linear-gradient(135deg, #5C4712 0%, #75591B 50%, #8A6A1C 100%)',
+    gradient:'linear-gradient(135deg, #5C4712 0%, #75591B 50%, #846317 100%)',
     gradientSoft:'linear-gradient(135deg, #F5E6C8 0%, #F8F2E5 50%, #E6DBC6 100%)',
     glass:'rgba(138, 106, 28, 0.10)',
     glassStrong:'rgba(138, 106, 28, 0.22)',
@@ -248,7 +248,7 @@ export const PALETTES = [
     border:'#D3DCE8',
     t:'#0C1626',
     t2:'#5F6E83',
-    gradient:'linear-gradient(135deg, #1F3F7A 0%, #2F4E85 50%, #7C99C8 100%)',
+    gradient:'linear-gradient(135deg, #1F3F7A 0%, #2F4E85 50%, #6686B8 100%)',
     gradientSoft:'linear-gradient(135deg, #E6EBF3 0%, #F6F8FB 50%, #D3DCE8 100%)',
     glass:'rgba(31, 63, 122, 0.12)',
     glassStrong:'rgba(31, 63, 122, 0.25)',
@@ -305,7 +305,7 @@ const applyTheme = (pid) => {
      el tema oscuro los aclara/oscurece para legibilidad; el resto no
      los define y usa los valores fijos de siempre. ── */
   r.setProperty('--green',     p.green   ?? '#2E7D52')
-  r.setProperty('--green-bg',  p.greenBg ?? '#EDF7F0')
+  r.setProperty('--green-bg',  p.greenBg ?? '#F2FBF6')
   r.setProperty('--gold',      p.gold    ?? '#8A6700')
   r.setProperty('--gold-bg',   p.goldBg  ?? '#FFF8E6')
   r.setProperty('--red',       p.red     ?? '#B03030')
@@ -1124,7 +1124,7 @@ function GS() { return <style>{`
     --primary:#A84B60;--primary-d:#83394C;--primary-l:#FAE9ED;
     --bg:#F9F1F3;--card:#FFFFFF;--surface:#FFFFFF;--border:#EAD0D7;
     --t:#1F1014;--t2:#7A5E64;--gold:#8A6700;--gold-bg:#FFF8E6;
-    --green:#2E7D52;--green-bg:#EDF7F0;--red:#B03030;--red-bg:#FFF0F0;
+    --green:#2E7D52;--green-bg:#F2FBF6;--red:#B03030;--red-bg:#FFF0F0;
     --warn-bg:#FFF4DC;--warn-t:#7A5000;--input-bg:#FFFFFF;
     --grad-t:#FFFFFF;--grad-t2:rgba(255,255,255,0.75);
     /* Superficies translúcidas (chrome): nav/footer/tarjetas glass/modales.
@@ -1133,7 +1133,7 @@ function GS() { return <style>{`
     --chrome-bgr:rgba(255,255,255,0.96);
     --chrome-brd:rgba(255,255,255,0.5);
     /* Gradient & Glassmorphism (updated by applyTheme) */
-    --gradient:linear-gradient(135deg, #A84B60 0%, #B45A6E 50%, #EDB8C6 100%);
+    --gradient:linear-gradient(135deg, #A84B60 0%, #B45A6E 50%, #C57F93 100%);
     --gradient-soft:linear-gradient(135deg, #FAE9ED 0%, #F9F1F3 50%, #EAD0D7 100%);
     --glass:rgba(181, 82, 74, 0.12);
     --glass-strong:rgba(181, 82, 74, 0.25);
@@ -2755,7 +2755,7 @@ function EditAppt({appt,services,appts,SA,priceHistory,onClose}) {
 
       {result!==null && (
         <div style={{
-          background: result.ok===true ? '#EDF7F0' : 'var(--warn-bg)',
+          background: result.ok===true ? 'var(--green-bg)' : 'var(--warn-bg)',
           border: `1px solid ${result.ok===true ? 'var(--green)' : '#E8C88A'}`,
           borderRadius:10, padding:10, fontSize:13, marginBottom:14,
           lineHeight:1.6,
@@ -3109,7 +3109,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
     {done&&!loading && <div className="card" style={{textAlign:'center'}}>
       <div style={{fontSize:42,marginBottom:12}}>🎉</div>
       <div style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:700,marginBottom:10}}>¡Cita agendada!</div>
-      <div style={{background:calR?.ok?'#EDF7F0':'var(--warn-bg)',borderRadius:10,padding:12,fontSize:13,color:calR?.ok?'var(--green)':'var(--warn-t)',marginBottom:14,textAlign:'left'}}>
+      <div style={{background:calR?.ok?'var(--green-bg)':'var(--warn-bg)',borderRadius:10,padding:12,fontSize:13,color:calR?.ok?'var(--green)':'var(--warn-t)',marginBottom:14,textAlign:'left'}}>
         {calR?.ok?'📅 Evento creado en Google Calendar ✨':`⚠️ Cita guardada. Calendar: ${calR?.error||'error.'}`}
       </div>
       <div style={{background:'var(--primary-l)',borderRadius:12,padding:16,textAlign:'left',marginBottom:14,fontSize:14}}>
@@ -3581,7 +3581,7 @@ function ClientHistory({appts,services,setTab,tabExtra}) {
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:14}}>
         {[
           [cAppts.length,'Citas','var(--primary)','var(--primary-l)'],
-          [done.length,'Completadas','var(--green)','#EDF7F0'],
+          [done.length,'Completadas','var(--green)','var(--green-bg)'],
           [noshow.length,'No asistió','var(--red)','#FFF4F0'],
           [pend.length,'Pendientes','var(--gold)','#FFF8E6'],
         ].map(([v,l,col,bg])=>(
@@ -3628,7 +3628,7 @@ function ClientHistory({appts,services,setTab,tabExtra}) {
           ?<div style={{textAlign:'center',padding:20,color:'var(--t2)',fontSize:14}}>Sin citas registradas</div>
           :apptShown.map(a=>{
             const st = a.completed==='noshow'?'noshow':bool(a.completed)?'done':'pending'
-            const stCfg = {done:{bg:'#EDF7F0',col:'var(--green)',lbl:'✓ Completada'},noshow:{bg:'#FFF4F0',col:'var(--red)',lbl:'✗ No asistió'},pending:{bg:'var(--primary-l)',col:'var(--primary)',lbl:'Pendiente'}}[st]
+            const stCfg = {done:{bg:'var(--green-bg)',col:'var(--green)',lbl:'✓ Completada'},noshow:{bg:'#FFF4F0',col:'var(--red)',lbl:'✗ No asistió'},pending:{bg:'var(--primary-l)',col:'var(--primary)',lbl:'Pendiente'}}[st]
             return (
               <div key={a.id} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 0',borderBottom:'1px solid var(--border)'}}>
                 <div style={{textAlign:'center',flexShrink:0}}>
@@ -3699,7 +3699,7 @@ function MonthComparison({appts,expenses,setTab}) {
       <div style={{marginBottom:16}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
           <span style={{fontSize:12,fontWeight:600,color:'var(--t)'}}>{label}</span>
-          {d && <span style={{fontSize:11,fontWeight:700,color:d.up?'var(--green)':'var(--red)',background:d.up?'#EDF7F0':'#FFF0F0',borderRadius:20,padding:'2px 8px'}}>
+          {d && <span style={{fontSize:11,fontWeight:700,color:d.up?'var(--green)':'var(--red)',background:d.up?'var(--green-bg)':'var(--red-bg)',borderRadius:20,padding:'2px 8px'}}>
             {d.up?'▲':'▼'} {Math.abs(d.pct)}%
           </span>}
         </div>
@@ -4378,7 +4378,7 @@ function IncomeDetail({appts,setTab,tabExtra}) {
 
     <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:7,marginBottom:14}}>
       {[['all','Todo',fmtM(revTotal),ma.length,'var(--primary)','var(--primary-l)'],
-        ['completed','Recibido',fmtM(revDone),done.length,'var(--green)','#EDF7F0'],
+        ['completed','Recibido',fmtM(revDone),done.length,'var(--green)','var(--green-bg)'],
         ['pending','Pendiente',fmtM(revPend),pend.length,'var(--gold)','#FFF8E6'],
         ['noshow','No asistió',fmtM(noshow.reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)),noshow.length,'var(--red)','#FFF4F0']
       ].map(([v,l,val,cnt,col,bg])=>(
@@ -5463,7 +5463,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                 : capFirst(monthLabel)
               }
             </h1>
-            <button onClick={goToday} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--primary)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, marginTop: 1, padding: '2px 6px', borderRadius: 6 }}>
+            <button onClick={goToday} aria-label="Ir a hoy" style={{ background: 'var(--primary-l)', border: 'none', fontSize: 11, color: 'var(--primary)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, marginTop: 1, padding: '6px 14px', borderRadius: 8, minHeight: 24, minWidth: 24 }}>
               Hoy
             </button>
           </div>
