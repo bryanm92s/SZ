@@ -503,16 +503,32 @@ En **⚙️ → Propiedades del proyecto → Propiedades de script**, agrega:
   su celular sin poder borrarlas ni ver tu calendario personal. Si el id falta
   o no es accesible, se sigue usando el calendario por defecto (y el log
   avisa). Los eventos se crean con el color `MAUVE` (`Code.gs`).
+  > ⚠️ **El calendario debe ser de ESTA cuenta** (la del proyecto). Si en su
+  > lugar compartes a la cuenta del proyecto un calendario que vive en otra
+  > cuenta, el permiso debe ser **«Realizar cambios y ver los detalles de
+  > todos los eventos»**: con **«Ver los detalles»** (solo lectura) el
+  > calendario **se ve**, pero Google **no deja crear, actualizar ni borrar**
+  > eventos — y su error llega disfrazado de «No existe o se eliminó el
+  > evento del calendario». Es exactamente el fallo que produjo los avisos
+  > de borrado fallido del 24/10/2026 (corregido ese mismo día: `deleteCalEvent`
+  > ahora verifica si el evento sigue ahí y explica el permiso).
 - **Validar que `SB_CALENDAR_ID` quedó bien:** ejecuta la función
   **`pruebaCalendario()`** desde el editor de Apps Script (no usa token,
   hoja ni lock: solo escribe en *Registro de ejecuciones → Registros*) y
-  mira la línea `cal =`:
-  - `OK → Citas <negocio>` → el id apunta al calendario correcto.
-  - `NULL (no accesible → se usará el por defecto)` → el id está mal
+  mira las líneas `cal =` y `escr =` (la prueba de escritura crea un evento
+  de 5 min titulado «⚙️ pruebaCalendario (se borra solo)» y lo borra en el
+  mismo segundo):
+  - `cal = OK → Citas <negocio>` → el id apunta al calendario correcto.
+  - `escr = OK → …permiso de escritura correcto` → crear y borrar
+    funcionan de verdad.
+  - `escr = ERROR → …` → el calendario **no se puede escribir**: casi
+    siempre el permiso de uso compartido; pide
+    **«Realizar cambios y ver los detalles de todos los eventos»**.
+  - `cal = NULL (no accesible → se usará el por defecto)` → el id está mal
     copiado o es de otra cuenta (Google Calendar sigue funcionando, pero
     en el calendario por defecto).
   - `id = (sin SB_CALENDAR_ID)` → la propiedad no existe todavía.
-  - `ERROR → <motivo>` → CalendarApp rechazó la llamada.
+  - `cal = ERROR → <motivo>` → CalendarApp rechazó la llamada.
 - **Gmail:** se usa la cuenta que ejecuta el script (la **del proyecto** si
   la creaste dedicada: los correos salen «desde» esa dirección). No requiere
   configuración adicional, pero sí el scope `script.mail`.

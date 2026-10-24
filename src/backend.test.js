@@ -225,6 +225,8 @@ function makeCalendar(store) {
     // Interruptores para simular fallos de Google Calendar en los tests.
     ignoreSetTime: false,   // setTime no aplica el cambio (sin lanzar)
     failDelete: false,      // deleteEvent lanza una excepción
+    failDeleteRemoves: false, // …y además SÍ borra (excepción que llegó tarde)
+    failCreate: false,      // createEvent lanza una excepción (permiso de escritura)
     _events: events,
     seed: (id, { title = '', start, end, description = '' } = {}) => {
       events.set(id, { id, title, start, end, description })
@@ -241,6 +243,14 @@ function makeCalendar(store) {
       owners.set(id, owner || 'default')
       store.calCreated.push(id)
       return id
+    },
+    // Lo que usa el deleteEvent del propio evento creado en el mock.
+    remove: (id) => {
+      if (!events.has(id)) return false
+      store.calDeleted.push(id)
+      events.delete(id)
+      owners.delete(id)
+      return true
     },
     size: () => events.size,
   }
@@ -264,7 +274,13 @@ function makeCalendar(store) {
         ev.start = s; ev.end = e
       },
       deleteEvent: () => {
-        if (api.failDelete) throw new Error('No se pudo eliminar el evento')
+        if (api.failDelete) {
+          if (api.failDeleteRemoves) {   // Google a veces borra y AÚN así lanza
+            events.delete(ev.id)
+            owners.delete(ev.id)
+          }
+          throw new Error('No se pudo eliminar el evento')
+        }
         store.calDeleted.push(ev.id)
         events.delete(ev.id)
         owners.delete(ev.id)
@@ -529,7 +545,7 @@ function runCodeGs(ss, store = makeStore()) {
         createEvent: (title, s, e, opts) => {
           const id = store.cal.create(title, s, e, opts && opts.description, 'default')
           store.calCreatedFrom.push('default')
-          return { getId: () => id, setColor: () => {} }
+          return { getId: () => id, setColor: () => {}, deleteEvent: () => store.cal.remove(id) }
         },
         getEventById: (id) => {
           store.calLookups.push(String(id === undefined || id === null ? '' : id))
@@ -542,9 +558,10 @@ function runCodeGs(ss, store = makeStore()) {
         return {
           getName: () => 'Citas ' + key,   // lo que imprime pruebaCalendario()
           createEvent: (title, s, e, opts) => {
+            if (store.cal.failCreate) throw new Error('No tienes acceso para escribir en este calendario') // como un calendario compartido en «Ver los detalles»
             const cid = store.cal.create(title, s, e, opts && opts.description, key)
             store.calCreatedFrom.push(key)
-            return { getId: () => cid, setColor: () => {} }
+            return { getId: () => cid, setColor: () => {}, deleteEvent: () => store.cal.remove(cid) }
           },
           // Búsqueda PROPIA: solo ve lo creado en ESTE calendario.
           getEventById: (id) => {
@@ -1396,18 +1413,35 @@ describe('Code.gs — sincronización con Google Calendar', () => {
     expect(bp.data.calResult.code).toBe('bad_payload')
   })
 
-  it('8) un error al eliminar Calendar se detecta', () => {
+  it('8) un error al eliminar Calendar se detecta y se CLASIFICA: el evento sigue → permiso', () => {
     const { env } = seed()
     env.store.cal.failDelete = true
 
     const r = post(env.g, { action: 'deleteCalendarEvent', eventId: EVT })
     expect(r.ok).toBe(true)
     expect(r.data.calResult.ok).toBe(false)     // no se oculta el fallo
-    expect(r.data.calResult.code).toBe('exception')
-    expect(r.data.calResult.error).toMatch(/No se pudo eliminar/)
+    // ⚠️ Cambio 2026-10: Google llama «No existe o se eliminó…» a SUS fallos
+    // de permiso; ahora el backend verifica de verdad y devuelve un código
+    // claro con la corrección concreta (permiso «Realizar cambios…»).
+    expect(r.data.calResult.code).toBe('still_exists')
+    expect(r.data.calResult.error).toMatch(/sigue en Google Calendar/)
+    expect(r.data.calResult.error).toMatch(/Realizar cambios y ver los detalles/)
+    expect(r.data.calResult.error).toMatch(/Ver los detalles/)
     // El evento sigue ahí: no se reportó una eliminación que no ocurrió.
     expect(env.store.cal._events.has(EVT)).toBe(true)
     expect(env.store.calDeleted).toEqual([])
+  })
+
+  it('8b) la excepción que llegó tarde (Google borró y aun así lanzó) se reconoce', () => {
+    const { env } = seed()
+    env.store.cal.failDelete = true
+    env.store.cal.failDeleteRemoves = true      // borra el evento Y lanza
+
+    const r = post(env.g, { action: 'deleteCalendarEvent', eventId: EVT })
+    // La verificación gana a la excepción: el evento ya no está.
+    expect(r.data.calResult.ok).toBe(true)
+    expect(r.data.calResult.deleted).toBe(true)
+    expect(env.store.cal._events.has(EVT)).toBe(false)
   })
 
   it('9) un evento que ya no existe se gestiona sin generar una falsa eliminación', () => {
@@ -3298,23 +3332,39 @@ describe('CALENDARIO DEDICADO — SB_CALENDAR_ID', () => {
     expect(g.store.calDeleted).toEqual([viejo.eventId])
   })
 
-  it('pruebaCalendario() diagnostica bien los tres casos sin tocar nada', () => {
-    // (a) id válido → «OK → <nombre>», y no crea eventos.
+  it('pruebaCalendario() diagnostica id, acceso y PERMISO DE ESCRITURA', () => {
+    // (a) id válido con escritura → «OK → <nombre>» + «escr = OK»:
+    //     crea un evento de prueba y lo borra en el mismo segundo.
     const ok3 = env()
     ok3.store.props.set('SB_CALENDAR_ID', DED)
     ok3.store.calIds.add(DED)
     ok3.call('pruebaCalendario')
     expect(JSON.stringify(ok3.store.logs)).toContain('id   = ' + DED)
     expect(JSON.stringify(ok3.store.logs)).toContain('OK → Citas ' + DED)
-    expect(ok3.store.cal._events.size).toBe(0)               // nada creado
+    expect(JSON.stringify(ok3.store.logs)).toContain('escr = OK')
+    expect(ok3.store.cal._events.size).toBe(0)               // el evento de prueba se borró
+    expect(ok3.store.calCreated.length).toBe(1)               // …pero sí se llegó a crear
+    expect(ok3.store.calDeleted.length).toBe(1)
 
-    // (b) id inaccesible (otra cuenta / mal copiado) → «NULL».
+    // (b) calendario compartido en «Ver los detalles» (solo lectura):
+    //     se ve, se abre… pero NO se puede escribir → «escr = ERROR»
+    //     con la corrección concreta del permiso.
+    const ro = env()
+    ro.store.props.set('SB_CALENDAR_ID', DED)
+    ro.store.calIds.add(DED)
+    ro.store.cal.failCreate = true
+    ro.call('pruebaCalendario')
+    expect(JSON.stringify(ro.store.logs)).toContain('OK → Citas ' + DED)
+    expect(JSON.stringify(ro.store.logs)).toContain('escr = ERROR')
+    expect(JSON.stringify(ro.store.logs)).toContain('Realizar cambios y ver los detalles')
+
+    // (c) id inaccesible (otra cuenta / mal copiado) → «NULL».
     const nulo = env()
     nulo.store.props.set('SB_CALENDAR_ID', '8ef30853@group.calendar.google.com')
     nulo.call('pruebaCalendario')
     expect(JSON.stringify(nulo.store.logs)).toContain('NULL (no accesible → se usará el por defecto)')
 
-    // (c) sin la propiedad → lo dice sin reventar.
+    // (d) sin la propiedad → lo dice sin reventar.
     const sin = env()
     sin.call('pruebaCalendario')
     expect(JSON.stringify(sin.store.logs)).toContain('(sin SB_CALENDAR_ID)')

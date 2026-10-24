@@ -578,9 +578,14 @@ En los reportes, **«No asistió» aparece solo como número**, nunca como monto
 1. Guarda el `calendarEventId`.
 2. **Espera** la confirmación del servidor de que la cita se borró de la hoja.
 3. Borra **solo** el evento de **esa** cita con `calDelete(appt.calendarEventId)`
-   y comprueba `r.ok`.
+   y comprueba `r.ok`. Un fallo **transitorio** (tope de 25 s o HTTP 4xx/5xx)
+   se **reintenta automáticamente una vez a los 4 s** antes de molestar con
+   el modal — borrar un evento es idempotente, reintentarlo no duplica nada
+   (`isTransientError`, `src/api.js`; mismo criterio que `loadData`).
 4. Si falla → `confirm()` ofreciendo **reintento**; si el reintento también
-   falla → `infoModal()` con el **ID del evento** para borrarlo a mano.
+   falla → `infoModal()` con el **ID del evento** y el motivo **clasificado
+   por el backend** (`still_exists` explica el permiso de uso compartido;
+   ver §10.1) para borrarlo a mano.
 
 > 📌 **No se hace rollback.** Si el paso 3 falla, la cita **ya no está en
 > Sheets** y el evento queda huérfano: la app prefiere **informar y dar vía de
@@ -670,7 +675,7 @@ CSV **ambiguo**: un servicio puede llamarse
 |---|---|---:|---|
 | **Crear** | `createCalEvent` | 679 | Crea en el calendario **por defecto**, color `MAUVE`, sin invitaciones → `{ok, eventId}` |
 | **Actualizar** | `updateCalEvent` | 710 | Usa **solo** el id que trae la cita; **nunca crea**. Comprueba **después** de escribir que Calendar aplicó la hora (tolerancia 1 s); si no → `{ok:false, error:'not_applied'}` |
-| **Borrar** | `deleteCalEvent` | 764 | Usa solo el id. Si no existe → `{ok:true, alreadyGone:true}` (**idempotente**). **Nunca** barre el calendario |
+| **Borrar** | `deleteCalEvent` | 764 | Usa solo el id. Si no existe → `{ok:true, alreadyGone:true}` (**idempotente**). **Nunca** barre el calendario. Si `deleteEvent()` lanza, **verifica de verdad**: el evento sigue ahí → `{ok:false, code:'still_exists'}` con la causa real (casi siempre el **permiso de uso compartido**: Google disfraza ese fallo de «No existe o se eliminó el evento»); ya no está → `{ok:true, deleted:true}` (la excepción llegó tarde) |
 
 ### 10.2 Contenido del evento
 

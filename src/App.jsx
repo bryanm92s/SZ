@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  loadData, saveData,
+  loadData, saveData, isTransientError,
   requestResetCode as apiRequestResetCode,
   verifyResetCode   as apiVerifyResetCode,
   resetData         as apiResetData,
@@ -721,8 +721,21 @@ export default function App() {
      después borrar el evento con SU id, comprobar la respuesta y, si falla,
      avisar y ofrecer un reintento con el modal propio del diseño. */
   const calDelete = async eventId => {
+    const run = () => saveData({ action:'deleteCalendarEvent', eventId })
     try {
-      const r = await saveData({ action:'deleteCalendarEvent', eventId })
+      let r
+      try {
+        r = await run()
+      } catch(e) {
+        /* Borrar un evento es IDEMPOTENTE (borrarlo dos veces es lo mismo
+           que una): un fallo transitorio — arranque en frío, 404 puntual
+           al actualizarse el despliegue — se reintenta UNA vez a los 4 s
+           antes de molestar con el modal, igual que loadData. El evento
+           de las 7:22 a. m. se habría borrado solo, sin aviso. */
+        if (!isTransientError(e.message)) throw e
+        await new Promise(res => setTimeout(res, 4000))
+        r = await run()
+      }
       const cr = r && r.calResult
       if (cr && cr.ok) return { ok:true, alreadyGone: !!cr.alreadyGone }
       return { ok:false, error:(cr && cr.error) || 'El servidor no devolvió respuesta de Google Calendar.' }

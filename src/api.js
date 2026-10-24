@@ -80,6 +80,9 @@ async function call(url, opts, fallback) {
     rojo «Reintentar guardar», que además reenvía el mismo payload. */
 const RETRY_DELAY_MS = 4000
 const isTransient = msg => /no respondió en \d+ s|HTTP \d{3}/.test(msg || '')
+// Exportado para que la app clasifique igual otros fallos de transporte
+// (p. ej. el borrado del evento de Calendar) sin duplicar el patrón.
+export const isTransientError = isTransient
 
 async function callWithRetry(url, opts, fallback) {
   try {
