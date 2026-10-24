@@ -476,8 +476,10 @@ no tiene duración, SZ usa **60 minutos** por defecto.
 
 ### El botón «💬 WhatsApp admin» (del reporte)
 
-Está en la pestaña **Reportes**. Envía el resumen del período al **número del
-administrador**.
+Está en la pestaña **Reportes**, junto con **«📊 Exportar Excel»** y
+**«📧 Enviar por correo»** (que manda el mismo resumen al correo que
+escribas, con copia automática al tuyo). Envía el resumen del período al
+**número del administrador**.
 
 > Si ese botón aparece **deshabilitado**, es porque la app no tiene configurado
 > el número del admin (es un ajuste técnico; ver
@@ -655,6 +657,17 @@ que entró y salió, con los filtros **Todo · Ingresos · Gastos**, ordenados
 1. Toca **«💬 WhatsApp admin»**.
 2. Se abre WhatsApp con el resumen ya escrito.
 3. Dale **Enviar**.
+
+### Enviar el reporte por correo 📧
+
+1. Toca **«📧 Enviar por correo»** (debajo de los otros dos botones).
+2. Escribe el correo de quien debe recibir el reporte y toca **Enviar**.
+3. La app te confirma: **«El informe se envió a: \<correo\> y una copia a
+   tu correo electrónico»** — la copia sale SIEMPRE, sin que tengas que
+   escribirla, al correo de reportes que configuró el administrador.
+
+> Si te sale «Escribe un correo válido», revisa que esté completo
+> (ej: `nombre@correo.com`) y que sea **un solo correo**, sin comas.
 
 ### ⚠️ WhatsApp y correo deben decir lo mismo
 

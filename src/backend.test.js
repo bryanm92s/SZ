@@ -469,6 +469,7 @@ function runCodeGs(ss, store = makeStore()) {
       sendEmail: (to, subject, body, opts) => {
         store.mail.push({
           to, subject, body,
+          cc: (opts && opts.cc) || '',
           htmlBody: (opts && opts.htmlBody) || '',
           attachments: (opts && opts.attachments) || [],
         })
@@ -3634,5 +3635,87 @@ describe('Etiqueta del reporte en español (_fmtDayLabel)', () => {
     const m = lastMail(env.store)
     expect(m.subject).toContain('[REPORTE DIARIO] Actividad - lun, 5 de ene 2026')
     expect(m.subject).not.toMatch(/Mon|Jan/)
+  })
+})
+
+
+/* ══════════════════════════════════════════════════════════════
+   ENVIAR POR CORREO — botón «📧 Enviar por correo» de Reportes
+   ────────────────────────────────────────────────────────────
+   sendReportEmailNow(to, reportText): manda el reporte que la
+   operadora está viendo al correo que ELLA escribe, con copia
+   SIEMPRE a _reportEmail(). Rieles: un solo destinatario, validado;
+   tope de 20 000 caracteres; asunto fio con el nombre del negocio.
+   ══════════════════════════════════════════════════════════════ */
+describe('ENVIAR POR CORREO — sendReportEmailNow (botón de reportes)', () => {
+  const env = () => runCodeGs(makeSpreadsheet({ services: [toRow('services', S1)] }))
+
+  it('envía el texto del reporte al correo escrito y copia a SB_REPORT_EMAIL', () => {
+    const g = env()
+    g.store.props.set('SB_REPORT_EMAIL', 'reportes@duena.test')
+
+    const r = post(g, {
+      action: 'sendReportEmailNow', to: 'clienta@correo.com',
+      reportText: '📅 Reporte de octubre\nNeto del período: $500.000',
+    })
+
+    expect(r.ok).toBe(true)
+    expect(r.data.ok).toBe(true)
+    expect(r.data.sentTo).toBe('clienta@correo.com')
+    expect(r.data.cc).toBe('reportes@duena.test')
+    expect(g.store.mail.length).toBe(1)
+    expect(g.store.mail[0].to).toBe('clienta@correo.com')
+    expect(g.store.mail[0].cc).toBe('reportes@duena.test')
+    expect(g.store.mail[0].body).toContain('Neto del período: $500.000')
+    expect(g.store.mail[0].subject).toContain('Reporte')
+  })
+
+  it('sin SB_REPORT_EMAIL la copia cae a SB_AUTHORIZED_EMAIL (retro-compatible)', () => {
+    const g = env()
+    const r = post(g, { action: 'sendReportEmailNow', to: 'x@y.com', reportText: 'texto' })
+    expect(r.data.ok).toBe(true)
+    expect(r.data.cc).toBe(AUTHORIZED_EMAIL)
+    expect(g.store.mail[0].cc).toBe(AUTHORIZED_EMAIL)
+  })
+
+  it('sin NINGÚN correo configurado el envío sale igual (sin copia) y avisa en el log', () => {
+    const g = env()
+    g.store.props.delete('SB_AUTHORIZED_EMAIL')
+    const r = post(g, { action: 'sendReportEmailNow', to: 'x@y.com', reportText: 'texto' })
+    expect(r.data.ok).toBe(true)
+    expect(r.data.cc).toBe('')
+    expect(g.store.mail[0].cc).toBe('')
+    expect(JSON.stringify(g.store.logs)).toContain('SIN copia')
+  })
+
+  it('correo inválido → error claro y NADA enviado', () => {
+    const g = env()
+    const r = post(g, { action: 'sendReportEmailNow', to: 'no-es-un-correo', reportText: 'texto' })
+    expect(r.data.ok).toBe(false)
+    expect(r.data.code).toBe('bad_email')
+    expect(g.store.mail.length).toBe(0)
+  })
+
+  it('una LISTA de correos se rechaza: un solo destinatario a la vez (riel anti-relevo)', () => {
+    const g = env()
+    const r = post(g, { action: 'sendReportEmailNow', to: 'a@x.com, b@y.com', reportText: 'texto' })
+    expect(r.data.ok).toBe(false)
+    expect(r.data.code).toBe('too_many')
+    expect(g.store.mail.length).toBe(0)
+  })
+
+  it('reporte vacío → no se envía nada', () => {
+    const g = env()
+    const r = post(g, { action: 'sendReportEmailNow', to: 'x@y.com', reportText: '   ' })
+    expect(r.data.ok).toBe(false)
+    expect(r.data.code).toBe('empty')
+    expect(g.store.mail.length).toBe(0)
+  })
+
+  it('tope de tamaño: el texto se recorta a 20 000 caracteres', () => {
+    const g = env()
+    const r = post(g, { action: 'sendReportEmailNow', to: 'x@y.com', reportText: 'a'.repeat(25000) })
+    expect(r.data.ok).toBe(true)
+    expect(g.store.mail[0].body.length).toBeLessThanOrEqual(20000)
   })
 })

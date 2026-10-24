@@ -3986,7 +3986,7 @@ function TopServices({appts,services,priceHistory,setTab}) {
    código: sale de la variable de entorno VITE_ADMIN_WHATSAPP.
 ══════════════════════════════════════════════════════════════ */
 
-function ReportTab({appts,expenses,services,setTab}) {
+function ReportTab({appts,expenses,services,setTab,infoModal}) {
   const safeA = Array.isArray(appts)?appts:[]
   const safeE = Array.isArray(expenses)?expenses:[]
 
@@ -4160,6 +4160,52 @@ function ReportTab({appts,expenses,services,setTab}) {
     openWhatsApp(p, msg)
   }
 
+  // ─── Enviar por correo 📧 ─────────────────────────────────────
+  // El MISMO texto del WhatsApp (reportLines) va al correo que la
+  // operadora escriba; el backend añade SIEMPRE una copia a
+  // SB_REPORT_EMAIL (o SB_AUTHORIZED_EMAIL) sin preguntar. El correo
+  // es el único canal que sale a terceros: la validación vive en el
+  // backend (un solo destinatario, tope de 20 000 caracteres, asunto
+  // fijo) y aquí solo se pre-valida para dar feedback rápido.
+  const [emailModal, setEmailModal] = useState(false)
+  const [emailAddr,  setEmailAddr]  = useState('')
+  const [emailErr,   setEmailErr]   = useState('')
+  const [emailSending, setEmailSending] = useState(false)
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+$/
+
+  const sendEmailReport = async () => {
+    const to = emailAddr.trim()
+    if (!EMAIL_RE.test(to) || /[,;]/.test(to)) {
+      setEmailErr('Escribe un correo válido (ej: nombre@correo.com).')
+      return
+    }
+    setEmailSending(true); setEmailErr('')
+    try {
+      const r = await saveData({
+        action: 'sendReportEmailNow', to,
+        reportText: reportLines({
+          label: periodLabel(), m: M, topByDemand,
+          stamp: new Date().toLocaleString('es-CO'),
+        }).join('\n'),
+      })
+      setEmailSending(false)
+      if (r && r.ok) {
+        setEmailModal(false); setEmailAddr('')
+        infoModal(
+          `El informe se envió a: ${r.sentTo}` +
+          (r.cc
+            ? '\n\ny una copia a tu correo electrónico.'
+            : '\n\n⚠️ La copia a tu correo no se pudo enviar: falta configurar el correo de reportes (SB_REPORT_EMAIL). Avísale a quien te instaló la app.'),
+        )
+      } else {
+        setEmailErr((r && r.error) || 'No se pudo enviar el correo. Inténtalo de nuevo.')
+      }
+    } catch(e) {
+      setEmailSending(false)
+      setEmailErr(e.message)
+    }
+  }
+
   // Estilos reutilizables para los chips de modo
   const chipStyle = active => ({
     flex:1,
@@ -4175,7 +4221,7 @@ function ReportTab({appts,expenses,services,setTab}) {
     <div>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
         <button className="btn-sm" onClick={()=>setTab('finances')}>← Volver</button>
-        <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>📊 Reporte</span>
+        <h1 style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600,margin:0}}>📊 Reporte</h1>
       </div>
 
       {/* Modo de filtrado — 4 chips: día / mes / rango / año */}
@@ -4346,8 +4392,40 @@ function ReportTab({appts,expenses,services,setTab}) {
           style={{padding:'14px 12px'}}>
           💬 WhatsApp admin
         </button>
+        {/* Enviar por correo: mismo reporte, al correo que ella escriba,
+            con copia automática al correo de reportes del backend. Ancho
+            completo para que quepa cómodo en el celular. */}
+        <button className="btn-o" onClick={()=>{setEmailModal(true); setEmailErr('')}} disabled={!hayQueReportar}
+          title={!hayQueReportar ? 'No hay citas ni movimientos en este período' : ''}
+          style={{padding:'14px 12px', gridColumn:'span 2'}}>
+          📧 Enviar por correo
+        </button>
       </div>
       {ledger.rows.length===0 && <div style={{textAlign:'center',fontSize:12,color:'var(--t2)',marginBottom:14}}>No hay movimientos en este período para exportar.</div>}
+
+      {/* Modal «Enviar por correo»: pide UN correo válido; el envío (y su
+          copia) lo hace el backend con sus propios rieles de seguridad. */}
+      {emailModal && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20,backdropFilter:'var(--glass-blur-sm)',WebkitBackdropFilter:'var(--glass-blur-sm)'}}>
+          <div style={{background:'var(--chrome-bgr)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)',borderRadius:24,padding:28,maxWidth:360,width:'100%',maxHeight:'calc(100dvh - 40px)',overflowY:'auto',textAlign:'center',boxShadow:'var(--shadow-xl)',border:'1px solid var(--chrome-brd)'}}>
+            <div style={{fontSize:32,marginBottom:10}}>📧</div>
+            <div style={{fontSize:15,fontWeight:700,color:'var(--t)',marginBottom:12}}>Enviar el reporte por correo</div>
+            <div style={{fontSize:12,color:'var(--t2)',marginBottom:14,lineHeight:1.5}}>
+              Escribe el correo de quien debe recibirlo. Siempre se envía una copia a tu correo electrónico.
+            </div>
+            <input className="inp" type="email" inputMode="email" placeholder="nombre@correo.com" value={emailAddr}
+              onChange={e=>{setEmailAddr(e.target.value); setEmailErr('')}}
+              onKeyDown={e=>{ if(e.key==='Enter' && !emailSending) sendEmailReport() }}
+              aria-label="Correo de destino del reporte"
+              style={{marginBottom: emailErr?6:16, textAlign:'left'}}/>
+            {emailErr && <div style={{fontSize:12,color:'var(--red)',marginBottom:12,fontWeight:600,lineHeight:1.4}}>{emailErr}</div>}
+            <div style={{display:'flex',gap:10}}>
+              <button className="btn-o" style={{flex:1}} onClick={()=>{setEmailModal(false); setEmailErr('')}} disabled={emailSending}>Cancelar</button>
+              <button className="btn" style={{flex:1}} onClick={sendEmailReport} disabled={emailSending}>{emailSending?'Enviando…':'Enviar'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
