@@ -612,7 +612,28 @@ export default function App() {
     setSt('saving')
     savingRef.current = true
     try {
-      const r = await saveData(payload)
+      let r
+      try {
+        r = await saveData(payload)
+      } catch(e) {
+        /* Un fallo TRANSITORIO — Google «despertando» por la mañana, un
+           404 puntual mientras se actualiza el despliegue — se reintenta
+           SOLO (a los 4 s y a los 12 s) antes de mostrar la franja roja:
+           la operadora nunca debería ver un aviso por un simple arranque
+           en frío. Reenviar es seguro: las hojas se reemplazan con el
+           MISMO array (filas por id, nunca duplica) y createCalEvent
+           crea con protección anti-duplicados (mismo título y hora →
+           devuelve el evento existente en vez de crear otro). */
+        if (!isTransientError(e.message)) throw e
+        await new Promise(res => setTimeout(res, 4000))
+        try {
+          r = await saveData(payload)
+        } catch(e2) {
+          if (!isTransientError(e2.message)) throw e2
+          await new Promise(res => setTimeout(res, 12000))
+          r = await saveData(payload)
+        }
+      }
       setSt('ok'); setLS(new Date())
       savingRef.current = false
       setTimeout(() => refresh(true), 1500) // wait 1.5s for Sheets to commit before re-reading
@@ -620,9 +641,10 @@ export default function App() {
     }
     catch(e) {
       savingRef.current = false
-      // El guardado NO llegó al servidor: se recuerda el payload para el
-      // botón «Reintentar guardar» del banner, y el estado queda en
-      // 'error' SIN autocorrección a los 5 s (antes se disfrazaba de ok).
+      // El guardado no llegó al servidor NI con los reintentos: se
+      // recuerda el payload para el botón «Reintentar guardar» del
+      // banner, y el estado queda en 'error' SIN autocorrección a los
+      // 5 s (antes se disfrazaba de ok).
       failedSaveRef.current = payload
       setSaveErr(e.message); setSaveFailed(true)
       setEM(e.message); setSt('error')

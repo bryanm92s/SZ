@@ -101,10 +101,12 @@ En la parte inferior hay 7 botones:
   botón **«↻ Reintentar guardar»**. Tócalo cuando vuelva la conexión: la app
   reenvía lo que faltó. **Mientras esa franja roja esté visible, no recargues
   la página**: lo que cambiaste aún no está en el servidor.
-  - La espera **nunca se queda trabada**: si Google no responde en
-    **25 segundos**, la app corta sola el intento, reintenta **una vez más
-    por su cuenta** (para los despertares de la mañana) y solo si eso
-    también falla muestra el aviso con el botón de reintento.
+  - La buena noticia: esa franja **casi nunca aparece**. Cuando Google
+    «despierta» despacio (típico por la mañana) o la señal falla un momento,
+    la app **reintenta sola** — dos veces más antes de avisarte — y en la
+    práctica el guardado termina saliendo sin que notes nada. Si aun así
+    ves la franja, es que no hubo conexión de verdad: revisa el internet
+    y usa el botón de reintento.
 - El nombre del negocio y su emoji (si se configuraron).
 
 ---

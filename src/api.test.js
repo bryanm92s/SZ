@@ -109,16 +109,18 @@ describe('api: lo que decide el servidor se respeta sin traducir', () => {
 })
 
 /* ── Tope de espera (src/api.js) ────────────────────────────────
-   El spinner «Guardando y creando evento en Calendar…» no puede
-   quedarse ahí para siempre: si Apps Script no responde (arranque en
-   frío, límite de peticiones o una respuesta CORS sin cabeceras), la
-   petición se aborta a los 25 s y el llamador recibe un error normal,
-   con lo que `sync` deja el payload en el banner «Reintentar guardar»
-   sin perder nada.                                                  */
+    El spinner «Guardando y creando evento en Calendar…» no puede
+    quedarse ahí para siempre: si Apps Script no responde (arranque en
+    frío, límite de peticiones o una respuesta CORS sin cabeceras), la
+    petición se aborta a los 25 s y el llamador recibe un error normal.
+    El MENSAJE es simple y sin jerga para la operadora (el detalle
+    técnico va a console.warn), y sync/loadData reintentan solos antes
+    de que el error siquiera se muestre.                              */
 describe('api: tope de espera de 25 s', () => {
-  it('si Apps Script no responde, se cancela con un mensaje accionable', async () => {
+  it('si Apps Script no responde, se cancela con un mensaje SIMPLE para la clienta (sin jerga técnica)', async () => {
     const { saveData } = await loadApi()
     vi.useFakeTimers()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.stubGlobal('fetch', vi.fn((_u, opts) => new Promise((_res, reject) => {
       // Un fetch "colgado": solo resuelve cuando lo aborten.
       opts.signal.addEventListener('abort', () => {
@@ -132,8 +134,17 @@ describe('api: tope de espera de 25 s', () => {
     await vi.advanceTimersByTimeAsync(25000)
     const msg = await pending
 
-    expect(msg).toMatch(/no respondió en 25 s/)
-    expect(msg).toMatch(/Reintentar guardar/)
+    // Lenguaje simple: qué pasó, qué hacer y que nada se pierde.
+    expect(msg).toMatch(/Google no respondió a tiempo/)
+    expect(msg).toMatch(/revisa el internet/i)
+    expect(msg).toMatch(/queda guardado en este dispositivo/)
+    // Sin la jerga técnica que confundía a la clienta.
+    expect(msg).not.toMatch(/Apps Script/)
+    expect(msg).not.toMatch(/25 s/)
+    expect(msg).not.toMatch(/arranque en frío/)
+    // El detalle técnico se fue a la consola, para quien diagnostica.
+    expect(warn).toHaveBeenCalled()
+    expect(String(warn.mock.calls[0][0])).toMatch(/tope de espera/)
     // No se confunde con el fallo de red: son mensajes (y soluciones) distintos.
     expect(msg).not.toMatch(/Sin respuesta de Apps Script/)
     vi.useRealTimers()

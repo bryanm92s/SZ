@@ -25,21 +25,22 @@ function httpError(status, finalUrl) {
 }
 
 /* ── Tope de espera (25 s) ───────────────────────────────────────
-   Apps Script a veces no responde: arranque en frío, límite de
-   peticiones de Google o una respuesta sin cabeceras CORS (que el
-   navegador reporta como «blocked by CORS policy»). Sin tope, el
-   spinner de «Guardando y creando evento en Calendar…» se queda ahí
-   indefinidamente. A los 25 s se aborta la petición y el llamador
-   recibe un error NORMAL: en un guardado, `sync` deja el payload en
-   el banner «Reintentar guardar» y no se pierde nada (las citas
-   llevan id propio, reenviarlas no duplica filas).               */
+    Apps Script a veces no responde: arranque en frío, límite de
+    peticiones de Google o una respuesta sin cabeceras CORS. Sin tope,
+    el spinner se queda ahí indefinidamente. A los 25 s se aborta la
+    petición y el llamador recibe un error NORMAL — y lo reintenta por
+    su cuenta (loadData, sync y el borrado del evento de Calendar ya
+    reintentan solos los fallos transitorios).
+
+    El MENSAJE que ve la operadora es simple y sin jerga; el detalle
+    técnico (tope, arranque en frío) va a la CONSOLA del navegador,
+    para quien diagnostica.                                          */
 const TIMEOUT_MS = 25000
 
 const TIMEOUT_MSG =
-  `Apps Script no respondió en ${Math.round(TIMEOUT_MS / 1000)} s y se canceló la petición ` +
-  '(límite de espera). Suele ser un arranque en frío o el límite de peticiones de Google: ' +
-  'espera unos segundos y reintenta. Si estabas guardando, usa el botón «Reintentar guardar»; ' +
-  'si era una carga, los datos vuelven con el siguiente refresco.'
+  'Google no respondió a tiempo. La app reintentó sola y no logró conectar: ' +
+  'revisa el internet, espera unos segundos y vuelve a intentar. ' +
+  'Mientras tanto, todo queda guardado en este dispositivo.'
 
 // Toda llamada pasa por aquí: `fallback` es el mensaje si el servidor
 // no trae uno propio.
@@ -52,7 +53,13 @@ async function call(url, opts, fallback) {
   try {
     res = await fetch(url, ctrl ? { ...(opts || {}), signal: ctrl.signal } : opts)
   } catch(e) {
-    if (e && (e.name === 'AbortError' || e.code === 20)) throw new Error(TIMEOUT_MSG)
+    if (e && (e.name === 'AbortError' || e.code === 20)) {
+      // El detalle técnico es para quien diagnostica; la operadora ve el
+      // mensaje simple de arriba.
+      console.warn('SZ: tope de espera de ' + Math.round(TIMEOUT_MS / 1000) +
+        ' s — probablemente arranque en frío o límite de peticiones de Google.')
+      throw new Error(TIMEOUT_MSG)
+    }
     throw new Error(
       `Sin respuesta de Apps Script (${(e && e.message) || 'error de red'}). ` +
       `Revisa tu conexión a internet. ${MULTI_ACCOUNT_HINT}`

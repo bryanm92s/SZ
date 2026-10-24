@@ -252,6 +252,24 @@ function makeCalendar(store) {
       owners.delete(id)
       return true
     },
+    // Ventana de eventos en [from, to] (lo que usa la protección
+    // anti-duplicados de createCalEvent): todos o solo de un calendario.
+    window: (from, to) => {
+      const f = from && from.getTime ? from.getTime() : -Infinity
+      const t = to && to.getTime ? to.getTime() : Infinity
+      const list = []
+      events.forEach(ev => { if (ev.start.getTime() >= f && ev.start.getTime() <= t) list.push(wrap(ev)) })
+      return list
+    },
+    windowOwn: (owner, from, to) => {
+      const f = from && from.getTime ? from.getTime() : -Infinity
+      const t = to && to.getTime ? to.getTime() : Infinity
+      const list = []
+      events.forEach(ev => {
+        if (owners.get(ev.id) === owner && ev.start.getTime() >= f && ev.start.getTime() <= t) list.push(wrap(ev))
+      })
+      return list
+    },
     size: () => events.size,
   }
 
@@ -551,6 +569,9 @@ function runCodeGs(ss, store = makeStore()) {
           store.calLookups.push(String(id === undefined || id === null ? '' : id))
           return store.cal.get(id)
         },
+        // Ventana de eventos (lo que usa la protección anti-duplicados
+        // de createCalEvent): los eventos cuyo inicio cae en [from, to].
+        getEvents: (from, to) => store.cal.window(from, to),
       }),
       getCalendarById: (id) => {
         const key = String(id === undefined || id === null ? '' : id)
@@ -568,6 +589,8 @@ function runCodeGs(ss, store = makeStore()) {
             store.calDedLookups.push(String(id === undefined || id === null ? '' : id))
             return store.cal.getOwn(id, key)
           },
+          // Ventana de eventos del calendario dedicado (anti-duplicados).
+          getEvents: (from, to) => store.cal.windowOwn(key, from, to),
         }
       },
       getEventById: (id) => {
@@ -1278,6 +1301,32 @@ describe('Code.gs — sincronización con Google Calendar', () => {
 
   const readAppt = (env) => env.g.call('readSheet', env.ss, 'appointments')[0]
   const cal = (env, id) => env.store.cal._events.get(id)
+
+  it('0) createCalEvent es ANTI-DUPLICADOS: reenviar el mismo evento (reintento tras una respuesta perdida) devuelve el existente', () => {
+    const { env } = seed({}, { withEvent: false })
+    const evt = { clientName: 'Ana', clientPhone: '300111', serviceNames: S1.name,
+                  totalPrice: '50000', date: '2099-06-20', time: '10:00', duration: 30 }
+
+    // Primer intento: crea el evento de verdad…
+    const a = env.g.call('createCalEvent', evt)
+    expect(a.ok).toBe(true)
+    expect(a.eventId).toBeTruthy()
+
+    // …pero la respuesta se pierde y el cliente REINTENTA: no debe quedar
+    // un segundo evento igual en Google Calendar.
+    const b = env.g.call('createCalEvent', evt)
+    expect(b.ok).toBe(true)
+    expect(b.eventId).toBe(a.eventId)
+    expect(b.alreadyExisted).toBe(true)
+    expect(env.store.cal._events.size).toBe(1)
+    expect(env.store.calCreated.length).toBe(1)     // solo se creó UNO
+
+    // Una cita DISTINTA (otra hora) sí crea su propio evento.
+    const c = env.g.call('createCalEvent', { ...evt, time: '11:00' })
+    expect(c.ok).toBe(true)
+    expect(c.eventId).not.toBe(a.eventId)
+    expect(env.store.calCreated.length).toBe(2)
+  })
 
   it('1) actualizar un evento existente cambia su hora de inicio', () => {
     const { env } = seed()

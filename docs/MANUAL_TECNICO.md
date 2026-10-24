@@ -764,6 +764,15 @@ así:
   cuando sí aparece, trae un botón **✕** para cerrarlo (`errHidden`): no
   reaparece en los fallos siguientes del ciclo de 30 s y se rearma solo tras
   una reconexión exitosa.
+- **Los guardados también se reintentan solos** (`sync`, `App.jsx`): un fallo
+  transitorio se reenvía a los **4 s y a los 12 s** antes de mostrar la franja
+  roja — la operadora no ve avisos por un simple arranque en frío. Es seguro
+  porque las hojas se reemplazan con el mismo array y `createCalEvent`
+  (`Code.gs`) crea con **protección anti-duplicados**: si el reintento
+  encuentra un evento con el mismo título y hora (±1 min), lo devuelve
+  (`alreadyExisted`) en vez de crear un segundo. El **mensaje** que ve la
+  operadora ante un fallo real es simple y sin jerga; el detalle técnico
+  queda en la consola del navegador (`console.warn`).
 
 ### E.6 Cómo verificar que citas y eventos corresponden
 
