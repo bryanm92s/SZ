@@ -4120,13 +4120,14 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
   const topByDemand = topServicesByDemand(apptsInPeriod, services)
 
   // ─── Exportar a Excel (.xlsx) ──────────────────────────────────
-  const exportExcel = async () => {
+  // El libro lo construye buildReportWorkbook (fuente única del
+  // formato: la misma que usa el respaldo previo al reset). Compartido
+  // por el botón de descarga y por «Enviar por correo» (adjunto).
+  const buildReportBook = async () => {
     // Sin filas exportables no hay nada que generar (comportamiento
     // histórico: no se abre ningún archivo). Evita además rangos
     // invertidos como SUM(F2:F1) en la hoja Movimientos.
-    if (!movsRanges(ledger.rows.length)) return
-    // El libro lo construye buildReportWorkbook (fuente única del
-    // formato: la misma que usa el respaldo previo al reset).
+    if (!movsRanges(ledger.rows.length)) return null
     const detailSet = new Map()
     apptsInPeriod.forEach(a => detailSet.set(a.id, a))
     createdInPeriod.forEach(a => { if (!detailSet.has(a.id)) detailSet.set(a.id, a) })
@@ -4134,7 +4135,13 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
       M, label: periodLabel(), detailAppts: Array.from(detailSet.values()),
     })
     const name = `reporte_${mode==='day'?day:mode==='month'?month:mode==='year'?year:`${from}_${to}`}.xlsx`
-    XLSX.writeFile(wb, name)
+    return { XLSX, wb, name }
+  }
+
+  const exportExcel = async () => {
+    const book = await buildReportBook()
+    if (!book) return
+    book.XLSX.writeFile(book.wb, book.name)
   }
 
   // ─── Enviar por WhatsApp al admin ─────────────────────────────
@@ -4181,12 +4188,20 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
     }
     setEmailSending(true); setEmailErr('')
     try {
+      // El MISMO libro del botón «Exportar Excel» (rango seleccionado:
+      // día, mes, rango o año) viaja como adjunto en base64. El backend
+      // lo sanean (nombre, tamaño) y lo adjunta; si falla, el correo
+      // sale igual y la confirmación lo dice.
+      const book = await buildReportBook()
+      const excelBase64 = book ? book.XLSX.write(book.wb, { bookType: 'xlsx', type: 'base64' }) : ''
       const r = await saveData({
         action: 'sendReportEmailNow', to,
         reportText: reportLines({
           label: periodLabel(), m: M, topByDemand,
           stamp: new Date().toLocaleString('es-CO'),
         }).join('\n'),
+        label: periodLabel(),
+        excelBase64, excelName: book ? book.name : '',
       })
       setEmailSending(false)
       if (r && r.ok) {
@@ -4195,7 +4210,12 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
           `El informe se envió a: ${r.sentTo}` +
           (r.cc
             ? '\n\ny una copia a tu correo electrónico.'
-            : '\n\n⚠️ La copia a tu correo no se pudo enviar: falta configurar el correo de reportes (SB_REPORT_EMAIL). Avísale a quien te instaló la app.'),
+            : '\n\n⚠️ La copia a tu correo no se pudo enviar: falta configurar el correo de reportes (SB_REPORT_EMAIL). Avísale a quien te instaló la app.') +
+          (r.attached
+            ? '\n\n📎 El correo incluye el Excel del período.'
+            : (excelBase64
+              ? '\n\n⚠️ El Excel no se pudo adjuntar; el correo salió solo con el resumen.'
+              : '\n\n(El período no tenía movimientos para un Excel.)')),
         )
       } else {
         setEmailErr((r && r.error) || 'No se pudo enviar el correo. Inténtalo de nuevo.')
@@ -4411,7 +4431,7 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
             <div style={{fontSize:32,marginBottom:10}}>📧</div>
             <div style={{fontSize:15,fontWeight:700,color:'var(--t)',marginBottom:12}}>Enviar el reporte por correo</div>
             <div style={{fontSize:12,color:'var(--t2)',marginBottom:14,lineHeight:1.5}}>
-              Escribe el correo de quien debe recibirlo. Siempre se envía una copia a tu correo electrónico.
+              Escribe el correo de quien debe recibirlo. Siempre se envía una copia a tu correo electrónico, y el correo llega con el <strong>Excel del período</strong> adjunto.
             </div>
             <input className="inp" type="email" inputMode="email" placeholder="nombre@correo.com" value={emailAddr}
               onChange={e=>{setEmailAddr(e.target.value); setEmailErr('')}}

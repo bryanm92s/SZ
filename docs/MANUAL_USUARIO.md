@@ -665,9 +665,15 @@ que entró y salió, con los filtros **Todo · Ingresos · Gastos**, ordenados
 3. La app te confirma: **«El informe se envió a: \<correo\> y una copia a
    tu correo electrónico»** — la copia sale SIEMPRE, sin que tengas que
    escribirla, al correo de reportes que configuró el administrador.
+4. El correo llega **con el Excel del período adjunto** (el mismo archivo
+   que descarga el botón «Exportar Excel»: por día, por mes, por rango o
+   por año, según lo que estés viendo) y con los **emojis bien
+   renderizados**, igual que el mensaje de WhatsApp.
 
 > Si te sale «Escribe un correo válido», revisa que esté completo
 > (ej: `nombre@correo.com`) y que sea **un solo correo**, sin comas.
+> Si el período no tiene movimientos, el correo sale **solo con el
+> resumen** y la app te lo dice.
 
 ### ⚠️ WhatsApp y correo deben decir lo mismo
 

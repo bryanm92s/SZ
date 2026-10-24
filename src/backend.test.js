@@ -452,6 +452,19 @@ function runCodeGs(ss, store = makeStore()) {
         createHash('sha256').update(String(str), 'utf8').digest(),
         b => (b > 127 ? b - 256 : b)
       ),
+      // Adjuntos del correo manual (sendReportEmailNow): base64 → bytes.
+      // ESTRICTO como el Apps Script real: lanza con caracteres ilegales
+      // (Node solo ignora los inválidos, y eso haría pasar basura).
+      base64Decode: (s) => {
+        const str = String(s)
+        if (str.length % 4 === 1 || /[^A-Za-z0-9+/=]/.test(str)) throw new Error('Invalid argument: Illegal base64')
+        return Array.from(Buffer.from(str, 'base64'))
+      },
+      newBlob: (bytes, contentType, name) => ({
+        getBytes: () => bytes,
+        getContentType: () => contentType,
+        getName: () => name,
+      }),
     },
     // Script Properties: centralizado en el servidor, nunca en el frontend.
     PropertiesService: {
@@ -3668,6 +3681,74 @@ describe('ENVIAR POR CORREO — sendReportEmailNow (botón de reportes)', () => 
     expect(g.store.mail[0].cc).toBe('reportes@duena.test')
     expect(g.store.mail[0].body).toContain('Neto del período: $500.000')
     expect(g.store.mail[0].subject).toContain('Reporte')
+  })
+
+  it('el correo sale con HTML para que los emojis lleguen bien (y saltos de línea)', () => {
+    const g = env()
+    const r = post(g, {
+      action: 'sendReportEmailNow', to: 'x@y.com', label: 'octubre de 2026',
+      reportText: '📅 Reporte\n💰 Neto: $500.000\n✓ Completadas: 3',
+    })
+    expect(r.data.ok).toBe(true)
+    const m = g.store.mail[0]
+    // Asunto con el rótulo del período (saneado).
+    expect(m.subject).toContain('Reporte de octubre de 2026')
+    // El HTML es el que renderiza el cliente de correo: emojis intactos,
+    // escapes de entidades y saltos como <br> — misma plantilla que el
+    // reporte automático (que nunca sufrió los «símbolos raros»).
+    expect(m.htmlBody).toContain('<meta charset="utf-8">')
+    expect(m.htmlBody).toContain('📅 Reporte<br>')
+    expect(m.htmlBody).toContain('💰 Neto: $500.000')
+    expect(m.htmlBody).toContain('white-space:pre-wrap')
+    expect(m.htmlBody).not.toContain('<script')
+  })
+
+  it('el rótulo del período se sanea en el asunto (sin saltos ni etiquetas)', () => {
+    const g = env()
+    const r = post(g, {
+      action: 'sendReportEmailNow', to: 'x@y.com', label: 'enero\n<script>x</script>',
+      reportText: 'texto',
+    })
+    expect(r.data.ok).toBe(true)
+    expect(g.store.mail[0].subject).not.toContain('\n')
+    expect(g.store.mail[0].subject).toContain('Reporte de enero <script>x')
+  })
+
+  it('adjunta el Excel del período (mismo libro del botón Exportar) con nombre saneado', () => {
+    const g = env()
+    const b64 = Buffer.from('xlsx-falso-de-prueba').toString('base64')
+    const r = post(g, {
+      action: 'sendReportEmailNow', to: 'x@y.com', reportText: 'texto',
+      excelBase64: b64, excelName: 'reporte_2026-10-23_2026-10-30 con espacios.xlsx',
+    })
+    expect(r.data.ok).toBe(true)
+    expect(r.data.attached).toBe(true)
+    const att = g.store.mail[0].attachments
+    expect(att.length).toBe(1)
+    // El nombre se sanea: espacios y todo lo que no sea [a-zA-Z0-9_.-] → _.
+    expect(att[0].getName()).toBe('reporte_2026-10-23_2026-10-30_con_espacios.xlsx')
+    expect(att[0].getContentType()).toContain('spreadsheetml')
+    // El contenido decodificado es EXACTAMENTE lo que envió la app.
+    expect(Buffer.from(att[0].getBytes()).toString()).toBe('xlsx-falso-de-prueba')
+  })
+
+  it('un adjunto inválido NO tumba el envío: sale sin Excel y con attached:false', () => {
+    const g = env()
+    const r = post(g, {
+      action: 'sendReportEmailNow', to: 'x@y.com', reportText: 'texto',
+      excelBase64: 'esto no es base64!!!',
+    })
+    expect(r.data.ok).toBe(true)
+    expect(r.data.attached).toBe(false)
+    expect(g.store.mail[0].attachments).toEqual([])
+    expect(JSON.stringify(g.store.logs)).toContain('sin adjunto')
+  })
+
+  it('sin movimientos no hay Excel que adjuntar (attached:false, correo normal)', () => {
+    const g = env()
+    const r = post(g, { action: 'sendReportEmailNow', to: 'x@y.com', reportText: 'texto' })
+    expect(r.data.ok).toBe(true)
+    expect(r.data.attached).toBe(false)
   })
 
   it('sin SB_REPORT_EMAIL la copia cae a SB_AUTHORIZED_EMAIL (retro-compatible)', () => {
