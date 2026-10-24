@@ -825,6 +825,26 @@ WhatsApp del admin).
 > reporte se omite y queda aviso en el log. Ninguna acción pública cambia ese
 > destinatario.
 
+### E.8b El botón «📧 Enviar por correo» (reporte manual)
+
+En **Reportes**, la dueña puede mandar el mismo correo a cualquier dirección
+que escriba. Arquitectura (fruto de cinco rondas de producción del 24/10):
+
+- **La app solo envía el período** (`{action:'sendReportEmailNow', to,
+  period}`) — día, mes, año o rango, validado con formato estricto en
+  `_sanitizeReportPeriod`. **El texto del reporte NUNCA cruza la red**
+  (Apps Script decodifica mal los emojis de 4 bytes del cuerpo del POST;
+  por eso las cinco rondas: el fix final fue no transportar texto).
+- **El backend construye el correo con la MISMA maquinaria de los
+  triggers**: `_sendReportTo` es el núcleo compartido (`kind='MANUAL'`,
+  asunto `[REPORTE MANUAL] Actividad - <rótulo> (<fecha>)`), incluido el
+  **Excel adjunto** generado desde la hoja (`_buildReportXlsx`).
+- **Copia SIEMPRE** a `_reportEmail()` vía `cc`; sin configuración, el
+  envío sale igual (aviso en el log, `cc:''` en la respuesta).
+- **Rieles**: un solo destinatario con dominio con punto (el «a@b» se
+  detecta antes de que Gmail conteste «Invalid To header»); períodos
+  estrictos; el rechazo crudo de Gmail se traduce a lenguaje simple.
+
 ### E.9 Los 6 disparadores, de un vistazo
 
 Es **lo que debe aparecer** en el panel **Activadores** («Disparadores») del

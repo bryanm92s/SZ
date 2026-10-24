@@ -121,14 +121,21 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 - Reporte por **día, mes, rango de fechas o año completo**.
 - **Exportación a Excel (`.xlsx`)** con tres hojas: Resumen, Citas y Gastos.
 - **Botón de WhatsApp al admin** con el resumen del período.
+- **Botón «📧 Enviar por correo»**: manda el MISMO correo de los
+  automáticos (asunto `[REPORTE MANUAL]`, emojis, Excel adjunto) al
+  correo que la clienta escriba, con **copia automática** al correo de
+  reportes. El backend lo construye con la maquinaria de los triggers;
+  la app solo envía el período.
 - **Reportes automáticos por correo** (Apps Script, con el Excel adjunto):
   diario, semanal, mensual y anual. Salen **desde la cuenta de Google del
   proyecto** hacia `SB_REPORT_EMAIL` (o, si no existe, hacia
   `SB_AUTHORIZED_EMAIL`): puedes mandarlos solo a la usuaria.
 
 ### 📅 Calendario (vista mensual)
-- Vista de mes completa con las citas pintadas por día.
-- Toca un día para ver/abrir sus citas.
+- Vista de mes completa con las citas pintadas por día (también por semana).
+- Toca un día para ver sus citas: cada tarjeta trae **«👁 Detalle»**,
+  **«📅 Ir a cita»** (salta a Citas sobre esa cita, la resalta y hace
+  scroll hasta ella), Editar, WhatsApp y Eliminar.
 
 ### ⚙️ Ajustes
 - **12 paletas de color** con contraste AA verificado (Palo de Rosa 🌸 ·
@@ -152,13 +159,20 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 - **Sincronización automática cada 30 s**, pausada cuando la pestaña no está
   visible.
 - **Modo sin conexión**: si falla la red, se sigue trabajando con respaldo en
-  `localStorage`. Las **cargas** se reintentan solas una vez a los 4 s (los
-  fallos transitorios — arranque en frío o un 404 puntual de Google — casi
-  nunca muestran aviso). Si el fallo es al **guardar**, aparece una **franja
-  roja con botón «↻ Reintentar guardar»** que reenvía lo pendiente; el Panel
-  no se refresca por su cuenta mientras ese aviso esté visible. El aviso
-  amarillo de «Modo sin conexión» se puede **cerrar con ✕** y no reaparece
-  en cada fallo del ciclo de 30 s (se rearma solo tras reconectar).
+  `localStorage`. Las **cargas** se reintentan solas una vez a los 4 s y los
+  **guardados** dos veces (4 s y 12 s): los fallos transitorios — arranque en
+  frío o un 404 puntual de Google — casi nunca muestran aviso, y los mensajes
+  que sí salen van **sin jerga** (el detalle técnico queda en la consola). Si
+  el fallo es real al **guardar**, aparece una **franja roja con botón
+  «↻ Reintentar guardar»** que reenvía lo pendiente; el Panel no se refresca
+  por su cuenta mientras ese aviso esté visible. El aviso amarillo de «Modo
+  sin conexión» se puede **cerrar con ✕** y no reaparece en cada fallo del
+  ciclo de 30 s (se rearma solo tras reconectar).
+- **Borrado de citas + Google Calendar**: si el evento no se pudo borrar,
+  el backend **clasifica la causa** (casi siempre el permiso de uso
+  compartido del calendario — Google lo disfraza de «no existe») y el
+  mensaje dice la corrección concreta. `pruebaCalendario()` diagnostica
+  id, acceso y **permiso de escritura** desde el editor de Apps Script.
 - **Branding dinámico**: nombre, subtítulo, emoji y logo del negocio desde
   variables de entorno (título y favicon se actualizan en runtime).
 - **Respaldo automático** de la hoja en Google Drive (diario, 30 días de
@@ -429,16 +443,16 @@ Detalle completo en [`docs/MANUAL_TECNICO.md`](docs/MANUAL_TECNICO.md) sección 
 
 ## 🧪 Testing
 
-Hay **368 pruebas** en 5 suites, ejecutadas y verificadas en esta ronda de
+Hay **377 pruebas** en 5 suites, ejecutadas y verificadas en esta ronda de
 documentación:
 
 | Suite | Pruebas | Qué cubre |
 |---|---:|---|
 | `src/helpers.test.js` | 171 | Lógica pura: fechas, slots, teléfono, duraciones, estados, finanzas, reportes |
-| `src/backend.test.js` | 157 | **Ejecuta el `Code.gs` real** en un sandbox (`node:vm`): API, reset, Calendar (incluido `SB_CALENDAR_ID` y el diagnóstico `pruebaCalendario`), reportes, Excel, destinatarios (`SB_AUTHORIZED_EMAIL` lista / `SB_REPORT_EMAIL` / `SB_BACKUP_EMAIL`), paridad correo/WhatsApp y marca de los correos (`SB_BIZ_NAME`) |
+| `src/backend.test.js` | 166 | **Ejecuta el `Code.gs` real** en un sandbox (`node:vm`): API, reset, Calendar (incluido `SB_CALENDAR_ID`, el diagnóstico `pruebaCalendario` con **prueba de escritura** y la clasificación `still_exists` del borrado), reportes (el botón «📧 Enviar por correo» con **la misma maquinaria de los triggers**), Excel, destinatarios (`SB_AUTHORIZED_EMAIL` lista / `SB_REPORT_EMAIL` / `SB_BACKUP_EMAIL`), paridad correo/WhatsApp y marca de los correos (`SB_BIZ_NAME`) |
 | `src/catalogs.test.js` | 14 | Catálogo inicial por tipo de negocio (`VITE_CATALOG` / `VITE_DEFAULT_SERVICES`) |
-| `src/api.test.js` | 12 | Transporte: mensajes de error, `loadData`/`saveData`, **tope de espera de 25 s**, **reintento automático de cargas** (transitorio sí, error del servidor no), restablecimiento |
-| `src/excel.test.js` | 14 | Libro Excel (`buildReportWorkbook`): Resumen/Movimientos/Citas, hoja Clientes, las **12 paletas completas** y **contraste AA por paleta** (regresión: primario/t/t2 ≥4.5:1 sobre sus fondos, texto del botón ≥4.5:1 sobre las paradas 0–100% del gradiente, balance legible y semánticos legibles) |
+| `src/api.test.js` | 12 | Transporte: mensajes de error (sin jerga para la clienta), `loadData`/`saveData`, **tope de espera de 25 s**, **reintento automático de cargas** (transitorio sí, error del servidor no), restablecimiento |
+| `src/excel.test.js` | 14 | Libro Excel (`buildReportWorkbook`): Resumen/Movimientos/Citas, hoja Clientes, las **12 paletas completas** y **contraste AA por paleta** (regresión: primario/t/t2 ≥4.5:1 sobre sus fondos, texto del botón ≥4.5:1 sobre las paradas del gradiente, balance legible y semánticos legibles) |
 
 ```bash
 npm test              # una vez

@@ -67,17 +67,25 @@ npm run format        # Prettier — formatea src/**
 | Suite | Pruebas | Qué cubre |
 |---|---:|---|
 | `src/helpers.test.js` | **171** | Toda la lógica pura de `helpers.js` |
-| `src/backend.test.js` | **157** | Ejecuta el `Code.gs` **real** en un sandbox |
-| `src/api.test.js` | **12** | Transporte HTTP, mensajes de error, tope de espera de 25 s y **reintento automático de cargas** (transitorio sí, error del servidor no) |
+| `src/backend.test.js` | **166** | Ejecuta el `Code.gs` **real** en un sandbox (API, Calendar con clasificación del borrado y prueba de escritura, el botón de correo con los 4 períodos y sus rieles, reportes, Excel, reset) |
+| `src/api.test.js` | **12** | Transporte HTTP, mensajes de error **sin jerga** (el detalle técnico va a consola), tope de espera de 25 s y **reintento automático de cargas** (transitorio sí, error del servidor no) |
 | `src/catalogs.test.js` | **14** | Catálogo inicial por tipo de negocio (`VITE_CATALOG` / `VITE_DEFAULT_SERVICES`) |
 | `src/excel.test.js` | **14** | Libro Excel (`buildReportWorkbook`), las **12 paletas completas** y el **contraste AA por paleta** (regresión de la auditoría UX/UI) |
 
-> **Total: 368 pruebas.** La suite de contraste (5 pruebas) es una **regresión
-> de la auditoría UX/UI de octubre de 2026**: exige a cada paleta primario/t/t2
-> ≥4.5:1 sobre sus fondos, el texto del botón ≥4.5:1 sobre las paradas del
-> gradiente donde vive el texto (punta decorativa ≥3.0, WCAG 1.4.11), el
-> balance legible y los semánticos legibles. **Si agregas o retocas una
-> paleta, esta suite te dice si rompiste la accesibilidad** — ver
+> **Total: 377 pruebas.** Las suites nuevas de octubre cubren: el botón
+> «📧 Enviar por correo» (períodos día/mes/año/rango, períodos basura
+> rechazados, `a@b` antes de Gmail, traducción del rechazo de Gmail, copia
+> automática, adjunto), la clasificación del borrado de eventos
+> (`still_exists` + excepción tardía), la prueba de escritura de
+> `pruebaCalendario` y el reintento automático de guardados.
+
+> La suite de contraste (5 pruebas dentro de `excel.test.js`) es una
+> **regresión de la auditoría UX/UI de octubre de 2026**: exige a cada
+> paleta primario/t/t2 ≥4.5:1 sobre sus fondos, el texto del botón ≥4.5:1
+> sobre las paradas del gradiente donde vive el texto (punta decorativa
+> ≥3.0, WCAG 1.4.11), el balance legible y los semánticos legibles.
+> **Si agregas o retocas una paleta, esta suite te dice si rompiste la
+> accesibilidad** — ver
 > [`ARQUITECTURA_Y_FUNCIONALIDADES.md` §18](ARQUITECTURA_Y_FUNCIONALIDADES.md).
 
 ### 2.2 `src/helpers.test.js` — lógica pura

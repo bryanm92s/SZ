@@ -394,10 +394,15 @@ no tiene duración, SZ usa **60 minutos** por defecto.
 **Pasos:**
 
 1. Toca **📆 Calendario**.
-2. Navega entre meses con **‹** y **›**.
+2. Navega entre meses con **‹** y **›** (o cambia a la **vista Semana**).
 3. Verás las citas pintadas en cada día.
-4. Toca un día para ver sus citas.
-5. Toca una cita para **abrir su detalle** o **editarla**.
+4. Toca un día: abajo aparecen sus citas en tarjetas.
+5. Cada tarjeta trae sus botones:
+   - **👁 Detalle** — para ver todo de la cita.
+   - **📅 Ir a cita** — te lleva a la pestaña **Citas** directamente a ESA
+     cita: se resalta unos segundos y la pantalla baja hasta ella.
+   - **✏️ Editar**, **💬 WhatsApp** y **✕** (eliminar) según el estado de
+     la cita.
 
 **¿Y si un evento no aparece en Google Calendar?**
 
@@ -665,15 +670,13 @@ que entró y salió, con los filtros **Todo · Ingresos · Gastos**, ordenados
 3. La app te confirma: **«El informe se envió a: \<correo\> y una copia a
    tu correo electrónico»** — la copia sale SIEMPRE, sin que tengas que
    escribirla, al correo de reportes que configuró el administrador.
-4. El correo llega **con el Excel del período adjunto** (el mismo archivo
-   que descarga el botón «Exportar Excel»: por día, por mes, por rango o
-   por año, según lo que estés viendo) y con los **emojis bien
-   renderizados**, igual que el mensaje de WhatsApp.
+4. El correo llega **exactamente igual que los reportes automáticos**:
+   mismo diseño, mismos **emojis** (📅 📊 💰), asunto
+   **«[REPORTE MANUAL] Actividad - \<período\>»** y el **Excel del
+   período adjunto** — del día, mes, rango o año que estés viendo.
 
-> Si te sale «Escribe un correo válido», revisa que esté completo
-> (ej: `nombre@correo.com`) y que sea **un solo correo**, sin comas.
-> Si el período no tiene movimientos, el correo sale **solo con el
-> resumen** y la app te lo dice.
+> Si te sale «Escribe un correo válido», revisa que esté completo y con
+> punto (ej: `nombre@correo.com`) y que sea **un solo correo**, sin comas.
 
 ### ⚠️ WhatsApp y correo deben decir lo mismo
 

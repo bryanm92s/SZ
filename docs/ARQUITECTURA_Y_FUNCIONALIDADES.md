@@ -178,14 +178,14 @@ App → saveData(payload) → call(URL, {method:'POST', body:{token, ...payload}
 | Archivo | Líneas | Responsabilidad | ¿Testeado? |
 |---|---:|---|:---:|
 | `src/main.jsx` | 10 | Punto de entrada de React (`StrictMode`) | — |
-| `src/App.jsx` | 5.690 | **Toda la UI** + estado global + orquestación de guardado + sistema de 12 paletas | — (componentes no unit-testeados) |
+| `src/App.jsx` | 5.826 | **Toda la UI** + estado global + orquestación de guardado + sistema de 12 paletas | — (componentes no unit-testeados) |
 | `src/helpers.js` | 909 | **Lógica pura**: fechas, slots, duraciones, estados, finanzas, reportes, servicio a domicilio, clasificación de citas | ✅ 171 tests |
-| `src/api.js` | 131 | Transporte HTTP, mensajes de error, **tope de espera de 25 s** (`AbortController`) y **reintento automático de cargas** (1 reintento a los 4 s para fallos transitorios) | ✅ 12 tests |
-| `apps-script/Code.gs` | 2.367 | Backend completo: API, seguridad, Sheets, Calendar (con `SB_CALENDAR_ID` y diagnóstico `pruebaCalendario`), reportes, respaldos | ✅ 157 tests (en sandbox `node:vm`) |
-| `src/backend.test.js` | 3.539 | Ejecuta `Code.gs` **real** con mocks de Apps Script | — |
+| `src/api.js` | 141 | Transporte HTTP, mensajes de error **sin jerga** (detalle técnico a consola), **tope de espera de 25 s** (`AbortController`) y **reintento automático de cargas** (1 reintento a los 4 s para fallos transitorios) | ✅ 12 tests |
+| `apps-script/Code.gs` | 2.525 | Backend completo: API, seguridad, Sheets, Calendar (con `SB_CALENDAR_ID`, diagnóstico `pruebaCalendario` con prueba de escritura y borrado clasificado), reportes (triggers **y botón «📧 Enviar por correo»** con el núcleo compartido `_sendReportTo`), respaldos | ✅ 166 tests (en sandbox `node:vm`) |
+| `src/backend.test.js` | 3.827 | Ejecuta `Code.gs` **real** con mocks de Apps Script | — |
 | `src/helpers.test.js` | 1.767 | Pruebas unitarias de `helpers.js` | — |
-| `src/api.test.js` | 200 | Pruebas del transporte (incluidos el tope de espera y el reintento automático) | — |
-| `src/excel.test.js` | 215 | Pruebas del libro Excel (`buildReportWorkbook`), de las 12 paletas y del contraste AA | — |
+| `src/api.test.js` | 213 | Pruebas del transporte (incluidos el tope de espera y el reintento automático) | — |
+| `src/excel.test.js` | 218 | Pruebas del libro Excel (`buildReportWorkbook`), de las 12 paletas y del contraste AA | — |
 
 ### 3.1 Componentes de `src/App.jsx`
 
@@ -1122,6 +1122,37 @@ de formato **nunca** debe romper el envío. ✅
 > comentadas como «MISMO orden y mismo criterio de desempate (por nombre, SIN
 > `localeCompare`, que puede variar entre entornos)».
 
+### 13.6 El botón «📧 Enviar por correo» (Reportes)
+
+> Fruto de **cinco rondas de producción** (24/10/2026). Lección aprendida y
+> regla de arquitectura: **el texto del reporte NUNCA cruza la red.**
+
+**Contrato:** la app solo envía `{action:'sendReportEmailNow', to, period}` —
+el **período** que se está viendo (`{type:'day'|'month'|'year'|'range', …}`,
+validado con formato estricto en `_sanitizeReportPeriod`). El backend
+construye el correo y el **Excel adjunto desde la hoja**, con la MISMA
+maquinaria de los triggers:
+
+- `_sendReportEmail(period, kind)` se abrió en dos: el núcleo
+  **`_sendReportTo(r, period, kind, recipient, extra)`** (texto plano con
+  emojis via `String.fromCharCode` + HTML con **entidades hex**
+  `&#x1F4C5;` + adjunto `_buildReportXlsx`) queda **compartido** por los
+  4 disparadores y por el botón (`kind='MANUAL'`, asunto
+  `[REPORTE MANUAL] Actividad - <rótulo> (<fecha>)`).
+- **Copia SIEMPRE** a `_reportEmail()` vía `cc` (sin preguntar); si falta
+  la configuración, el envío sale igual con aviso en el log y `cc:''`.
+- **Rieles** (el correo es el único canal que sale a terceros): un solo
+  destinatario validado y con dominio con punto (el «a@b» que Gmail
+  rechaza con «Invalid To header» se detecta antes); períodos estrictos;
+  el rechazo crudo de Gmail se **traduce** a lenguaje simple.
+
+**Por qué los emojis casi nunca cruzaron bien:** Apps Script decodifica mal
+los caracteres de 4 bytes (📅 💰) que llegan en el cuerpo crudo del POST.
+Los automáticos siempre funcionaron porque construyen los suyos dentro del
+script; el manual los mandaba por la red. Las rondas intermedias (base64,
+tokens, reparación de mojibake) quedaron **retiradas**: el período es lo
+único que viaja y es ASCII.
+
 ---
 
 ## 14. Restablecimiento y autorización
@@ -1416,6 +1447,11 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 63b | **Franja roja de guardado fallido + «↻ Reintentar»** (`refresh()` protegido mientras `saveFailed`) | `App.jsx` `saveFailed`, `failedSaveRef`, `retrySave` | ✅ | — |
 | 63c | **Excel de respaldo antes del reset** = informe completo (Resumen / Movimientos / Citas, histórico entero) + hoja Clientes, `respaldo_YYYY-MM-DD.xlsx` | `App.jsx` `exportBackupXlsx` · `buildReportWorkbook` | ✅ | — |
 | 64 | Tema y paletas persistentes (12 paletas AA, ver §18) | `PALETTES`/`applyTheme` (`App.jsx`), `localStorage` | ✅ | 🧪 |
+| 63d | **Reintento automático de guardados** (transitorio: 4 s y 12 s antes de la franja roja; seguro: filas por id + `createCalEvent` anti-duplicados) | `App.jsx` `sync` · `api.js` `isTransientError` · `Code.gs` | ✅ | 🧪 |
+| 67 | **Botón «📅 Ir a cita»** en el panel del día del Calendario (focusAppt: abre el grupo, resalta y hace scroll) | `App.jsx` `CalendarView` | ✅ | — |
+| 68 | **«📧 Enviar por correo»**: período → correo del trigger con copia automática y Excel adjunto (ver §13.6) | `Code.gs` `sendReportEmailNow`/`_sendReportTo` | ✅ | 🧪 |
+| 69 | **Diagnóstico de escritura del calendario** (`pruebaCalendario` línea `escr =`: crea y borra un evento de prueba) | `Code.gs` | ✅ | 🧪 |
+| 70 | **Borrado de eventos clasificado** (`still_exists` explica el permiso; excepción tardía reconocida; reintento automático del borrado) | `Code.gs` `deleteCalEvent` · `App.jsx` `calDelete` | ✅ | 🧪 |
 | 65 | Branding dinámico (`VITE_BIZ_*`) | `App.jsx` 259–262, 360–373 | ✅ | — |
 | 66 | Telemetría / análisis externo | **No existe** | ✅ | ✅ |
 
@@ -1430,11 +1466,11 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 🔎 | No verificado en producción (integraciones reales de Google y Vercel) |
 
 > ⚠️ **Ninguna funcionalidad fue probada manualmente en producción durante
-> las rondas de documentación de agosto y octubre.** Las **368 pruebas**
+> las rondas de documentación de agosto y octubre.** Las **377 pruebas**
 > corren en un **sandbox con mocks** de Apps Script (`node:vm`), no contra
 > Google real. La integración con Sheets, Calendar, Gmail, Drive y Vercel
 > queda marcada como 🔎.
-> La suite hoy son **368 pruebas** en 5 archivos.
+> La suite hoy son **377 pruebas** en 5 archivos.
 
 ---
 
