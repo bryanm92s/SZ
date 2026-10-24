@@ -3758,9 +3758,10 @@ describe('ENVIAR POR CORREO — sendReportEmailNow (botón de reportes)', () => 
       action: 'sendReportEmailNow', to: 'x@y.com', reportText: mangleAstral(original),
     })
     expect(r.data.ok).toBe(true)
-    // El correo sale EXACTO al original: emojis de 4 bytes reparados,
-    // los de 3 bytes y los acentos intactos.
-    expect(g.store.mail[0].body).toBe(original)
+    // El correo sale EXACTO al original (menos los asteriscos de
+    // WhatsApp, que el correo ya no lleva): emojis de 4 bytes
+    // reparados, los de 3 bytes y los acentos intactos.
+    expect(g.store.mail[0].body).toBe('✨ Reporte de actividad\n🗓 octubre de 2026\n• Completadas: 3\n📈 ingresos é í ó')
     expect(g.store.mail[0].htmlBody).toContain('🗓 octubre')
     expect(g.store.mail[0].htmlBody).toContain('📈')
   })
@@ -3782,6 +3783,49 @@ describe('ENVIAR POR CORREO — sendReportEmailNow (botón de reportes)', () => 
     // Con padding y con caracteres de ruido (saltos) alrededor:
     const noisy = '\n' + Buffer.from('🗓 x', 'utf8').toString('base64') + '\n=='
     expect(g.call('_b64ToUtf8', noisy)).toBe('🗓 x')
+  })
+
+  it('🎯 TOKENS ASCII: la app nueva envía {{e:HEX}} y el correo sale igual al del trigger', () => {
+    const g = env()
+    // Lo que la app nueva manda por el POST crudo: puro ASCII para los
+    // emojis (inmune a todo transporte) + acentos tal cual.
+    const tokens = '✨ *Reporte de actividad*\n{{e:1f5d3}} sáb, 24 oct. 2026\n'
+                 + '{{e:1f4c8}} *Citas*\n• Completadas: *1*\n'
+                 + '{{e:1f4b0}} *Neto*: *$330.000*\nLifting — láser é'
+    const r = post(g, {
+      action: 'sendReportEmailNow', to: 'x@y.com', reportText: tokens,
+    })
+    expect(r.data.ok).toBe(true)
+    const m = g.store.mail[0]
+    // Emojis reconstruidos con aritmética (como los del trigger)…
+    expect(m.body).toContain('🗓 sáb, 24 oct. 2026')
+    expect(m.body).toContain('📈 Citas')
+    expect(m.body).toContain('💰 Neto: $330.000')
+    expect(m.body).not.toContain('{{e:')
+    // …y SIN los asteriscos de WhatsApp (el correo va limpio, como el
+    // del trigger, cuya negrita es <b> en el HTML).
+    expect(m.body).not.toContain('*')
+    // Los acentos cruzan tal cual.
+    expect(m.body).toContain('Lifting — láser é')
+    // El HTML también lleva los emojis reconstruidos y sin asteriscos.
+    expect(m.htmlBody).toContain('🗓 sáb')
+    expect(m.htmlBody).toContain('💰 Neto')
+  })
+
+  it('🎯 tokens inválidos se dejan tal cual (nunca revientan ni inyectan)', () => {
+    const g = env()
+    const r = post(g, {
+      action: 'sendReportEmailNow', to: 'x@y.com',
+      reportText: 'texto {{e:20}} {{e:110000}} {{e:zz}} {{e:1f5d3}} ok',
+    })
+    expect(r.data.ok).toBe(true)
+    const b = g.store.mail[0].body
+    expect(b).toContain('{{e:20}}')          // BMP: fuera del rango astral
+    expect(b).toContain('{{e:110000}}')      // > U+10FFFF
+    expect(b).toContain('{{e:zz}}')          // no es hex
+    expect(b).toContain('🗓')                // el válido sí se reconstruye
+    // El escape de HTML del correo corre DESPUÉS: nada de inyección.
+    expect(g.store.mail[0].htmlBody).not.toContain('<script')
   })
 
   it('el rótulo del período se sanea en el asunto (sin saltos ni etiquetas)', () => {

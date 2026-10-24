@@ -4182,17 +4182,17 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
   // filtro suelto y Gmail contesta «Invalid To header»).
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
-  // UTF-8 → base64 por bloques (el reporte son unos pocos KB). El texto
-  // del reporte viaja así porque Apps Script decodifica mal los emojis
-  // de 4 bytes (📅 💰) que llegan en el CUERPO del POST: en base64 solo
-  // viaja ASCII y llega byte a byte intacto.
-  const utf8ToB64 = s => {
-    const bytes = new TextEncoder().encode(s)
-    let bin = ''
-    const CH = 0x8000
-    for (let i = 0; i < bytes.length; i += CH) bin += String.fromCharCode(...bytes.subarray(i, i + CH))
-    return btoa(bin)
-  }
+  // Los emojis de 4 bytes (🗓 📈 💰) NO cruzan bien el POST de Apps
+  // Script — llegan torcidos y sin reparación posible. El ASCII pasa
+  // SIEMPRE intacto: cada emoji viaja como {{e:1F5D3}} (su punto de
+  // código en hex) y el BACKEND lo reconstruye con aritmética, igual
+  // que los reportes automáticos construyen los suyos dentro del
+  // script (que por eso nunca fallan). Los acentos cruzan bien y van
+  // tal cual.
+  const escapeAstral = s => s.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, m => {
+    const cp = (((m.charCodeAt(0) & 0x3FF) << 10) | (m.charCodeAt(1) & 0x3FF)) + 0x10000
+    return '{{e:' + cp.toString(16) + '}}'
+  })
 
   const sendEmailReport = async () => {
     const to = emailAddr.trim()
@@ -4214,7 +4214,7 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
       }).join('\n')
       const r = await saveData({
         action: 'sendReportEmailNow', to,
-        reportB64: utf8ToB64(reportText),
+        reportText: escapeAstral(reportText),
         label: periodLabel(),
         excelBase64, excelName: book ? book.name : '',
       })
