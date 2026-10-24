@@ -5339,7 +5339,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10, flexWrap: 'wrap' }}>
           {/* Detalle: disponible para cualquier cita y no escribe nada.
               El contenedor de la tarjeta no tiene onClick, así que el clic
               no se propaga a ninguna acción padre. */}
@@ -5347,6 +5347,15 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
             onClick={() => setDetailId(a.id)}
             aria-label={`Ver detalle de la cita de ${a.clientName}`}>
             👁 Detalle
+          </button>
+          {/* Ir a cita: MISMO patrón que el Panel («📅 Ir a cita»): lleva a
+              la pestaña Citas directamente sobre ESTA cita (focusAppt abre
+              su grupo, la resalta unos segundos y hace scroll hasta ella).
+              Solo navega; nunca abre el detalle. */}
+          <button className="btn-sm" style={{ flex: 1 }}
+            onClick={() => setTab('appointments', { focusAppt: a.id })}
+            aria-label={`Ir a la cita de ${a.clientName} a las ${fmtTime(a.time)}`}>
+            📅 Ir a cita
           </button>
           {/* Editar: abre el mismo formulario de edición con la cita
               precargada por su ID. Ya no navega a la pestaña Citas. */}
