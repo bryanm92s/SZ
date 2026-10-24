@@ -2968,13 +2968,13 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
       <div style={{fontSize:13,color:'var(--t2)',marginBottom:14}}>Registra a esta clienta para continuar</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
         <div>
-          <label className="lbl">Nombre (mín. 3 caracteres)</label>
+          <label className="lbl">Nombre</label>
           <input className="inp" placeholder="Nombre completo" value={newName} onChange={e=>setNN(e.target.value)}
             style={{fontSize:13,borderColor:newName&&!nameValid(newName)?'var(--red)':'var(--border)'}}/>
           {newName&&!nameValid(newName)&&<div style={{fontSize:11,color:'var(--red)',marginTop:3}}>Mínimo 3 caracteres</div>}
         </div>
         <div>
-          <label className="lbl">Celular (10 dígitos)</label>
+          <label className="lbl">Celular</label>
           <input className="inp" type="tel" placeholder="3001234567" value={newPhone}
             onChange={e=>setNP(e.target.value.replace(/\D/g,'').slice(0,10))}
             style={{fontSize:13,borderColor:newPhone&&!phoneValid(newPhone)?'var(--red)':'var(--border)'}}/>
@@ -3169,13 +3169,13 @@ function ClientsTab({clients,appts,SC,confirm,infoModal,setTab}) {
       <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>✨ Agregar cliente</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
         <div>
-          <label className="lbl">Nombre (mín. 3)</label>
+          <label className="lbl">Nombre</label>
           <input className="inp" placeholder="Nombre completo" value={name} onChange={e=>setN(e.target.value)}
             style={{fontSize:13,borderColor:name&&!nameValid(name)?'var(--red)':'var(--border)'}}/>
           {name&&!nameValid(name)&&<div style={{fontSize:11,color:'var(--red)',marginTop:3}}>Mínimo 3 caracteres</div>}
         </div>
         <div>
-          <label className="lbl">Celular (10 dígitos)</label>
+          <label className="lbl">Celular</label>
           <input className="inp" type="tel" placeholder="3001234567" value={phone}
             onChange={e=>setP(e.target.value.replace(/\D/g,'').slice(0,10))}
             style={{fontSize:13,borderColor:phone&&!phoneValid(phone)?'var(--red)':'var(--border)'}}/>
