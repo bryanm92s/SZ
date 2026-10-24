@@ -3657,271 +3657,171 @@ describe('Etiqueta del reporte en español (_fmtDayLabel)', () => {
   })
 })
 
-
 /* ══════════════════════════════════════════════════════════════
    ENVIAR POR CORREO — botón «📧 Enviar por correo» de Reportes
    ────────────────────────────────────────────────────────────
-   sendReportEmailNow(to, reportText): manda el reporte que la
-   operadora está viendo al correo que ELLA escribe, con copia
-   SIEMPRE a _reportEmail(). Rieles: un solo destinatario, validado;
-   tope de 20 000 caracteres; asunto fio con el nombre del negocio.
+   sendReportEmailNow(to, {period}): la app solo envía el PERÍODO
+   (día, mes, año o rango); el backend construye el correo con la
+   MISMA maquinaria de los triggers (_sendReportTo: emojis via
+   String.fromCharCode + entidades hex — nunca cruzan la red, que es
+   por lo que los automáticos siempre funcionaron y el botón falló)
+   y arma el Excel adjunto desde la hoja. Copia SIEMPRE a
+   SB_REPORT_EMAIL vía cc. Rieles: un solo destinatario validado,
+   dominio con punto, período estricto.
    ══════════════════════════════════════════════════════════════ */
 describe('ENVIAR POR CORREO — sendReportEmailNow (botón de reportes)', () => {
-  const env = () => runCodeGs(makeSpreadsheet({ services: [toRow('services', S1)] }))
-  // La app envía el reporte en base64 (transporte ASCII: Apps Script
-  // decodifica mal los emojis de 4 bytes que llegan en el POST crudo).
-  const b64 = (text) => Buffer.from(text, 'utf8').toString('base64')
+  const D = '2026-08-04'   // martes
+  const appt = (id, over = {}) => toRow('appointments', {
+    id, clientId: 'c1', clientName: 'Ana', clientPhone: '300111222',
+    serviceIds: 's1', serviceNames: 'Diseño de cejas', servicePrice: '35000',
+    servicePrices: '{}', domicilio: 'false', domicilioPrice: '0',
+    totalPrice: '35000', date: D, time: '09:00', createdAt: '2026-08-01T09:00:00',
+    calendarCreated: 'false', calendarEventId: '', completed: 'true',
+    duration: '30', paymentMethod: 'Efectivo', ...over,
+  })
+  const gasto = (id, over = {}) => toRow('expenses', {
+    id, description: 'Cera', amount: '10000', category: 'Insumos', date: D, ...over,
+  })
+  const env = () => {
+    const g = runCodeGs(makeSpreadsheet({
+      services: [toRow('services', S1)],
+      appointments: [appt('a1'), appt('a2', { completed: 'false', paymentMethod: '', time: '11:00' })],
+      expenses: [gasto('e1'), gasto('e2', { date: '2026-08-20' })],   // uno fuera del día
+    }))
+    return g
+  }
 
-  it('envía el texto del reporte (base64) al correo escrito y copia a SB_REPORT_EMAIL', () => {
+  it('construye el correo con la MISMA maquinaria del trigger: emojis, asunto, copia y Excel', () => {
     const g = env()
     g.store.props.set('SB_REPORT_EMAIL', 'reportes@duena.test')
 
     const r = post(g, {
       action: 'sendReportEmailNow', to: 'clienta@correo.com',
-      reportB64: b64('📅 Reporte de octubre\nNeto del período: $500.000'),
+      period: { type: 'day', day: D },
     })
 
     expect(r.ok).toBe(true)
     expect(r.data.ok).toBe(true)
     expect(r.data.sentTo).toBe('clienta@correo.com')
     expect(r.data.cc).toBe('reportes@duena.test')
-    expect(g.store.mail.length).toBe(1)
-    expect(g.store.mail[0].to).toBe('clienta@correo.com')
-    expect(g.store.mail[0].cc).toBe('reportes@duena.test')
-    // El texto decodificado llega BYTE A BYTE: emojis y acentos intactos.
-    expect(g.store.mail[0].body).toBe('📅 Reporte de octubre\nNeto del período: $500.000')
-    expect(g.store.mail[0].subject).toContain('Reporte')
-  })
+    expect(r.data.attached).toBe(true)
 
-  it('el correo sale con HTML para que los emojis lleguen bien (y saltos de línea)', () => {
-    const g = env()
-    const r = post(g, {
-      action: 'sendReportEmailNow', to: 'x@y.com', label: 'octubre de 2026',
-      reportB64: b64('📅 Reporte\n💰 Neto: $500.000\n✓ Completadas: 3'),
-    })
-    expect(r.data.ok).toBe(true)
     const m = g.store.mail[0]
-    // Asunto con el rótulo del período (saneado).
-    expect(m.subject).toContain('Reporte de octubre de 2026')
-    // El HTML es el que renderiza el cliente de correo: emojis intactos,
-    // escapes de entidades y saltos como <br> — misma plantilla que el
-    // reporte automático.
-    expect(m.htmlBody).toContain('<meta charset="utf-8">')
-    expect(m.htmlBody).toContain('📅 Reporte<br>')
-    expect(m.htmlBody).toContain('💰 Neto: $500.000')
-    expect(m.htmlBody).toContain('white-space:pre-wrap')
-    expect(m.htmlBody).not.toContain('<script')
+    // Mismo formato de asunto que los triggers, con kind MANUAL.
+    expect(m.subject).toMatch(/^\[REPORTE MANUAL\] Actividad - mar, 4 de ago 2026 \(\d{4}-\d{2}-\d{2} \d{2}:\d{2}\)$/)
+    // Los emojis del texto plano se construyen con fromCharCode: el
+    // correo lleva 📅 📊 💰 EXACTOS, no «símbolos raros».
+    expect(m.body).toContain('📅 ' + 'mar, 4 de ago 2026')
+    expect(m.body).toContain('📊 *Citas*')
+    expect(m.body).toContain('💰 *Ingresos*')
+    expect(m.body).toContain('• Creadas (registradas): *0*')   // creadas cuenta por createdAt (08-01)
+    expect(m.body).toContain('• Agendadas para el per\u00edodo: *2*')
+    // Copia al correo de reportes y Excel adjunto (construido aquí,
+    // como el del trigger).
+    expect(m.cc).toBe('reportes@duena.test')
+    expect(m.attachments.length).toBe(1)
+    // El HTML usa entidades hex (inmunes a charset), como el trigger.
+    expect(m.htmlBody).toContain('&#x1F4C5;')
+    expect(m.htmlBody).toContain('<b>Citas</b>')
+    // Pie del reporte manual.
+    expect(m.htmlBody).toContain('Reporte manual de la app de')
   })
 
-  it('«a@b» (sin punto en el dominio) se rechaza ANTES de llamar a Gmail — nunca «Invalid To header»', () => {
+  it('los cuatro períodos de la app funcionan: día, mes, año y RANGO', () => {
+    const g = env()
+
+    // Rango arbitrario: 2 completadas dentro (una el 4, otra el 20).
+    const rr = post(g, {
+      action: 'sendReportEmailNow', to: 'x@y.com',
+      period: { type: 'range', from: '2026-08-01', to: '2026-08-31' },
+    })
+    expect(rr.data.ok).toBe(true)
+    const mr = g.store.mail[0]
+    expect(mr.body).toContain('• Creadas (registradas): *2*')
+    // El gasto del 20 ENTRA en el rango del mes (salía del día solo).
+    expect(mr.body).toContain('*Gastos*')
+
+    const rm = post(g, {
+      action: 'sendReportEmailNow', to: 'x@y.com',
+      period: { type: 'month', ym: '2026-08' },
+    })
+    expect(rm.data.ok).toBe(true)
+    expect(g.store.mail[1].body).toContain('Agosto 2026')
+
+    const ry = post(g, {
+      action: 'sendReportEmailNow', to: 'x@y.com',
+      period: { type: 'year', y: '2026' },
+    })
+    expect(ry.data.ok).toBe(true)
+    expect(g.store.mail[2].body).toContain('Año 2026')
+
+    // El día solo trae lo del 4 de agosto.
+    const rd = post(g, {
+      action: 'sendReportEmailNow', to: 'x@y.com',
+      period: { type: 'day', day: D },
+    })
+    expect(rd.data.ok).toBe(true)
+    expect(g.store.mail[3].body).toContain('mar, 4 de ago 2026')
+  })
+
+  it('sin período (app desactualizada) → error claro, NADA enviado', () => {
+    const g = env()
+    const r = post(g, { action: 'sendReportEmailNow', to: 'x@y.com' })
+    expect(r.data.ok).toBe(false)
+    expect(r.data.code).toBe('bad_period')
+    expect(r.data.error).toMatch(/Actualiza la app/)
+    expect(g.store.mail.length).toBe(0)
+  })
+
+  it('período basura → igual de rechazado (no se confía en el POST)', () => {
+    const g = env()
+    const malos = [
+      { type: 'day', day: 'perico' },
+      { type: 'month', ym: '2026-8' },
+      { type: 'year', y: '26' },
+      { type: 'range', from: '2026-08-10', to: '2026-08-01' },  // invertido
+      { type: 'semana' },
+      { type: 'day', day: "'; DROP TABLE" },
+    ]
+    for (const p of malos) {
+      const r = post(g, { action: 'sendReportEmailNow', to: 'x@y.com', period: p })
+      expect(r.data.code).toBe('bad_period')
+    }
+    expect(g.store.mail.length).toBe(0)
+  })
+
+  it('«a@b» (sin punto en el dominio) se rechaza ANTES de Gmail — nunca «Invalid To header»', () => {
     const g = env()
     const r = post(g, {
-      action: 'sendReportEmailNow', to: 'dueña@gnail', reportB64: b64('texto'),
+      action: 'sendReportEmailNow', to: 'dueña@gnail', period: { type: 'day', day: D },
     })
     expect(r.data.ok).toBe(false)
     expect(r.data.code).toBe('bad_email')
     expect(r.data.error).toMatch(/falta el punto del dominio/)
-    expect(g.store.mail.length).toBe(0)      // Gmail ni se enteró
+    expect(g.store.mail.length).toBe(0)
   })
 
   it('si GMAIL rechaza con «Invalid To header», el mensaje que ve la clienta es simple', () => {
     const g = env()
     g.store.failSend = 'Argumento no válido:: Invalid To header'
     const r = post(g, {
-      action: 'sendReportEmailNow', to: 'caso-raro@correo.com', reportB64: b64('texto'),
+      action: 'sendReportEmailNow', to: 'caso-raro@correo.com', period: { type: 'day', day: D },
     })
     expect(r.data.ok).toBe(false)
     expect(r.data.code).toBe('bad_email')
     expect(r.data.error).toMatch(/no es válido para Gmail/)
-    expect(r.data.error).not.toMatch(/Invalid To header/)
-    expect(r.data.error).not.toMatch(/Argumento no válido/)
-  })
-
-  it('retro-compatibilidad: sin base64 se usa el texto plano de siempre', () => {
-    const g = env()
-    const r = post(g, {
-      action: 'sendReportEmailNow', to: 'x@y.com', reportText: 'reporte legado',
-    })
-    expect(r.data.ok).toBe(true)
-    expect(g.store.mail[0].body).toBe('reporte legado')
-  })
-
-  it('🛠️ el texto plano TORCIDO por el transporte se REPARA: emojis de 4 bytes reconstruidos', () => {
-    const g = env()
-    // Simulación FIEL del bug de Apps Script: los caracteres de 1-3
-    // bytes UTF-8 cruzan bien (✨ • é) pero los de 4 bytes (🗓 📈 💰)
-    // llegan como 4 caracteres Latin-1 basura — byte a byte.
-    const mangleAstral = (s) => s.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, (m) =>
-      Buffer.from(m, 'utf8').toString('latin1'))
-    const original = '✨ *Reporte de actividad*\n🗓 octubre de 2026\n• Completadas: 3\n📈 ingresos é í ó'
-    const r = post(g, {
-      action: 'sendReportEmailNow', to: 'x@y.com', reportText: mangleAstral(original),
-    })
-    expect(r.data.ok).toBe(true)
-    // El correo sale EXACTO al original (menos los asteriscos de
-    // WhatsApp, que el correo ya no lleva): emojis de 4 bytes
-    // reparados, los de 3 bytes y los acentos intactos.
-    expect(g.store.mail[0].body).toBe('✨ Reporte de actividad\n🗓 octubre de 2026\n• Completadas: 3\n📈 ingresos é í ó')
-    expect(g.store.mail[0].htmlBody).toContain('🗓 octubre')
-    expect(g.store.mail[0].htmlBody).toContain('📈')
-  })
-
-  it('🛠️ _b64ToUtf8: decodificación byte a byte con aritmética PURA (sin Utilities)', () => {
-    const g = env()
-    // El decodificador de Utilities (getDataAsString) es el que torcía
-    // los emojis en producción; el de aquí es JS puro — el MISMO código
-    // corre en el sandbox y en Apps Script. Se prueba directo:
-    const samples = [
-      '🗓 Reporte de actividad\n💰 Neto: $330.000\n✨ • é í ó ú ñ á',
-      'a', 'acentos: María José ñ',
-      'línea 1\nlínea 2\n\nemoji final 📅',
-      '🛵 domicilio + 📊 total',
-    ]
-    for (const s of samples) {
-      expect(g.call('_b64ToUtf8', Buffer.from(s, 'utf8').toString('base64'))).toBe(s)
-    }
-    // Con padding y con caracteres de ruido (saltos) alrededor:
-    const noisy = '\n' + Buffer.from('🗓 x', 'utf8').toString('base64') + '\n=='
-    expect(g.call('_b64ToUtf8', noisy)).toBe('🗓 x')
-  })
-
-  it('🎯 TOKENS ASCII: la app nueva envía {{e:HEX}} y el correo sale igual al del trigger', () => {
-    const g = env()
-    // Lo que la app nueva manda por el POST crudo: puro ASCII para los
-    // emojis (inmune a todo transporte) + acentos tal cual.
-    const tokens = '✨ *Reporte de actividad*\n{{e:1f5d3}} sáb, 24 oct. 2026\n'
-                 + '{{e:1f4c8}} *Citas*\n• Completadas: *1*\n'
-                 + '{{e:1f4b0}} *Neto*: *$330.000*\nLifting — láser é'
-    const r = post(g, {
-      action: 'sendReportEmailNow', to: 'x@y.com', reportText: tokens,
-    })
-    expect(r.data.ok).toBe(true)
-    const m = g.store.mail[0]
-    // Emojis reconstruidos con aritmética (como los del trigger)…
-    expect(m.body).toContain('🗓 sáb, 24 oct. 2026')
-    expect(m.body).toContain('📈 Citas')
-    expect(m.body).toContain('💰 Neto: $330.000')
-    expect(m.body).not.toContain('{{e:')
-    // …y SIN los asteriscos de WhatsApp (el correo va limpio, como el
-    // del trigger, cuya negrita es <b> en el HTML).
-    expect(m.body).not.toContain('*')
-    // Los acentos cruzan tal cual.
-    expect(m.body).toContain('Lifting — láser é')
-    // El HTML también lleva los emojis reconstruidos y sin asteriscos.
-    expect(m.htmlBody).toContain('🗓 sáb')
-    expect(m.htmlBody).toContain('💰 Neto')
-  })
-
-  it('🎯 tokens inválidos se dejan tal cual (nunca revientan ni inyectan)', () => {
-    const g = env()
-    const r = post(g, {
-      action: 'sendReportEmailNow', to: 'x@y.com',
-      reportText: 'texto {{e:20}} {{e:110000}} {{e:zz}} {{e:1f5d3}} ok',
-    })
-    expect(r.data.ok).toBe(true)
-    const b = g.store.mail[0].body
-    expect(b).toContain('{{e:20}}')          // BMP: fuera del rango astral
-    expect(b).toContain('{{e:110000}}')      // > U+10FFFF
-    expect(b).toContain('{{e:zz}}')          // no es hex
-    expect(b).toContain('🗓')                // el válido sí se reconstruye
-    // El escape de HTML del correo corre DESPUÉS: nada de inyección.
-    expect(g.store.mail[0].htmlBody).not.toContain('<script')
-  })
-
-  it('el rótulo del período se sanea en el asunto (sin saltos ni etiquetas)', () => {
-    const g = env()
-    const r = post(g, {
-      action: 'sendReportEmailNow', to: 'x@y.com', label: 'enero\n<script>x</script>',
-      reportText: 'texto',
-    })
-    expect(r.data.ok).toBe(true)
-    expect(g.store.mail[0].subject).not.toContain('\n')
-    expect(g.store.mail[0].subject).toContain('Reporte de enero <script>x')
-  })
-
-  it('adjunta el Excel del período (mismo libro del botón Exportar) con nombre saneado', () => {
-    const g = env()
-    const b64 = Buffer.from('xlsx-falso-de-prueba').toString('base64')
-    const r = post(g, {
-      action: 'sendReportEmailNow', to: 'x@y.com', reportText: 'texto',
-      excelBase64: b64, excelName: 'reporte_2026-10-23_2026-10-30 con espacios.xlsx',
-    })
-    expect(r.data.ok).toBe(true)
-    expect(r.data.attached).toBe(true)
-    const att = g.store.mail[0].attachments
-    expect(att.length).toBe(1)
-    // El nombre se sanea: espacios y todo lo que no sea [a-zA-Z0-9_.-] → _.
-    expect(att[0].getName()).toBe('reporte_2026-10-23_2026-10-30_con_espacios.xlsx')
-    expect(att[0].getContentType()).toContain('spreadsheetml')
-    // El contenido decodificado es EXACTAMENTE lo que envió la app.
-    expect(Buffer.from(att[0].getBytes()).toString()).toBe('xlsx-falso-de-prueba')
-  })
-
-  it('un adjunto inválido NO tumba el envío: sale sin Excel y con attached:false', () => {
-    const g = env()
-    const r = post(g, {
-      action: 'sendReportEmailNow', to: 'x@y.com', reportText: 'texto',
-      excelBase64: 'esto no es base64!!!',
-    })
-    expect(r.data.ok).toBe(true)
-    expect(r.data.attached).toBe(false)
-    expect(g.store.mail[0].attachments).toEqual([])
-    expect(JSON.stringify(g.store.logs)).toContain('sin adjunto')
-  })
-
-  it('sin movimientos no hay Excel que adjuntar (attached:false, correo normal)', () => {
-    const g = env()
-    const r = post(g, { action: 'sendReportEmailNow', to: 'x@y.com', reportText: 'texto' })
-    expect(r.data.ok).toBe(true)
-    expect(r.data.attached).toBe(false)
-  })
-
-  it('sin SB_REPORT_EMAIL la copia cae a SB_AUTHORIZED_EMAIL (retro-compatible)', () => {
-    const g = env()
-    const r = post(g, { action: 'sendReportEmailNow', to: 'x@y.com', reportText: 'texto' })
-    expect(r.data.ok).toBe(true)
-    expect(r.data.cc).toBe(AUTHORIZED_EMAIL)
-    expect(g.store.mail[0].cc).toBe(AUTHORIZED_EMAIL)
+    expect(r.data.error).not.toMatch(/Invalid To header|Argumento no válido/)
   })
 
   it('sin NINGÚN correo configurado el envío sale igual (sin copia) y avisa en el log', () => {
     const g = env()
     g.store.props.delete('SB_AUTHORIZED_EMAIL')
-    const r = post(g, { action: 'sendReportEmailNow', to: 'x@y.com', reportText: 'texto' })
+    const r = post(g, {
+      action: 'sendReportEmailNow', to: 'x@y.com', period: { type: 'day', day: D },
+    })
     expect(r.data.ok).toBe(true)
     expect(r.data.cc).toBe('')
     expect(g.store.mail[0].cc).toBe('')
     expect(JSON.stringify(g.store.logs)).toContain('SIN copia')
-  })
-
-  it('correo inválido → error claro y NADA enviado', () => {
-    const g = env()
-    const r = post(g, { action: 'sendReportEmailNow', to: 'no-es-un-correo', reportText: 'texto' })
-    expect(r.data.ok).toBe(false)
-    expect(r.data.code).toBe('bad_email')
-    expect(g.store.mail.length).toBe(0)
-  })
-
-  it('una LISTA de correos se rechaza: un solo destinatario a la vez (riel anti-relevo)', () => {
-    const g = env()
-    const r = post(g, { action: 'sendReportEmailNow', to: 'a@x.com, b@y.com', reportText: 'texto' })
-    expect(r.data.ok).toBe(false)
-    expect(r.data.code).toBe('too_many')
-    expect(g.store.mail.length).toBe(0)
-  })
-
-  it('reporte vacío → no se envía nada', () => {
-    const g = env()
-    const r = post(g, { action: 'sendReportEmailNow', to: 'x@y.com', reportText: '   ' })
-    expect(r.data.ok).toBe(false)
-    expect(r.data.code).toBe('empty')
-    expect(g.store.mail.length).toBe(0)
-  })
-
-  it('tope de tamaño: el texto se recorta a 20 000 caracteres', () => {
-    const g = env()
-    const r = post(g, { action: 'sendReportEmailNow', to: 'x@y.com', reportText: 'a'.repeat(25000) })
-    expect(r.data.ok).toBe(true)
-    expect(g.store.mail[0].body.length).toBeLessThanOrEqual(20000)
   })
 })

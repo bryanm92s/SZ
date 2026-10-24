@@ -4182,18 +4182,6 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
   // filtro suelto y Gmail contesta «Invalid To header»).
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
-  // Los emojis de 4 bytes (🗓 📈 💰) NO cruzan bien el POST de Apps
-  // Script — llegan torcidos y sin reparación posible. El ASCII pasa
-  // SIEMPRE intacto: cada emoji viaja como {{e:1F5D3}} (su punto de
-  // código en hex) y el BACKEND lo reconstruye con aritmética, igual
-  // que los reportes automáticos construyen los suyos dentro del
-  // script (que por eso nunca fallan). Los acentos cruzan bien y van
-  // tal cual.
-  const escapeAstral = s => s.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, m => {
-    const cp = (((m.charCodeAt(0) & 0x3FF) << 10) | (m.charCodeAt(1) & 0x3FF)) + 0x10000
-    return '{{e:' + cp.toString(16) + '}}'
-  })
-
   const sendEmailReport = async () => {
     const to = emailAddr.trim()
     if (!EMAIL_RE.test(to) || /[,;]/.test(to)) {
@@ -4202,22 +4190,15 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
     }
     setEmailSending(true); setEmailErr('')
     try {
-      // El MISMO libro del botón «Exportar Excel» (rango seleccionado:
-      // día, mes, rango o año) viaja como adjunto en base64. El backend
-      // lo sanean (nombre, tamaño) y lo adjunta; si falla, el correo
-      // sale igual y la confirmación lo dice.
-      const book = await buildReportBook()
-      const excelBase64 = book ? book.XLSX.write(book.wb, { bookType: 'xlsx', type: 'base64' }) : ''
-      const reportText = reportLines({
-        label: periodLabel(), m: M, topByDemand,
-        stamp: new Date().toLocaleString('es-CO'),
-      }).join('\n')
-      const r = await saveData({
-        action: 'sendReportEmailNow', to,
-        reportText: escapeAstral(reportText),
-        label: periodLabel(),
-        excelBase64, excelName: book ? book.name : '',
-      })
+      // Solo viaja el PERÍODO que se está viendo: el backend construye
+      // el correo con la MISMA maquinaria de los reportes automáticos
+      // (_sendReportTo: emojis via String.fromCharCode + entidades hex
+      // — nunca cruzan la red) y arma el Excel adjunto desde la hoja.
+      const period = mode==='day'   ? { type:'day',   day }
+                   : mode==='month' ? { type:'month', ym: month }
+                   : mode==='year'  ? { type:'year',  y: year }
+                   :                  { type:'range', from, to }
+      const r = await saveData({ action:'sendReportEmailNow', to, period })
       setEmailSending(false)
       if (r && r.ok) {
         setEmailModal(false); setEmailAddr('')
