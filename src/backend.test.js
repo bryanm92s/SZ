@@ -464,6 +464,9 @@ function runCodeGs(ss, store = makeStore()) {
         getBytes: () => bytes,
         getContentType: () => contentType,
         getName: () => name,
+        // UTF-8, como el Apps Script real: es lo que usa sendReportEmailNow
+        // para decodificar el texto del reporte que llegó en base64.
+        getDataAsString: () => Buffer.from(bytes).toString('utf8'),
       }),
     },
     // Script Properties: centralizado en el servidor, nunca en el frontend.
@@ -480,6 +483,9 @@ function runCodeGs(ss, store = makeStore()) {
     // plano, y `attachments` (el Excel del reporte).
     GmailApp: {
       sendEmail: (to, subject, body, opts) => {
+        // Para simular el rechazo crudo de Gmail («Invalid To header»)
+        // y verificar que sendReportEmailNow lo traduce a algo simple.
+        if (store.failSend) throw new Error(store.failSend)
         store.mail.push({
           to, subject, body,
           cc: (opts && opts.cc) || '',
@@ -3662,14 +3668,17 @@ describe('Etiqueta del reporte en español (_fmtDayLabel)', () => {
    ══════════════════════════════════════════════════════════════ */
 describe('ENVIAR POR CORREO — sendReportEmailNow (botón de reportes)', () => {
   const env = () => runCodeGs(makeSpreadsheet({ services: [toRow('services', S1)] }))
+  // La app envía el reporte en base64 (transporte ASCII: Apps Script
+  // decodifica mal los emojis de 4 bytes que llegan en el POST crudo).
+  const b64 = (text) => Buffer.from(text, 'utf8').toString('base64')
 
-  it('envía el texto del reporte al correo escrito y copia a SB_REPORT_EMAIL', () => {
+  it('envía el texto del reporte (base64) al correo escrito y copia a SB_REPORT_EMAIL', () => {
     const g = env()
     g.store.props.set('SB_REPORT_EMAIL', 'reportes@duena.test')
 
     const r = post(g, {
       action: 'sendReportEmailNow', to: 'clienta@correo.com',
-      reportText: '📅 Reporte de octubre\nNeto del período: $500.000',
+      reportB64: b64('📅 Reporte de octubre\nNeto del período: $500.000'),
     })
 
     expect(r.ok).toBe(true)
@@ -3679,7 +3688,8 @@ describe('ENVIAR POR CORREO — sendReportEmailNow (botón de reportes)', () => 
     expect(g.store.mail.length).toBe(1)
     expect(g.store.mail[0].to).toBe('clienta@correo.com')
     expect(g.store.mail[0].cc).toBe('reportes@duena.test')
-    expect(g.store.mail[0].body).toContain('Neto del período: $500.000')
+    // El texto decodificado llega BYTE A BYTE: emojis y acentos intactos.
+    expect(g.store.mail[0].body).toBe('📅 Reporte de octubre\nNeto del período: $500.000')
     expect(g.store.mail[0].subject).toContain('Reporte')
   })
 
@@ -3687,7 +3697,7 @@ describe('ENVIAR POR CORREO — sendReportEmailNow (botón de reportes)', () => 
     const g = env()
     const r = post(g, {
       action: 'sendReportEmailNow', to: 'x@y.com', label: 'octubre de 2026',
-      reportText: '📅 Reporte\n💰 Neto: $500.000\n✓ Completadas: 3',
+      reportB64: b64('📅 Reporte\n💰 Neto: $500.000\n✓ Completadas: 3'),
     })
     expect(r.data.ok).toBe(true)
     const m = g.store.mail[0]
@@ -3695,12 +3705,45 @@ describe('ENVIAR POR CORREO — sendReportEmailNow (botón de reportes)', () => 
     expect(m.subject).toContain('Reporte de octubre de 2026')
     // El HTML es el que renderiza el cliente de correo: emojis intactos,
     // escapes de entidades y saltos como <br> — misma plantilla que el
-    // reporte automático (que nunca sufrió los «símbolos raros»).
+    // reporte automático.
     expect(m.htmlBody).toContain('<meta charset="utf-8">')
     expect(m.htmlBody).toContain('📅 Reporte<br>')
     expect(m.htmlBody).toContain('💰 Neto: $500.000')
     expect(m.htmlBody).toContain('white-space:pre-wrap')
     expect(m.htmlBody).not.toContain('<script')
+  })
+
+  it('«a@b» (sin punto en el dominio) se rechaza ANTES de llamar a Gmail — nunca «Invalid To header»', () => {
+    const g = env()
+    const r = post(g, {
+      action: 'sendReportEmailNow', to: 'dueña@gnail', reportB64: b64('texto'),
+    })
+    expect(r.data.ok).toBe(false)
+    expect(r.data.code).toBe('bad_email')
+    expect(r.data.error).toMatch(/falta el punto del dominio/)
+    expect(g.store.mail.length).toBe(0)      // Gmail ni se enteró
+  })
+
+  it('si GMAIL rechaza con «Invalid To header», el mensaje que ve la clienta es simple', () => {
+    const g = env()
+    g.store.failSend = 'Argumento no válido:: Invalid To header'
+    const r = post(g, {
+      action: 'sendReportEmailNow', to: 'caso-raro@correo.com', reportB64: b64('texto'),
+    })
+    expect(r.data.ok).toBe(false)
+    expect(r.data.code).toBe('bad_email')
+    expect(r.data.error).toMatch(/no es válido para Gmail/)
+    expect(r.data.error).not.toMatch(/Invalid To header/)
+    expect(r.data.error).not.toMatch(/Argumento no válido/)
+  })
+
+  it('retro-compatibilidad: sin base64 se usa el texto plano de siempre', () => {
+    const g = env()
+    const r = post(g, {
+      action: 'sendReportEmailNow', to: 'x@y.com', reportText: 'reporte legado',
+    })
+    expect(r.data.ok).toBe(true)
+    expect(g.store.mail[0].body).toBe('reporte legado')
   })
 
   it('el rótulo del período se sanea en el asunto (sin saltos ni etiquetas)', () => {

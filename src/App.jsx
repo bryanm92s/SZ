@@ -4178,7 +4178,21 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
   const [emailAddr,  setEmailAddr]  = useState('')
   const [emailErr,   setEmailErr]   = useState('')
   const [emailSending, setEmailSending] = useState(false)
-  const EMAIL_RE = /^[^\s@]+@[^\s@]+$/
+  // Misma exigencia que Gmail: dominio con punto (un «a@b» pasa el
+  // filtro suelto y Gmail contesta «Invalid To header»).
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
+  // UTF-8 → base64 por bloques (el reporte son unos pocos KB). El texto
+  // del reporte viaja así porque Apps Script decodifica mal los emojis
+  // de 4 bytes (📅 💰) que llegan en el CUERPO del POST: en base64 solo
+  // viaja ASCII y llega byte a byte intacto.
+  const utf8ToB64 = s => {
+    const bytes = new TextEncoder().encode(s)
+    let bin = ''
+    const CH = 0x8000
+    for (let i = 0; i < bytes.length; i += CH) bin += String.fromCharCode(...bytes.subarray(i, i + CH))
+    return btoa(bin)
+  }
 
   const sendEmailReport = async () => {
     const to = emailAddr.trim()
@@ -4194,12 +4208,13 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
       // sale igual y la confirmación lo dice.
       const book = await buildReportBook()
       const excelBase64 = book ? book.XLSX.write(book.wb, { bookType: 'xlsx', type: 'base64' }) : ''
+      const reportText = reportLines({
+        label: periodLabel(), m: M, topByDemand,
+        stamp: new Date().toLocaleString('es-CO'),
+      }).join('\n')
       const r = await saveData({
         action: 'sendReportEmailNow', to,
-        reportText: reportLines({
-          label: periodLabel(), m: M, topByDemand,
-          stamp: new Date().toLocaleString('es-CO'),
-        }).join('\n'),
+        reportB64: utf8ToB64(reportText),
         label: periodLabel(),
         excelBase64, excelName: book ? book.name : '',
       })
