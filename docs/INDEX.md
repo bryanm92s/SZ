@@ -49,6 +49,7 @@ documentación. Se conservan por su valor histórico:
 |---|---|
 | [`../SETUP.md`](../SETUP.md) | Guía de despliegue original, paso a paso. Es más breve que `MANUAL_TECNICO.md`; puede estar desactualizada en detalles (ver observaciones). |
 | `../SESION_2026-08-04.md` | Bitácora de la sesión de desarrollo del 4-5 de agosto de 2026. Registro histórico de cambios. |
+| [`../SESION_2026-10-23.md`](../SESION_2026-10-23.md) | Bitácora del 23 de octubre de 2026: **dos auditorías UX/UI**, 12 paletas con contraste AA, reintento automático de cargas y banner de conexión cerrable. |
 | `../Manual_Sistema_Gestion.docx` | Manual de uso operativo en formato Word. Es un documento binario; **no se pudo revisar su contenido** en esta tarea. |
 
 ---

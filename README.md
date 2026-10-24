@@ -31,7 +31,8 @@ Los datos no viven en el navegador ni en un servidor propio: se guardan en una
 **base de datos gratis, en la nube y accesible desde cualquier dispositivo**.
 
 > ✨ Pensado para una operadora (no para un equipo de ingeniería): interfaz grande,
-> táctil, en español (Colombia), con paletas de colores y modo oscuro.
+> táctil, en español (Colombia), con 12 paletas de colores y accesibilidad
+> AA verificada.
 
 ---
 
@@ -130,8 +131,10 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 - Toca un día para ver/abrir sus citas.
 
 ### ⚙️ Ajustes
-- **9 paletas de color** (Rosa · Morado · Azul · Verde · Dorado · Fucsia ·
-  Coral · Salvia · Carbón) + **modo claro/oscuro**, guardados en el navegador.
+- **12 paletas de color** con contraste AA verificado (Palo de Rosa 🌸 ·
+  Morado 💜 · Azul 💙 · Verde 💚 · Dorado ✨ · Fucsia 🌺 · Salvia 🌿 ·
+  Carbón ⚫ · Barbería 💈 · Gala 🎩 · Marino ⚓ · Burdeos 🍷), guardadas en
+  el navegador.
 - **Saldo inicial** del negocio: guardado en **Google Sheets** (hoja «Config»)
   y sincronizado entre navegador y celulares (también se puede editar la celda
   directo en la hoja). El Panel lo muestra **aparte, a la derecha** del Balance
@@ -149,9 +152,13 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 - **Sincronización automática cada 30 s**, pausada cuando la pestaña no está
   visible.
 - **Modo sin conexión**: si falla la red, se sigue trabajando con respaldo en
-  `localStorage`. Si el fallo es al **guardar**, aparece una **franja roja con
-  botón «↻ Reintentar guardar»** que reenvía lo pendiente; el Panel no se
-  refresca por su cuenta mientras ese aviso esté visible.
+  `localStorage`. Las **cargas** se reintentan solas una vez a los 4 s (los
+  fallos transitorios — arranque en frío o un 404 puntual de Google — casi
+  nunca muestran aviso). Si el fallo es al **guardar**, aparece una **franja
+  roja con botón «↻ Reintentar guardar»** que reenvía lo pendiente; el Panel
+  no se refresca por su cuenta mientras ese aviso esté visible. El aviso
+  amarillo de «Modo sin conexión» se puede **cerrar con ✕** y no reaparece
+  en cada fallo del ciclo de 30 s (se rearma solo tras reconectar).
 - **Branding dinámico**: nombre, subtítulo, emoji y logo del negocio desde
   variables de entorno (título y favicon se actualizan en runtime).
 - **Respaldo automático** de la hoja en Google Drive (diario, 30 días de
@@ -422,7 +429,7 @@ Detalle completo en [`docs/MANUAL_TECNICO.md`](docs/MANUAL_TECNICO.md) sección 
 
 ## 🧪 Testing
 
-Hay **354 pruebas** en 5 suites, ejecutadas y verificadas en esta ronda de
+Hay **368 pruebas** en 5 suites, ejecutadas y verificadas en esta ronda de
 documentación:
 
 | Suite | Pruebas | Qué cubre |
@@ -430,8 +437,8 @@ documentación:
 | `src/helpers.test.js` | 171 | Lógica pura: fechas, slots, teléfono, duraciones, estados, finanzas, reportes |
 | `src/backend.test.js` | 157 | **Ejecuta el `Code.gs` real** en un sandbox (`node:vm`): API, reset, Calendar (incluido `SB_CALENDAR_ID` y el diagnóstico `pruebaCalendario`), reportes, Excel, destinatarios (`SB_AUTHORIZED_EMAIL` lista / `SB_REPORT_EMAIL` / `SB_BACKUP_EMAIL`), paridad correo/WhatsApp y marca de los correos (`SB_BIZ_NAME`) |
 | `src/catalogs.test.js` | 14 | Catálogo inicial por tipo de negocio (`VITE_CATALOG` / `VITE_DEFAULT_SERVICES`) |
-| `src/api.test.js` | 9 | Transporte: mensajes de error, `loadData`/`saveData`, **tope de espera de 25 s**, restablecimiento |
-| `src/excel.test.js` | 3 | Libro Excel (`buildReportWorkbook`): Resumen/Movimientos/Citas, hoja Clientes y las 9 paletas |
+| `src/api.test.js` | 12 | Transporte: mensajes de error, `loadData`/`saveData`, **tope de espera de 25 s**, **reintento automático de cargas** (transitorio sí, error del servidor no), restablecimiento |
+| `src/excel.test.js` | 14 | Libro Excel (`buildReportWorkbook`): Resumen/Movimientos/Citas, hoja Clientes, las **12 paletas completas** y **contraste AA por paleta** (regresión: primario/t/t2 ≥4.5:1 sobre sus fondos, texto del botón ≥4.5:1 sobre las paradas 0–100% del gradiente, balance legible y semánticos legibles) |
 
 ```bash
 npm test              # una vez
@@ -455,7 +462,7 @@ npm run build         # build de producción
 | **Servicios** | Catálogo, precios y duración; el historial de precios se guarda automáticamente. |
 | **Finanzas** | Ingresos vs. gastos, detalle, comparación mensual, top servicios y reportes. |
 | **Calendario** | Vista mensual de las citas. |
-| **Ajustes** | Tema/paleta, modo oscuro y restablecimiento protegido. |
+| **Ajustes** | Tema/paleta (12), saldo inicial y restablecimiento protegido. |
 
 > 🙋 Procedimientos paso a paso con ejemplos:
 > [`docs/MANUAL_USUARIO.md`](docs/MANUAL_USUARIO.md).

@@ -149,3 +149,54 @@ describe('api: tope de espera de 25 s', () => {
     vi.useRealTimers()
   })
 })
+
+/* ── Reintento automático de cargas (callWithRetry, loadData) ────
+   El arranque en frío de la mañana y los 404 puntuales al
+   actualizarse el despliegue son TRANSITORIOS: loadData reintenta
+   UNA vez (4 s después) antes de declarar el error, así el banner
+   «Modo sin conexión» casi nunca aparece. Los guardados no se
+   reintentan solos (para eso está la franja roja manual) y los
+   errores del SERVIDOR (JSON ok:false, p. ej. token malo) tampoco. */
+describe('api: reintento automático de cargas', () => {
+  it('un 404 transitorio se reintenta y la carga llega sin aviso', async () => {
+    const { loadData } = await loadApi()
+    vi.useFakeTimers()
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 404, url: ENDPOINT, json: async () => ({}) })
+      .mockResolvedValueOnce(ok({ clients: [{ id: 'c1' }] }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const pending = loadData()
+    await vi.advanceTimersByTimeAsync(4000)
+    await expect(pending).resolves.toEqual({ clients: [{ id: 'c1' }] })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    vi.useRealTimers()
+  })
+
+  it('un fallo persistente reintenta UNA sola vez y entonces falla', async () => {
+    const { loadData } = await loadApi()
+    vi.useFakeTimers()
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 404, url: ENDPOINT, json: async () => ({}) }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const pending = loadData().catch(e => e.message)
+    await vi.advanceTimersByTimeAsync(4000)
+    const msg = await pending
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(msg).toMatch(/no encontró el Web App/)
+    vi.useRealTimers()
+  })
+
+  it('el error del servidor (JSON ok:false) NO se reintenta', async () => {
+    const { loadData } = await loadApi()
+    const fetchMock = vi.fn(async () => ({
+      ok: true, status: 200, url: ENDPOINT,
+      json: async () => ({ ok: false, error: 'Token de sincronización no configurado' }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const msg = await loadData().catch(e => e.message)
+    expect(msg).toBe('Token de sincronización no configurado')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})

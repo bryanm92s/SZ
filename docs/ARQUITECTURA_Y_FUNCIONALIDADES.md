@@ -33,6 +33,7 @@ aplica.
 15. [Manejo de errores y recuperación](#15-manejo-de-errores-y-recuperación)
 16. [Limitaciones conocidas](#16-limitaciones-conocidas)
 17. [Matriz de funcionalidades](#17-matriz-de-funcionalidades)
+18. [Sistema de paletas y accesibilidad (AA)](#18-sistema-de-paletas-y-accesibilidad-aa)
 
 ---
 
@@ -177,14 +178,14 @@ App → saveData(payload) → call(URL, {method:'POST', body:{token, ...payload}
 | Archivo | Líneas | Responsabilidad | ¿Testeado? |
 |---|---:|---|:---:|
 | `src/main.jsx` | 10 | Punto de entrada de React (`StrictMode`) | — |
-| `src/App.jsx` | 5.569 | **Toda la UI** + estado global + orquestación de guardado | — (componentes no unit-testeados) |
+| `src/App.jsx` | 5.690 | **Toda la UI** + estado global + orquestación de guardado + sistema de 12 paletas | — (componentes no unit-testeados) |
 | `src/helpers.js` | 909 | **Lógica pura**: fechas, slots, duraciones, estados, finanzas, reportes, servicio a domicilio, clasificación de citas | ✅ 171 tests |
-| `src/api.js` | 107 | Transporte HTTP, mensajes de error y **tope de espera de 25 s** (`AbortController`) | ✅ 9 tests |
+| `src/api.js` | 131 | Transporte HTTP, mensajes de error, **tope de espera de 25 s** (`AbortController`) y **reintento automático de cargas** (1 reintento a los 4 s para fallos transitorios) | ✅ 12 tests |
 | `apps-script/Code.gs` | 2.367 | Backend completo: API, seguridad, Sheets, Calendar (con `SB_CALENDAR_ID` y diagnóstico `pruebaCalendario`), reportes, respaldos | ✅ 157 tests (en sandbox `node:vm`) |
 | `src/backend.test.js` | 3.539 | Ejecuta `Code.gs` **real** con mocks de Apps Script | — |
 | `src/helpers.test.js` | 1.767 | Pruebas unitarias de `helpers.js` | — |
-| `src/api.test.js` | 151 | Pruebas del transporte (incluido el tope de espera) | — |
-| `src/excel.test.js` | 88 | Pruebas del libro Excel de reportes y respaldos (`buildReportWorkbook`) | — |
+| `src/api.test.js` | 200 | Pruebas del transporte (incluidos el tope de espera y el reintento automático) | — |
+| `src/excel.test.js` | 215 | Pruebas del libro Excel (`buildReportWorkbook`), de las 12 paletas y del contraste AA | — |
 
 ### 3.1 Componentes de `src/App.jsx`
 
@@ -1205,12 +1206,13 @@ que ve la operadora:
 | Caso | Línea | Mensaje exacto |
 |---|---:|---|
 | 404 con `/macros/u/\d+/` | 17–18 | `HTTP 404: Google reescribió la dirección con /u/N/. ` + `MULTI_ACCOUNT_HINT` |
-| 404 normal | 19 | `HTTP 404: Apps Script no encontró el Web App. Comprueba la URL y la versión publicada en Apps Script.` |
+| 404 normal | 19 | `HTTP 404: Apps Script no encontró el Web App. Comprueba que la URL termine en /exec y publica de nuevo la última versión (Implementar → Administrar implementaciones).` |
 | 401 / 403 | 21 | `HTTP 403: Google no autorizó la conexión. ` + `MULTI_ACCOUNT_HINT` |
 | 429 | 22 | `HTTP 429: Google está limitando las peticiones. Espera unos minutos y vuelve a intentarlo.` |
 | 5xx | 23 | `HTTP 500: Apps Script falló del lado de Google. Reintenta en unos minutos.` |
 | Red / `fetch` rechazado | 56–59 | `Sin respuesta de Apps Script (<motivo>). Revisa tu conexión a internet. ` + `MULTI_ACCOUNT_HINT` |
 | **Tope de 25 s (`AbortError`)** | 38–42, 55 | `Apps Script no respondió en 25 s y se canceló la petición (límite de espera). Suele ser un arranque en frío o el límite de peticiones de Google…` |
+| **Reintento automático de cargas** (`callWithRetry`, solo `loadData`) | 76–91 | Un fallo **transitorio** (tope de 25 s o cualquier HTTP 4xx/5xx) se reintenta **una vez** a los 4 s antes de declarar el error: el arranque en frío de la mañana o un 404 puntual al actualizarse el despliegue ya no muestran el banner. Los errores del **servidor** (JSON `ok:false`) no se reintentan, y los **guardados** siguen siendo manuales con la franja roja «Reintentar guardar». |
 | Respuesta no-JSON | 66 | `Apps Script devolvió algo que no es JSON: publica de nuevo la última versión del Web App.` |
 | **HTTP 200 con `{ok:false}`** | 67 | El **`json.error` del servidor**; si no lo hay, el `fallback` del llamador (`'Error guardando'`, `'Error cargando datos'`, …) |
 | `VITE_SCRIPT_URL` sin definir | 72, 77 | `VITE_SCRIPT_URL no configurado` |
@@ -1227,11 +1229,15 @@ que ve la operadora:
 
 ### 15.2 Modo offline
 
-1. Si `loadData()` falla → `setSt('error')` (420) y se leen las cuatro
-   claves de `localStorage` (`App.jsx` 422–425): `sb_c`, `sb_s`, `sb_a`, `sb_e`.
-2. En la parte superior aparece **`⚠️ Modo sin conexión — <mensaje>`**
-   (`App.jsx` 721) y el `SyncBadge` (688) pasa a **`⚠️`**.
-3. **No hay cola automática de reintentos**, pero el fallo **sí tiene aviso y
+1. Si `loadData()` falla (tras su **reintento automático** de §15.1) →
+   `setSt('error')` (420) y se leen las cuatro claves de `localStorage`
+   (`App.jsx` 422–425): `sb_c`, `sb_s`, `sb_a`, `sb_e`.
+2. En la parte superior aparece **`⚠️ Modo sin conexión — <mensaje>`** con un
+   botón **✕ para cerrarlo** (`errHidden`, `App.jsx`). Cerrado, **no reaparece**
+   en los fallos siguientes del ciclo de 30 s (el `SyncBadge` del header sigue
+   informando en silencio) y **se rearma solo** cuando una carga vuelve a tener
+   éxito (`useEffect` que resetea `errHidden` al salir de `error`).
+3. **Los guardados no se reintentan solos**, pero el fallo **sí tiene aviso y
    reintento manual**: si `sync` falla, aparece la franja roja
    **«⚠️ No se pudo guardar»** con botón **«↻ Reintentar guardar»**
    (`saveFailed`/`failedSaveRef`, `App.jsx`), que reenvía `failedSaveRef.current`
@@ -1403,7 +1409,7 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 63 | Escritura optimista (revisión en el próximo polling) | `App.jsx` 493–522 | ✅ | — |
 | 63b | **Franja roja de guardado fallido + «↻ Reintentar»** (`refresh()` protegido mientras `saveFailed`) | `App.jsx` `saveFailed`, `failedSaveRef`, `retrySave` | ✅ | — |
 | 63c | **Excel de respaldo antes del reset** = informe completo (Resumen / Movimientos / Citas, histórico entero) + hoja Clientes, `respaldo_YYYY-MM-DD.xlsx` | `App.jsx` `exportBackupXlsx` · `buildReportWorkbook` | ✅ | — |
-| 64 | Tema y paletas persistentes | `GS` (1006), `localStorage` | ✅ | — |
+| 64 | Tema y paletas persistentes (12 paletas AA, ver §18) | `PALETTES`/`applyTheme` (`App.jsx`), `localStorage` | ✅ | 🧪 |
 | 65 | Branding dinámico (`VITE_BIZ_*`) | `App.jsx` 259–262, 360–373 | ✅ | — |
 | 66 | Telemetría / análisis externo | **No existe** | ✅ | ✅ |
 
@@ -1418,10 +1424,80 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 🔎 | No verificado en producción (integraciones reales de Google y Vercel) |
 
 > ⚠️ **Ninguna funcionalidad fue probada manualmente en producción durante
-> esta ronda de documentación.** Las **327 pruebas** corren en un **sandbox con
-> mocks** de Apps Script (`node:vm`), no contra Google real. La integración
-> con Sheets, Calendar, Gmail, Drive y Vercel queda marcada como 🔎.
-> La suite hoy son **327 pruebas** en 4 archivos.
+> las rondas de documentación de agosto y octubre.** Las **368 pruebas**
+> corren en un **sandbox con mocks** de Apps Script (`node:vm`), no contra
+> Google real. La integración con Sheets, Calendar, Gmail, Drive y Vercel
+> queda marcada como 🔎.
+> La suite hoy son **368 pruebas** en 5 archivos.
+
+---
+
+## 18. Sistema de paletas y accesibilidad (AA)
+
+> Fruto de las **dos auditorías UX/UI de octubre de 2026** (medición en
+> navegador real: inspector de la skill `design-taste-frontend` + una matriz
+> de contraste WCAG por tema). Los **gradientes, emojis, glass y sombras se
+> conservaron** por decisión expresa del propietario; la accesibilidad se
+> resolvió **sin tocar la identidad**.
+
+### 18.1 Las 12 paletas
+
+`PALETTES` (`App.jsx` 26–275) es la fuente única del selector de Ajustes.
+Cada paleta define **18 campos obligatorios** (`id, name, emoji, primary, pd,
+pl, bg, border, t, t2, gradient, gradientSoft, glass, glassStrong, neoLight,
+neoDark, neoShadow, neoShadowDark`) y opcionales con defaults en `applyTheme`
+(`??`): `card, surface, inputBg, green, greenBg, gold, goldBg, red, redBg,
+warnBg, warnT, chromeBg, chromeBgr, chromeBrd, gradT, gradT2`.
+
+| Paleta | Personalidad |
+|---|---|
+| `rosa` **Palo de Rosa** 🌸 | Fusión de Rosa+Coral: dusty rose `#A84B60` sobre crema `#F9F1F3` (default) |
+| `morado` 💜 · `azul` 💙 · `verde` 💚 · `fucsia` 🌺 · `salvia` 🌿 | Clásicas con primarios ajustados a AA |
+| `dorado` ✨ | Oro profundo `#896514` sobre crema `#FCF8F3` |
+| `carbon` ⚫ · `marino` ⚓ | Sobrias |
+| `barberia` **Barbería** 💈 | Gradiente **negro→azul→rojo** (`#10192B→#1D4FD7→#C8102E`) sobre blanco |
+| `gala` **Gala** 🎩 | Crema champán `#F8F2E5` + oro antiguo `#846317` |
+| `burdeos` **Burdeos** 🍷 | Vino `#6B1E2E` sobre crema `#FAF3F0`, espresso `#2A1A12` de texto |
+
+Retiradas: `coral` y `crema` (fusionadas en Palo de Rosa). Un `id` guardado
+que ya no existe cae en `PALETTES[0]` (`applyTheme`), así que nadie se queda
+sin tema.
+
+### 18.2 Variables de texto sobre rellenos (`gradT` / `gradT2`)
+
+Todo texto que vive sobre una superficie saturada (gradiente del tema, chips
+de `--primary`, tarjetas de balance y las tarjetas verde/rojo del neto) usa
+**`--grad-t`** (texto principal) y **`--grad-t2`** (texto atenuado), con
+defaults blanco/blanco-75%. Una paleta de rellenos claros puede redefinirlos
+a oscuro. Regla de la casa: **la parada 0% del gradiente es donde vive el
+título del header y la 50% donde vive el texto del botón** — ambas deben
+pasar 4.5:1 con `gradT`.
+
+### 18.3 Lo que exige la suite de regresión (`excel.test.js`)
+
+Para **cada** paleta (una que no cumpla rompe el build):
+
+- `primary` ≥4.5:1 como texto sobre blanco, su `pl` y su `bg`.
+- `t` y `t2` ≥4.5:1 sobre el `bg`.
+- Texto del botón (`gradT`): ≥4.5:1 sobre **todas las paradas del gradiente
+  salvo la última**, y la última (punta decorativa, esquina sin texto)
+  ≥3.0:1 — criterio WCAG 1.4.11 de componentes.
+- Balance (`primary`→`pd`): legible con `gradT`.
+- Semánticos `gold`/`green`/`red`/`warnT` ≥4.5:1 sobre sus fondos
+  (defaults: gold `#8A6700`, greenBg `#F2FBF6`, red `#B03030`, warnT `#7A5000`).
+
+### 18.4 Reglas de la casa aprendidas de las auditorías
+
+- **Piso tipográfico 11px** en toda la UI; título `<h1>` por pantalla; cifras
+  con `font-variant-numeric: tabular-nums` (`index.css`).
+- **Objetivos táctiles ≥24×24** (WCAG 2.5.8); el botón «Hoy» del calendario
+  fue el último corregido.
+- Los rellenos con tinte verde/rojo usan `var(--green-bg)` / `var(--red-bg)`
+  — nunca hexes sueltos (5 hardcodeados fueron migrados en octubre).
+- Placeholders a `--t2` **sin opacidad** (a 60% eran 2.6:1).
+- En grillas de 2 columnas angostas, las etiquetas de los inputs deben ser
+  cortas y de una línea («Nombre», «Celular»): una etiqueta que envuelve
+  desalinea los inputs (bug reportado desde un celular real, corregido).
 
 ---
 

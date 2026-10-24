@@ -68,9 +68,17 @@ npm run format        # Prettier — formatea src/**
 |---|---:|---|
 | `src/helpers.test.js` | **171** | Toda la lógica pura de `helpers.js` |
 | `src/backend.test.js` | **157** | Ejecuta el `Code.gs` **real** en un sandbox |
-| `src/api.test.js` | **9** | Transporte HTTP, mensajes de error y tope de espera de 25 s |
+| `src/api.test.js` | **12** | Transporte HTTP, mensajes de error, tope de espera de 25 s y **reintento automático de cargas** (transitorio sí, error del servidor no) |
 | `src/catalogs.test.js` | **14** | Catálogo inicial por tipo de negocio (`VITE_CATALOG` / `VITE_DEFAULT_SERVICES`) |
-| `src/excel.test.js` | **3** | Libro Excel (`buildReportWorkbook`): Resumen/Movimientos/Citas, hoja Clientes y las 9 paletas |
+| `src/excel.test.js` | **14** | Libro Excel (`buildReportWorkbook`), las **12 paletas completas** y el **contraste AA por paleta** (regresión de la auditoría UX/UI) |
+
+> **Total: 368 pruebas.** La suite de contraste (5 pruebas) es una **regresión
+> de la auditoría UX/UI de octubre de 2026**: exige a cada paleta primario/t/t2
+> ≥4.5:1 sobre sus fondos, el texto del botón ≥4.5:1 sobre las paradas del
+> gradiente donde vive el texto (punta decorativa ≥3.0, WCAG 1.4.11), el
+> balance legible y los semánticos legibles. **Si agregas o retocas una
+> paleta, esta suite te dice si rompiste la accesibilidad** — ver
+> [`ARQUITECTURA_Y_FUNCIONALIDADES.md` §18](ARQUITECTURA_Y_FUNCIONALIDADES.md).
 
 ### 2.2 `src/helpers.test.js` — lógica pura
 
@@ -142,6 +150,13 @@ Cubre:
   responde, la petición se cancela con un mensaje accionable y el
   llamador activa «Reintentar guardar»; y una respuesta normal
   **limpia** el temporizador (no queda ningún aborto pendiente).
+- **Reintento automático de cargas** (`callWithRetry`): un fallo
+  transitorio (tope de 25 s o HTTP 4xx/5xx) en `loadData` se reintenta
+  una vez a los 4 s antes de declarar el error — el arranque en frío de
+  la mañana ya no muestra «Modo sin conexión». Los errores del
+  **servidor** (JSON con `ok:false`, p. ej. token malo) **no** se
+  reintentan, y los **guardados** siguen siendo manuales con la franja
+  roja.
 - Flujo de restablecimiento.
 
 ### 2.5 `src/catalogs.test.js` — catálogo inicial

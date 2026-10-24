@@ -741,6 +741,13 @@ así:
   25 s…»*, así que el spinner de guardado nunca se queda colgado aunque
   Google no responda (arranque en frío, límite de peticiones o una
   respuesta CORS sin cabeceras).
+- **Las cargas se reintentan solas** (`callWithRetry`, `loadData`): un fallo
+  transitorio (tope de 25 s o un 404 puntual mientras se actualiza el
+  despliegue) se reintenta **una vez a los 4 s** antes de declarar el error —
+  de ahí que el aviso «Modo sin conexión» sea hoy mucho más raro. Ese aviso,
+  cuando sí aparece, trae un botón **✕** para cerrarlo (`errHidden`): no
+  reaparece en los fallos siguientes del ciclo de 30 s y se rearma solo tras
+  una reconexión exitosa.
 
 ### E.6 Cómo verificar que citas y eventos corresponden
 

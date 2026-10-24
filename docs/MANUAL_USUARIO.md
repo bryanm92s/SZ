@@ -56,8 +56,11 @@ cálculo.
 
 > ⚠️ **Si ves «Modo sin conexión»** en la parte de arriba, significa que la app
 > no pudo hablar con el servidor. Puedes seguir trabajando: lo que escribas se
-> guarda en el celular y se sincroniza después. Si el aviso no desaparece,
-> revisa la [sección 18](#18-errores-frecuentes).
+> guarda en el celular y se sincroniza después. Los fallos breves (la app
+> «despertando» a Google por la mañana) se arreglan **solos** con un reintento
+> automático, así que casi nunca verás este aviso. Si aparece, puedes
+> **cerrarlo con la ✕** y seguir trabajando; si no desaparece al rato, revisa
+> la [sección 18](#18-errores-frecuentes).
 
 ### Si te sale un error de «varias cuentas de Google»
 
@@ -89,16 +92,19 @@ En la parte inferior hay 7 botones:
 - **«✓ Sincronizado»** en verde → todo bien, los datos están guardados.
 - **«⟳ Sincronizando»** → la app está guardando o leyendo.
 - **«⚠»** en rojo y, debajo del menú, una franja **«⚠️ Modo sin conexión —
-  \<motivo\>»** → la app no pudo hablar con el servidor.
+  \<motivo\>»** → la app no pudo hablar con el servidor. La franja trae una
+  **✕ para cerrarla**: mientras esté cerrada no vuelve a molestar en cada
+  chequeo de 30 segundos (el ⚠ de arriba sigue avisando en silencio), y se
+  rearma sola cuando la conexión vuelve y vuelve a fallar.
 - Si el fallo fue al **guardar** (no al leer), la franja es **ROJA** y dice
   **«⚠️ No se pudo guardar. Tus cambios solo están en este celular»** con un
   botón **«↻ Reintentar guardar»**. Tócalo cuando vuelva la conexión: la app
   reenvía lo que faltó. **Mientras esa franja roja esté visible, no recargues
   la página**: lo que cambiaste aún no está en el servidor.
   - La espera **nunca se queda trabada**: si Google no responde en
-    **25 segundos**, la app corta sola el intento, muestra «Apps Script no
-    respondió en 25 s…» y deja listo el botón de reintento (suele ser un
-    arranque en frío: espera unos segundos y vuelve a pulsarlo).
+    **25 segundos**, la app corta sola el intento, reintenta **una vez más
+    por su cuenta** (para los despertares de la mañana) y solo si eso
+    también falla muestra el aviso con el botón de reintento.
 - El nombre del negocio y su emoji (si se configuraron).
 
 ---
