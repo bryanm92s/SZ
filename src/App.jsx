@@ -4183,8 +4183,12 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
   const sendEmailReport = async () => {
-    const to = emailAddr.trim()
-    if (!EMAIL_RE.test(to) || /[,;]/.test(to)) {
+    // ⚠️ Se llama `dest` y NO `to`: un `const to` aquí OCULTABA el
+    // estado `to` (la fecha «Hasta») del componente y el período del
+    // modo RANGO se iba con el correo como fecha final — bug real del
+    // 24/10: día, mes y año funcionaban y solo el rango fallaba.
+    const dest = emailAddr.trim()
+    if (!EMAIL_RE.test(dest) || /[,;]/.test(dest)) {
       setEmailErr('Escribe un correo válido (ej: nombre@correo.com).')
       return
     }
@@ -4198,7 +4202,7 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
                    : mode==='month' ? { type:'month', ym: month }
                    : mode==='year'  ? { type:'year',  y: year }
                    :                  { type:'range', from, to }
-      const r = await saveData({ action:'sendReportEmailNow', to, period })
+      const r = await saveData({ action:'sendReportEmailNow', to: dest, period })
       setEmailSending(false)
       if (r && r.ok) {
         setEmailModal(false); setEmailAddr('')
