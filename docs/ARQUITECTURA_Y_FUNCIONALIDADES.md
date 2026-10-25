@@ -1133,6 +1133,12 @@ validado con formato estricto en `_sanitizeReportPeriod`). El backend
 construye el correo y el **Excel adjunto desde la hoja**, con la MISMA
 maquinaria de los triggers:
 
+> ⚠️ **Lección del rango (24/10):** un `const to` local en el handler del
+> frontend **ocultaba** el estado `to` (fecha «Hasta») del componente y el
+> modo rango mandaba *el correo como fecha final* — día/mes/año usaban
+> otros nombres y por eso solo el rango fallaba. La variable se llamó
+> `dest` y el E2E (`verify-email`) cubre los cuatro modos desde entonces.
+
 - `_sendReportEmail(period, kind)` se abrió en dos: el núcleo
   **`_sendReportTo(r, period, kind, recipient, extra)`** (texto plano con
   emojis via `String.fromCharCode` + HTML con **entidades hex**
