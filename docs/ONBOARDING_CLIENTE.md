@@ -84,7 +84,8 @@ viejo instalaría clientes con el botón de correo mudo y 11 tests en rojo.
 
 **Lo que NO copia** (porque cada cliente es un mundo):
 
-- `.git`, `node_modules`, `dist`, `coverage`, `.zcode` ni los `.env`.
+- `.git`, `node_modules`, `dist`, `coverage`, `.zcode`, `.agents` ni los
+  `.env` — y tampoco `skills-lock.json` (tooling local del workspace).
 - **`logo.png`** — el icono de SZ no es el del cliente. El script pregunta
   en el paso 0 por la ruta del logo; si no la das, deja el repo sin él y
   **quita del README la imagen rota** hasta que lo agregues.

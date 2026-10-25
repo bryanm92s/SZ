@@ -12,3 +12,8 @@ SZ-ROLES
 #   hay que copiar esta carpeta desde la plantilla antes de correr npm test.
 apps-script/
 .taste-skill/
+
+# Tooling local del workspace (skills de agentes de IA): no es parte del
+# producto ni viaja a los clientes ni al repo publico.
+.agents/
+skills-lock.json
