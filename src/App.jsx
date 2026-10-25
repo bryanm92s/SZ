@@ -1974,7 +1974,7 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
 
     <div className="card">
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-        <span style={{fontWeight:700,fontSize:15}}>{'\uD83C\uDF38'} Citas de Hoy</span>
+        <span style={{fontWeight:700,fontSize:15}}>{BIZ_EMOJI} Citas de Hoy</span>
         <button className="btn" style={{fontSize:12,padding:'7px 14px'}} onClick={()=>setTab('appointments',{newAppt:true,origin:'dashboard'})}>+ Nueva cita</button>
       </div>
       {ta.length===0
@@ -2317,7 +2317,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
       pageSize={PAST_APPT_PAGE_SIZE} page={pastPage} onPage={setPastPage}/>
     {appts.length===0 && (
       <div className="card" style={{textAlign:'center',padding:30,color:'var(--t2)'}}>
-        No hay citas 🌸<br/><br/>
+        No hay citas {BIZ_EMOJI}<br/><br/>
         <button className="btn" onClick={()=>setNew(true)}>+ Nueva cita</button>
       </div>
     )}
