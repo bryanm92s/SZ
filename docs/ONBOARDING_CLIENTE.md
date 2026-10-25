@@ -75,6 +75,13 @@ La plantilla la detecta solo (busca `.\SZ` junto al script). Si algún día
 la mueves, se la dices: `-Fuente "C:\...\SZ"`. Y el destino por defecto
 es `...\PROYECTOS GITHUB\<nombre>`; puedes forzarlo con `-Destino`.
 
+**Y antes de copiar nada comprueba la plantilla:** si el
+`apps-script/Code.gs` de SZ está desactualizado (le falta el backend del
+botón «📧 Enviar por correo», el borrado de eventos clasificado, el
+anti-duplicados o la prueba de escritura de `pruebaCalendario()`), lo
+avisa con las piezas exactas que faltan y **no deja seguir**: un backend
+viejo instalaría clientes con el botón de correo mudo y 11 tests en rojo.
+
 **Lo que NO copia** (porque cada cliente es un mundo):
 
 - `.git`, `node_modules`, `dist`, `coverage`, `.zcode` ni los `.env`.
@@ -95,9 +102,9 @@ a propósito:
 
 | Tipo de paso | Quién | Qué pasa |
 |---|---|---|
-| **🤖 Automático** | El script | Copia la plantilla a la carpeta del cliente (sin `.git`, `node_modules`, `dist`, `.env` ni `logo.png`), renombra la marca en los docs, `git init` con historia propia, `package.json` → `name`, `.env`, tu `logo.png`, `CUSTOMIZACIONES.md`, remote `madre`, `npm install` + **354 pruebas** + build, y **genera un token nuevo** para `SB_SYNC_TOKEN` / `VITE_TOKEN` |
+| **🤖 Automático** | El script | Copia la plantilla a la carpeta del cliente (sin `.git`, `node_modules`, `dist`, `.env` ni `logo.png`), renombra la marca en los docs, `git init` con historia propia, `package.json` → `name`, `.env`, tu `logo.png`, `CUSTOMIZACIONES.md`, remote `madre`, `npm install` + **377 pruebas** + build, y **genera un token nuevo** para `SB_SYNC_TOKEN` / `VITE_TOKEN` |
 | **🧑 Manual** | Tú | Google, GitHub y Vercel: el script **imprime el paso completo** (con las rutas y valores ya rellenados) y espera tu respuesta |
-| **✅ Verificación** | Tú | Los 9 chequeos de la fase D, uno por uno, con la causa probable si algo falla |
+| **✅ Verificación** | Tú | Los 13 chequeos de la fase D, uno por uno, con la causa probable si algo falla |
 
 **Las tres respuestas que necesitas saber:**
 
@@ -262,7 +269,13 @@ gestor de contraseñas.
       `cal = OK → Citas <negocio>` significa que el id apunta al calendario
       correcto; `cal = NULL (no accesible…)` significa que el id está mal
       copiado o es de otra cuenta; `id = (sin SB_CALENDAR_ID)` significa que
-      la propiedad no existe todavía. No crea ni borra nada.
+      la propiedad no existe todavía. La segunda línea, **`escr = OK`**, es
+      el **permiso de escritura**: la prueba crea y borra un evento de 5 min
+      por ti. `escr = ERROR` = la cuenta del proyecto solo puede leer: si
+      el calendario lo creó otra cuenta, el permiso para la del proyecto
+      debe ser «Realizar cambios y ver los detalles» (con solo lectura
+      Google **no deja borrar** y su excepción llega disfrazada de «No
+      existe o se eliminó el evento»).
 
    > Si algún día ella lo quita de su celular, se vuelve a agregar y no se
    > pierde ningún evento. Y un evento creado **antes** de poner
@@ -328,7 +341,7 @@ git commit -m "chore: base de nombre-del-cliente (copia de SZ @ $(git -C ..\SZ r
 #    y rellena VITE_SCRIPT_URL y VITE_TOKEN con las del cliente (luego,
 #    en Vercel, las mismas). Verifica con pruebas y build:
 npm install
-npm test      # debe pasar: 354 tests (o: npx vitest run --environment node)
+npm test      # debe pasar: 377 tests (o: npx vitest run --environment node)
 npm run build
 
 # 5. Crea el repo VACÍO en github.com y conecta
@@ -411,7 +424,7 @@ git apply fix.patch
 # C) a mano: copiar SOLO los archivos que el cliente NO personalizó
 ```
 
-Después, **siempre**: `npm test` (354 en verde) y el checklist de la
+Después, **siempre**: `npm test` (377 en verde) y el checklist de la
 fase D.
 
 > ⚠️ **La trampa real de los repos independientes no es git, es
@@ -472,6 +485,9 @@ fase D.
       color correspondiente.
 - [ ] Ese calendario está **compartido con la usuaria en solo lectura** y
       ella lo ve en su celular (sin poder editarlo).
+- [ ] **Borro una cita de prueba** → su evento **desaparece** del calendario
+      «Citas \<negocio\>» (`pruebaCalendario()` → `cal = OK` y `escr = OK`;
+      con solo lectura Google no deja borrar).
 - [ ] Su WhatsApp admin abre `wa.me` con su número (reporte).
 - [ ] Correo de restablecimiento: pide código → llega a **TODAS** las
       direcciones de `SB_AUTHORIZED_EMAIL` (la cuenta del proyecto y la
@@ -479,6 +495,10 @@ fase D.
       HTML.
 - [ ] Reporte de prueba (`sendDailyReportEmail()` o
       `sendWeeklyReportEmail()`) → llega a **`SB_REPORT_EMAIL`** (su correo).
+- [ ] Botón **«📧 Enviar por correo»** (vista *Reporte y Excel*) → llega a
+      **mi** correo con los emojis y 📎 el Excel del período, también en el
+      modo **RANGO** (asunto `[REPORTE MANUAL] …`, con copia a
+      `SB_REPORT_EMAIL`).
 - [ ] Ejecuté `createDailyBackup()` a mano → se creó
       `BACKUP-PROYECTO/Backups/…` en el **Drive de la cuenta del proyecto**.
 - [ ] El repo de SZ y los datos de SZ **no** se tocaron (nada nuevo en su
@@ -491,7 +511,7 @@ fase D.
 1. **La lógica de `Code.gs` y de `src/`.** Las reglas de negocio son el
    producto; si el cliente necesita una regla distinta, es una
    personalización, no un onboarding.
-2. **Los tests.** `npm test` debe pasar siempre (354 tests). Si un cambio
+2. **Los tests.** `npm test` debe pasar siempre (377 tests). Si un cambio
    de cliente los rompe, el cambio estaba mal hecho.
 3. **El token del cliente en el código.** Vive en `SB_SYNC_TOKEN`
    (servidor) y `VITE_TOKEN` (Vercel). El repo es público.
@@ -550,6 +570,8 @@ Lo que **sí** quedó parametrizado y no requiere tocar nada:
 | El código de reset **no le llega a la usuaria** | Su correo no está en la **lista** `SB_AUTHORIZED_EMAIL` (separa las direcciones con **coma**) |
 | Los reportes llegan a tu bandeja en vez de a la suya | Falta `SB_REPORT_EMAIL` (sin ella, los reportes van a `SB_AUTHORIZED_EMAIL`) |
 | La cita **no aparece** en el calendario de la usuaria | Ejecuta **`pruebaCalendario()`** en el editor: si dice `NULL`, el id de `SB_CALENDAR_ID` no es de un calendario accesible de esa cuenta. Si dice `OK`, falta compartírselo a ella en **solo lectura** |
+| La cita **no se borra** del calendario | `pruebaCalendario()` → `escr = ERROR`: falta «Realizar cambios y ver los detalles» para la cuenta del proyecto (el de la usuaria se queda en solo lectura). Si el mensaje de Google sale en crudo, el `Code.gs` pegado es viejo |
+| El botón «📧 Enviar por correo» dice «No se pudo enviar el correo» | El `Code.gs` pegado es viejo (falta `sendReportEmailNow`) → pega el actual del repo. Si **no ves el botón**, el frontend de Vercel es viejo → Redeploy |
 | «Carpeta de backups no encontrada» | No se ejecutó `setupDailyBackupTrigger()` / `createDailyBackup()` |
 | Las citas salen desfasadas | Zona horaria de `appsscript.json` ≠ UTC-5 |
 | Sin reportes automáticos | Faltan `SB_REPORT_EMAIL` y `SB_AUTHORIZED_EMAIL`, o no corriste `setupAllReportTriggers()` |
@@ -573,7 +595,7 @@ problemas) y [`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) sección F.
 [ ] Triggers: reportes + backup diario + correo semanal
 [ ] Repo nuevo en GitHub (historia propia, `madre` como remote de solo lectura)
 [ ] `package.json` → "name" + `CUSTOMIZACIONES.md` creado
-[ ] npm test en verde (354) + npm run build
+[ ] npm test en verde (377) + npm run build
 [ ] Vercel: proyecto nuevo + 7 variables de la fase A + 2 críticas
 [ ] Deploy → checklist de la sección 5 completo
 [ ] Anotado en el gestor de contraseñas: cuenta del proyecto, token,
@@ -616,7 +638,7 @@ git remote -v                     # ✅ origin (NOMBRE) + madre (SZ)
 
 # 5. Validar (ver aviso de PowerShell arriba, sección 4)
 npm install
-npm test        # ✅ 354 pruebas
+npm test        # ✅ 377 pruebas
 npm run build   # ✅ built in ~3s
 
 # 6. SZ intacto
