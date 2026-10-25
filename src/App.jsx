@@ -360,12 +360,13 @@ const BIZ_EMOJI    = import.meta.env.VITE_BIZ_EMOJI    || '🌸'
 const BIZ_LOGO     = import.meta.env.VITE_BIZ_LOGO     || ''
 
 /* ── Marca del SISTEMA (blanca: igual para todos los despliegues) ──
-   Firma el footer: «Hecho con OcupadAPP». El NEGOCIO sigue siendo
-   VITE_BIZ_NAME — dos marcas, dos llaves — y esta es la plataforma.
-   «Ocupad» va en la tipografía del pie y «APP» se estiliza aparte en el
-   render: itálica serif (Georgia, la de los títulos) + el color del
-   tema — cursiva, elegante y con el acento TECH. Con var(--primary) es
-   legible en las 12 paletas (el auditor exige AA para texto). */
+   Firma el footer: «<negocio> © <año> | Hecho con ❤️ OcupadAPP | 🇨🇴».
+   El © es del NEGOCIO (VITE_BIZ_NAME) — dos marcas, dos llaves — y esta
+   es la plataforma, única y a pie. «Ocupad» va en la tipografía del pie
+   y «APP» se estiliza aparte en el render: itálica serif (Georgia, la de
+   los títulos) + el color del tema — cursiva, elegante y con el acento
+   TECH. Con var(--primary) es legible en las 12 paletas (el auditor
+   exige AA para texto). */
 const APP_NAME = 'Ocupad'
 
 /* ── WhatsApp del administrador ──
@@ -895,9 +896,9 @@ export default function App() {
 
       <footer style={{textAlign:'center',padding:'20px 14px calc(28px + env(safe-area-inset-bottom, 0px))',borderTop:'1px solid var(--border)',marginTop:8,background:'var(--chrome-bg)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)'}}>
         <span style={{fontSize:11,color:'var(--t2)',letterSpacing:'.03em',display:'inline-flex',alignItems:'center',gap:6,flexWrap:'wrap',justifyContent:'center'}}>
-          <span>{BIZ_EMOJI} {BIZ_NAME}</span>
+          <span>{BIZ_EMOJI} {BIZ_NAME} © {new Date().getFullYear()}</span>
           <span style={{color:'var(--border)'}}>|</span>
-          <span>Hecho con {APP_NAME}<span style={{fontFamily:'Georgia,serif',fontStyle:'italic',fontWeight:700,color:'var(--primary)',letterSpacing:'.03em'}}>APP</span></span>
+          <span>Hecho con ❤️ {APP_NAME}<span style={{fontFamily:'Georgia,serif',fontStyle:'italic',fontWeight:700,color:'var(--primary)',letterSpacing:'.03em'}}>APP</span></span>
           <span style={{color:'var(--border)'}}>|</span>
           <svg width="20" height="14" viewBox="0 0 20 14" style={{verticalAlign:'middle',borderRadius:2,display:'inline-block',flexShrink:0}}>
             <rect width="20" height="14" fill="#FCD116"/>
