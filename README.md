@@ -551,6 +551,6 @@ Distribuido bajo licencia **MIT**. Libre para adaptar a tu propio estudio.
 
 <div align="center">
 
-**© 2026 Bryan Morales** — Hecho con 💗 para estudios de belleza.
+Ocupad*APP* — el sistema de gestión de citas para estudios de belleza. Hecho con 💗 por Bryan Morales.
 
 </div>

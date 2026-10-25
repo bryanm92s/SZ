@@ -564,6 +564,7 @@ Lo que **sí** quedó parametrizado y no requiere tocar nada:
 | `<title>` de respaldo | lo sobrescribe `App.jsx` con `VITE_BIZ_NAME` |
 | Catálogo inicial | `VITE_CATALOG` / `VITE_DEFAULT_SERVICES` (`src/catalogs.js`) |
 | Comentarios internos del código | ya no nombran al negocio |
+| Marca del SISTEMA en el footer («Hecho con OcupadAPP», con el «APP» en itálica del tema) | `APP_NAME` (`App.jsx`) — igual para todos los despliegues |
 
 ---
 
