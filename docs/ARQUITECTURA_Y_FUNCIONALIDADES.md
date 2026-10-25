@@ -435,9 +435,17 @@ lo toca la operadora:
 
 | Acción | Dónde |
 |---|---|
-| ✓ **Completar** (elige Efectivo / Nequi / Daviplata / Bancolombia) | `App.jsx` 2067, 2084 |
-| ✗ **No asistió** | `App.jsx` 2067 |
-| Crear cita → `completed: false` | `NewWizard`, `App.jsx` 2792 |
+| ✓ **Completar** (elige Efectivo / Nequi / Daviplata / Bancolombia) | `ApptCard` (`App.jsx`) + `PayModal` |
+| ✗ **No asistió** | `ApptCard` (`App.jsx`) y panel del día del Calendario |
+| Crear cita → `completed: false` | `NewWizard` |
+
+> 🕐 **Marcar tiene ventana** (`canMarkAppt`, `helpers.js`): corregir
+> (desmarcar) **siempre**; pasada o ya iniciada **siempre** (el grupo
+> «Sin marcar»); día futuro **nunca** («Cita futura»); y una cita de
+> **hoy** que aún no empieza solo dentro de los **`MARK_LEAD_MIN` = 30
+> minutos** previos — la de las 8:00 p. m. se habilita a las 7:30 p. m. y
+> la tarjeta lo anuncia: «⏰ Podrás marcarla desde las …». La MISMA regla
+> rige los botones del panel del día del Calendario.
 
 Lo único que cambia sin intervención es la **presentación**, nunca el dato:
 `apptLife` y `apptGroup` clasifican por fecha y hora, y `apptStatus` deriva
@@ -1429,6 +1437,7 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 38i | **Bajada automática al abrir una categoría** (al tocarla, la vista baja sola hasta el **título** de la lista desplegada, exactamente debajo de la barra sticky completa —header + pestañas—; cerrar o cambiar de mes **no** la mueve) | `App.jsx` `ExpenseDetail`, `catTitleRef` + `useEffect` de `openCat` | ✅ | — |
 | 38j | **Título «📅 Gastos por día»** sobre la lista de días del detalle de gastos (separa esa sección de la tarjeta de categoría) | `App.jsx` `ExpenseDetail` | ✅ | — |
 | 38k | **«Sin marcar»**: las citas pasadas sin decisión (ni ✓ ni ✗) tienen acordeón propio en Citas — de la más reciente a la más vieja, paginado, cerrado por defecto — y en el Calendario pintan **dorado** (punto de la matriz, pastilla y «✓ Completó»/«✗ No asistió» en el panel del día, ficha «SIN MARCAR ↗» del mes que salta al grupo) | `helpers.js` `apptGroup` (`unmarked`), `App.jsx` `ApptsTab` (`groups.unmarked`, `unmarkedPage`, `sortGDesc`) y `CalendarView` (`dotColor`, `ApptCard`, `markNoShow`/`pickPayment`, tira del mes) | ✅ | 🧪 |
+| 38l | **Ventana de antelación del marcado** (✓/✗): hoy solo desde **30 min antes** de la hora — la tarjeta anuncia «⏰ Podrás marcarla desde las …»; día futuro nunca («Cita futura»); pasada o iniciada siempre; desmarcar siempre. Regla compartida por Citas y el Calendario | `helpers.js` `canMarkAppt` + `MARK_LEAD_MIN`, `App.jsx` `ApptCard` (`markable`, `markFrom`) y `CalendarView` (`ApptCard`) | ✅ | 🧪 |
 | **REPORTES** | | | | |
 | 39 | Períodos día / mes / rango / **año** | `helpers.js` `periodLedger` | ✅ | 🧪 |
 | 40 | Excel con 3 hojas (app) | `App.jsx` `exportExcel` (3967), SheetJS | ✅ | — |

@@ -255,6 +255,15 @@ contando: el reporte las muestra como *«· Transferencia (dato anterior)»* y
 las suma en el renglón **Transferencias**, pero **ya no se puede elegir** en
 el diálogo.
 
+> 🕐 **¿Cuándo se puede marcar?** Una cita de **hoy** que aún no empieza solo
+> se puede marcar **30 minutos antes de su hora** (o cuando ya haya
+> empezado): la de las 8:00 p. m. se habilita a las 7:30 p. m., y la tarjeta
+> te lo avisa con «⏰ Podrás marcarla desde las 7:30 p. m.» en vez de dejar
+> el botón gris sin explicación. Las de días pasados viven en el grupo
+> **SIN MARCAR** y siempre se pueden marcar; las de mañana en adelante
+> muestran «📅 Cita futura». **Corregir** (quitar un ✓ o un ✗ puesto)
+> nunca se bloquea.
+
 > 📌 **«No asistió» se cuenta como un número** en los reportes (no como dinero
 > perdido). Nunca se mezcla con los ingresos.
 

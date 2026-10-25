@@ -10,7 +10,7 @@ import {
   toN, localDateStr, todayStr, tomorrowStr, monthStr, localNowISO,
   bool, phoneMatch, cleanDate, fmtDate, cleanTime, fmtTime, getSlots, monthLedger,
   svcDuration, sumDuration, apptDuration, fmtDuration, endTime, CLOSING_TIME, openWhatsApp, PAYMENT_METHODS, payMethodOf,
-  apptStatus, canModifyAppt, canRemindAppt, checkSlot, confirmOutcome, projectedIncome, movsRanges,
+  apptStatus, canModifyAppt, canRemindAppt, canMarkAppt, MARK_LEAD_MIN, checkSlot, confirmOutcome, projectedIncome, movsRanges,
   serviceDeletionCheck, apptGroup, reportMetrics, isResetOutcome, domBreakdown, clientNoShowStats, NOSHOW_WINDOW,
   reportLines, apptServiceIds, apptServiceRefs, topServicesByDemand,
 } from './helpers.js'
@@ -2468,7 +2468,19 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
   // No asistió — no tiene sentido. Editar y Eliminar sí siguen activos.
   const today  = todayStr()
   const isFuture = cleanDate(appt.date) > today
-  const allowToggle = !isFuture
+  // Regla ÚNICA de marcado (✓/✗): canMarkAppt. Corregir (desmarcar)
+  // siempre; pasada o iniciada siempre; hoy solo dentro de la VENTANA
+  // de MARK_LEAD_MIN; día futuro nunca.
+  const markable = canMarkAppt(appt)
+  // «⏰ Podrás marcarla desde las …»: hora de inicio menos la ventana,
+  // para que la dueña sepa CUÁNDO se habilita en vez de un botón gris.
+  const markFrom = (() => {
+    if (status!=='pending' || markable || isFuture || cleanDate(appt.date)!==today) return null
+    const [h, m] = cleanTime(appt.time).split(':').map(Number)
+    if (isNaN(h)) return null
+    const tot = Math.max(0, h*60 + m - MARK_LEAD_MIN)
+    return `${String(Math.floor(tot/60)).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`
+  })()
   // ¿Hay que recordar YA? Solo para citas pendientes de HOY cuya hora
   // de inicio está a ≤60 min en el futuro o ya empezó hace <10 min.
   // (Las que empezaron hace más rato caen en "● Pasada".) El badge
@@ -2517,14 +2529,15 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
         <button className="btn-o" style={{fontSize:12,padding:'6px 10px'}} onClick={onOpen}
           aria-label={`Ver detalle de la cita de ${appt.clientName}`}>👁 Detalle</button>
         {status==='pending' && isFuture && <span style={{fontSize:11,color:'var(--t2)',background:'var(--gold-bg)',borderRadius:8,padding:'6px 10px',fontWeight:600}}>📅 Cita futura — no se puede completar aún</span>}
+        {markFrom && <span style={{fontSize:11,color:'var(--t2)',background:'var(--gold-bg)',borderRadius:8,padding:'6px 10px',fontWeight:600,whiteSpace:'nowrap'}}>⏰ Podrás marcarla desde las {fmtTime(markFrom)}</span>}
         <button className={`btn-check${status==='done'?' done':''}`} onClick={()=>onToggle('done')}
           style={status==='done'?{}:{opacity: status==='noshow'?.5:1}}
-          disabled={isFuture}>
+          disabled={!markable}>
           {status==='done'?'✓ Completada':'✓ Completada'}
         </button>
         <button onClick={()=>onToggle('noshow')}
-          disabled={isFuture}
-          style={{background:status==='noshow'?'var(--red)':'#FFF4F0',color:status==='noshow'?'white':'var(--red)',border:`1.5px solid ${status==='noshow'?'var(--red)':'#F5C0B0'}`,borderRadius:8,padding:'6px 10px',fontSize:12,fontWeight:600,cursor:isFuture?'not-allowed':'pointer',fontFamily:'inherit',transition:'all .15s',opacity: status==='done'?.5:1}}>
+          disabled={!markable}
+          style={{background:status==='noshow'?'var(--red)':'#FFF4F0',color:status==='noshow'?'white':'var(--red)',border:`1.5px solid ${status==='noshow'?'var(--red)':'#F5C0B0'}`,borderRadius:8,padding:'6px 10px',fontSize:12,fontWeight:600,cursor:!markable?'not-allowed':'pointer',fontFamily:'inherit',transition:'all .15s',opacity: status==='done'?.5:1}}>
           ✗ No asistió
         </button>
         {status==='pending' && remindable && <button className="btn-wa" onClick={()=>openWA(appt.clientPhone,appt.clientName,appt.time,appt.date,appt.serviceNames,appt.totalPrice||appt.servicePrice,dom,appt.domicilioPrice)}>💬 Recordatorio</button>}
@@ -5527,11 +5540,12 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
             aria-label={`Ir a la cita de ${a.clientName} a las ${fmtTime(a.time)}`}>
             📅 Ir a cita
           </button>
-          {/* «Sin marcar» (pasada sin decisión): se resuelve AQUÍ mismo,
-              con el MISMO flujo de la pestaña Citas — «✓ Completó» pide
-              el método de pago (PayModal) y «✗ No asistió» marca directo.
-              Así la dueña no tiene que salir del calendario a buscarla. */}
-          {past && !done && !noshow && (
+          {/* Marcado en el sitio con la regla ÚNICA canMarkAppt: pasadas
+              sin decisión («Sin marcar») y citas de hoy dentro de la
+              ventana de MARK_LEAD_MIN — el MISMO flujo de la pestaña
+              Citas: «✓ Completó» pide el método de pago (PayModal) y
+              «✗ No asistió» marca directo. */}
+          {!done && !noshow && canMarkAppt(a) && (
             <>
               <button className="btn-sm" style={{ flex: 1 }}
                 onClick={() => setPayFor({ appt: a })}

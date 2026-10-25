@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, canRemindAppt, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptServiceRefs, topServicesByDemand, apptGroup, reportMetrics, periodLedger, isResetOutcome, domBreakdown, reportLines, expenseLabel,
+import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, canRemindAppt, canMarkAppt, MARK_LEAD_MIN, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptServiceRefs, topServicesByDemand, apptGroup, reportMetrics, periodLedger, isResetOutcome, domBreakdown, reportLines, expenseLabel,
 MAX_REPORT_EXPENSES, REPORT_EXPENSE_DETAIL_MAX, groupExpensesByCategory, clientNoShowStats, NOSHOW_WINDOW, PAYMENT_METHODS, payMethodOf } from './helpers.js'
 
 // phoneMatch/getSlots depend on todayStr() (local today). Freeze the clock
@@ -1036,6 +1036,44 @@ describe('canModifyAppt (restricción del detalle)', () => {
     expect(canModifyAppt({ completed: true })).toBe(false)
     expect(canModifyAppt({ completed: 'noshow' })).toBe(false)
     expect(canModifyAppt({})).toBe(true)
+  })
+})
+
+/* -- canMarkAppt · ventana de antelación para marcar ✓/✗ ---------------
+   Regla ÚNICA compartida por Citas y el Calendario. Con la ventana de
+   30 min, la cita de HOY a las 8:00 p. m. se puede marcar desde las
+   7:30 p. m. — antes no: «⏰ Podrás marcarla desde las …». */
+describe('canMarkAppt (ventana de antelación de marcado)', () => {
+  const NOW = new Date(2026, 0, 15, 15, 0, 0) // 2026-01-15 3:00 p. m.
+  const A = (over = {}) => ({ date: '2026-01-15', time: '16:00', completed: false, ...over })
+
+  it('día pasado o cita ya iniciada: siempre se puede marcar', () => {
+    expect(canMarkAppt({ date: '2026-01-10', time: '10:00', completed: false }, NOW)).toBe(true)
+    expect(canMarkAppt(A({ time: '14:00' }), NOW)).toBe(true)   // hoy, ya inició
+  })
+  it('cita de HOY dentro de la ventana (≤ MARK_LEAD_MIN antes del inicio): sí', () => {
+    expect(MARK_LEAD_MIN).toBe(30)
+    expect(canMarkAppt(A({ time: '15:00' }), NOW)).toBe(true)    // justo ahora
+    expect(canMarkAppt(A({ time: '15:15' }), NOW)).toBe(true)    // dentro
+    expect(canMarkAppt(A({ time: '15:30' }), NOW)).toBe(true)   // 30 min exactos (≤, incluida)
+  })
+  it('cita de HOY fuera de la ventana: no — la de 8:00 p. m. a las 3:00 p. m.', () => {
+    expect(canMarkAppt(A({ time: '20:00' }), NOW)).toBe(false)   // faltan 5 h
+    expect(canMarkAppt(A({ time: '23:59' }), NOW)).toBe(false)
+  })
+  it('día futuro nunca; sin fecha o sin hora hoy tampoco', () => {
+    expect(canMarkAppt(A({ date: '2026-01-16' }), NOW)).toBe(false)
+    expect(canMarkAppt({ date: '', time: '10:00', completed: false }, NOW)).toBe(false)
+    expect(canMarkAppt({ date: '2026-01-15', time: '', completed: false }, NOW)).toBe(false)
+    expect(canMarkAppt(null, NOW)).toBe(false)
+  })
+  it('corregir (quitar el ✓ o el ✗) siempre se puede, incluso en un día futuro', () => {
+    expect(canMarkAppt(A({ date: '2026-01-16', completed: true }), NOW)).toBe(true)
+    expect(canMarkAppt(A({ date: '2026-01-16', completed: 'noshow' }), NOW)).toBe(true)
+  })
+  it('la ventana es un parámetro: 3 h sí, 30 min no', () => {
+    expect(canMarkAppt(A({ time: '18:00' }), NOW, 180)).toBe(true)
+    expect(canMarkAppt(A({ time: '18:00' }), NOW, 30)).toBe(false)
   })
 })
 

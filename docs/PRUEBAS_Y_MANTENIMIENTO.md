@@ -100,7 +100,8 @@ Cubre sin depender de React ni del navegador:
 - **Duraciones**: `svcDuration`, `sumDuration`, `apptDuration`,
   `fmtDuration`, `endTime`.
 - **Estados**: `apptLife`, `apptGroup` (incluida la clave `unmarked` de
-  «Sin marcar»), `apptStatus`, `canModifyAppt`.
+  «Sin marcar»), `apptStatus`, `canModifyAppt`, `canMarkAppt` (ventana de
+  30 min del marcado ✓/✗).
 - **Teléfono**: `phoneMatch` (sufijo y subcadena).
 - **Finanzas**: `reportMetrics`, `periodLedger`, `groupExpensesByCategory`,
   `periodLedger` (con `totalCash` / `totalTransfer`),

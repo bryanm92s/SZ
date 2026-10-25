@@ -68,6 +68,10 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
   (Efectivo / Nequi / Daviplata / Bancolombia — las tres últimas son
   transferencias) al completar. Las citas antiguas pagadas en
   **«Transferencia»** siguen contando en el reporte, con su renglón heredado.
+- Marcar ✓/✗ tiene **ventana de antelación** (`canMarkAppt`): una cita de
+  hoy se habilita **30 min antes de su hora** (antes muestra «⏰ Podrás
+  marcarla desde las …»); las de mañana en adelante, no («Cita futura»);
+  pasada o iniciada, siempre. Corregir (desmarcar) nunca se bloquea.
 - Agrupación en acordeón: **Hoy · Mañana · Próximas · Sin marcar · No asistió ·
   Pasadas ✓** (los grupos **Sin marcar** y **Pasadas ✓** se pagan de **20 en 20**).
   **«Sin marcar»** son las citas que ya pasaron sin decisión (ni ✓ ni ✗): de la

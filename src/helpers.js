@@ -229,7 +229,34 @@ export const canRemindAppt = (a, now = new Date(), graceMin = 10) => {
   return (now.getTime() - start.getTime()) <= graceMin * 60000
 }
 
-/* ── Inasistencias por clienta ──────────────────────────────────────
+/* ── ¿Se puede MARCAR (✓ o ✗) esta cita? ──────────────────────────
+   Regla ÚNICA compartida por la pestaña Citas y el Calendario:
+   · corregir (quitar un ✓ o un ✗ ya puesto) SIEMPRE se puede;
+   · una cita de un día pasado, o de hoy con la hora ya iniciada, se
+     puede marcar siempre — es el grupo «Sin marcar»;
+   · una cita de un día futuro (mañana o más) nunca: «Cita futura»;
+   · una cita de HOY que aún no empieza solo dentro de la VENTANA de
+     antelación MARK_LEAD_MIN: la de las 8:00 p. m. se puede marcar
+     desde las 7:30 p. m. (con 30 min), no a mediodía.
+   Sin hora válida el mismo día no hay ventana que comprobar → false. */
+export const MARK_LEAD_MIN = 30
+export const canMarkAppt = (a, now = new Date(), leadMin = MARK_LEAD_MIN) => {
+  if (!a) return false
+  if (bool(a.completed) || a.completed === 'noshow') return true
+  const d = cleanDate(a.date)
+  const t = cleanTime(a.time)
+  const td = localDateStr(now)
+  if (!d) return false
+  if (d < td) return true
+  if (d > td) return false
+  if (!t) return false
+  const [h, m] = t.split(':').map(Number)
+  if (isNaN(h)) return false
+  const start = new Date(now); start.setHours(h, m, 0, 0)
+  return start.getTime() - now.getTime() <= leadMin * 60000
+}
+
+/* ── Inasistencias por clienta ─────────────────────────────────────
    Lo usan el historial del cliente (aviso arriba de la lista) y el
    asistente de nueva cita (aviso al elegir clienta).
    • `phone` se compara SOLO por dígitos (mismo criterio que phoneMatch).
