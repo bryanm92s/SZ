@@ -68,8 +68,10 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
   (Efectivo / Nequi / Daviplata / Bancolombia — las tres últimas son
   transferencias) al completar. Las citas antiguas pagadas en
   **«Transferencia»** siguen contando en el reporte, con su renglón heredado.
-- Agrupación en acordeón: **Hoy · Mañana · Próximas · No asistió · Pasadas**
-  (el grupo **Pasadas** se pagina de **20 en 20**).
+- Agrupación en acordeón: **Hoy · Mañana · Próximas · Sin marcar · No asistió ·
+  Pasadas ✓** (los grupos **Sin marcar** y **Pasadas ✓** se pagan de **20 en 20**).
+  **«Sin marcar»** son las citas que ya pasaron sin decisión (ni ✓ ni ✗): de la
+  más reciente a la más vieja, para ponerse al día sin buscarlas a mano.
 - **Solo las citas pendientes** se pueden editar o eliminar (regla compartida
   por la pestaña Citas y el Calendario).
 - Edición de cita preservando el **precio que tenía al momento de crearla**
@@ -133,9 +135,14 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 
 ### 📅 Calendario (vista mensual)
 - Vista de mes completa con las citas pintadas por día (también por semana).
+- Los puntitos de la matriz pintan **dorado las citas pasadas «Sin marcar»**
+  (ni ✓ ni ✗) y la ficha **«Sin marcar ↗»** del mes salta al grupo de Citas
+  abierto sobre la más reciente.
 - Toca un día para ver sus citas: cada tarjeta trae **«👁 Detalle»**,
   **«📅 Ir a cita»** (salta a Citas sobre esa cita, la resalta y hace
-  scroll hasta ella), Editar, WhatsApp y Eliminar.
+  scroll hasta ella), **«✓ Completó» y «✗ No asistió» en las pasadas sin
+  marcar** (completar pide el método de pago, igual que en Citas), Editar,
+  WhatsApp y Eliminar.
 
 ### ⚙️ Ajustes
 - **12 paletas de color** con contraste AA verificado (Palo de Rosa 🌸 ·

@@ -2162,10 +2162,11 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
   const [detailId, setDetailId] = useState(null)
   const [focusId,  setFocusId]  = useState(null)
   // Only "today" open by default — each group toggles independently
-  const [open, setOpen] = useState({today:true, tomorrow:false, upcoming:false, noshow:false, past:false})
-  // Página visible del grupo «Pasadas» (el resto de grupos no se pagina:
-  // son listas cortas por naturaleza).
+  const [open, setOpen] = useState({today:true, tomorrow:false, upcoming:false, unmarked:false, noshow:false, past:false})
+  // Página visible de los grupos largos («Sin marcar» y «Pasadas»; el
+  // resto no se pagina: son listas cortas por naturaleza).
   const [pastPage, setPastPage] = useState(1)
+  const [unmarkedPage, setUnmarkedPage] = useState(1)
   const td = todayStr(), tm = tomorrowStr()
 
   const toggle = k => setOpen(p => ({...p, [k]: !p[k]}))
@@ -2209,16 +2210,23 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
     return () => clearTimeout(t)
   }, [focusId])
 
-  // Groups — past includes today-past
+  // Groups — past includes today-past. «Sin marcar»: pasadas SIN
+  // decisión (ni ✓ ni ✗) — las que antes se perdían dentro de «Pasadas»;
+  // «Pasadas» queda solo con las completadas.
   const groups = {
     today:    appts.filter(a=>cleanDate(a.date)===td && !isPastAppt(a)),
     tomorrow: appts.filter(a=>cleanDate(a.date)===tm),
     upcoming: appts.filter(a=>{ const d=cleanDate(a.date); return d>tm }),
-    past:     appts.filter(a=>isPastAppt(a)&&a.completed!=='noshow'),
+    unmarked: appts.filter(a=>isPastAppt(a) && a.completed!=='noshow' && !bool(a.completed)),
+    past:     appts.filter(a=>isPastAppt(a) && a.completed!=='noshow' && bool(a.completed)),
     noshow:   appts.filter(a=>a.completed==='noshow')
   }
 
   const sortG = arr => [...arr].sort((a,b)=>`${cleanDate(a.date)}${cleanTime(a.time)}`.localeCompare(`${cleanDate(b.date)}${cleanTime(b.time)}`))
+  // «Sin marcar» se lee de lo MÁS RECIENTE a lo más viejo: la de ayer es
+  // la que la operadora todavía recuerda («¿asistió o no?»); las antiguas
+  // vienen detrás para el arqueo histórico.
+  const sortGDesc = arr => [...arr].sort((a,b)=>`${cleanDate(b.date)}${cleanTime(b.time)}`.localeCompare(`${cleanDate(a.date)}${cleanTime(a.time)}`))
 
   const toggleCompleted = (a, newStatus) => {
     // cycle: pending -> done -> pending; noshow is a separate button
@@ -2249,14 +2257,14 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
     onClose={()=>{ setNew(false); if (tabExtra && tabExtra.origin && setTab) setTab(tabExtra.origin) }}/>
   if (editAppt) return <EditAppt   appt={editAppt} services={services} appts={appts} SA={SA} priceHistory={priceHistory} onClose={()=>setEdit(null)}/>
 
-  const AccGroup = ({label,color,gKey,items,pageSize,page,onPage}) => {
+  const AccGroup = ({label,color,gKey,items,pageSize,page,onPage,sortDesc}) => {
     if (items.length===0) return null
     const sum     = items.reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
     const doneSum = items.filter(a=>bool(a.completed)&&a.completed!=='noshow').reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
     const isOpen  = open[gKey]
     // Con `pageSize` solo se pintan las tarjetas de la página visible;
     // los TOTALES del encabezado salen SIEMPRE de la lista completa.
-    const sorted  = sortG(items)
+    const sorted  = sortDesc ? sortGDesc(items) : sortG(items)
     const shown   = pageSize ? sorted.slice((Math.max(1,page)-1)*pageSize, Math.max(1,page)*pageSize) : sorted
     return (
       <div style={{border:`1.5px solid ${color}28`,borderRadius:16,marginBottom:10,overflow:'hidden'}}>
@@ -2312,8 +2320,13 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
     <AccGroup label="Hoy"         color="#B5524A" gKey="today"    items={groups.today}/>
     <AccGroup label="Mañana"      color="#B8742A" gKey="tomorrow" items={groups.tomorrow}/>
     <AccGroup label="Próximas"    color="#2E6EA6" gKey="upcoming" items={groups.upcoming}/>
+    {/* «Sin marcar»: pasadas sin decisión — cerrado por defecto (el
+        contador dorado siempre visible), de lo más reciente a lo más
+        viejo y paginado como «Pasadas» (el mismo PAGE_SIZE). */}
+    <AccGroup label="Sin marcar"  color="#8A6700" gKey="unmarked" items={groups.unmarked}
+      pageSize={PAST_APPT_PAGE_SIZE} page={unmarkedPage} onPage={setUnmarkedPage} sortDesc/>
     <AccGroup label="No asistió"  color="#B03030" gKey="noshow"   items={groups.noshow}/>
-    <AccGroup label="Pasadas"     color="#888888" gKey="past"     items={groups.past}
+    <AccGroup label="Pasadas ✓"   color="#888888" gKey="past"     items={groups.past}
       pageSize={PAST_APPT_PAGE_SIZE} page={pastPage} onPage={setPastPage}/>
     {appts.length===0 && (
       <div className="card" style={{textAlign:'center',padding:30,color:'var(--t2)'}}>
@@ -5300,8 +5313,32 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
   // render y nunca muestre datos obsoletos.
   const [editAppt, setEditAppt] = useState(null)
   const [detailId, setDetailId] = useState(null)
+  // Marcar una pasada SIN decisión («Sin marcar») directamente desde el
+  // panel del día: «✓ Completó» abre este modal para pedir el método de
+  // pago — el MISMO flujo (y el MISMO PayModal) de la pestaña Citas.
+  const [payFor, setPayFor] = useState(null) // {appt} → modal de método de pago
 
   const safeA = Array.isArray(appts) ? appts : []
+
+  /* ── Marcar «Sin marcar» desde el calendario ──
+     El MISMO contrato de la pestaña Citas: completar pide el método de
+     pago (borrarlo si se desmarca) y «no asistió» alterna sin tocar el
+     método. No duplica lógica nueva: es el toggleCompleted de ApptsTab
+     reducido a lo que el calendario necesita. */
+  const markNoShow = a => {
+    const next = appts.map(x => x.id === a.id
+      ? { ...x, completed: x.completed === 'noshow' ? false : 'noshow', paymentMethod: '' }
+      : x)
+    SA(next)
+  }
+  const pickPayment = method => {
+    const a = payFor.appt
+    const next = appts.map(x => x.id === a.id
+      ? { ...x, completed: true, paymentMethod: method }
+      : x)
+    setPayFor(null)
+    SA(next)
+  }
 
   /* ── Navigation ── */
   const goBack = () => {
@@ -5387,7 +5424,9 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
   const dotColor = a => {
     if (bool(a.completed)) return 'var(--green)'
     if (a.completed === 'noshow') return 'var(--red)'
-    if (isPastAppt(a)) return 'var(--t2)'
+    // Pasada pendiente = «Sin marcar»: DORADA, para que el día con citas
+    // olvidadas salte a la vista en la matriz del mes.
+    if (isPastAppt(a)) return 'var(--gold)'
     return 'var(--primary)'
   }
 
@@ -5413,8 +5452,8 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
     const done   = bool(a.completed)
     const noshow = a.completed === 'noshow'
     const past   = isPastAppt(a)
-    const bg     = done ? 'var(--green-bg)' : noshow ? 'var(--red-bg)' : past ? 'var(--bg)' : 'var(--primary-l)'
-    const col    = done ? 'var(--green)' : noshow ? 'var(--red)' : past ? 'var(--t2)' : 'var(--primary)'
+    const bg     = done ? 'var(--green-bg)' : noshow ? 'var(--red-bg)' : past ? 'var(--gold-bg)' : 'var(--primary-l)'
+    const col    = done ? 'var(--green)' : noshow ? 'var(--red)' : past ? 'var(--gold)' : 'var(--primary)'
     return (
       <div style={{
         background: bg, border: `1.5px solid ${col}`, borderRadius: 8,
@@ -5441,7 +5480,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
     const past   = isPastAppt(a)
     const status = done ? { label: 'Completada', color: 'var(--green)', bg: 'var(--green-bg)' }
       : noshow ? { label: 'No asistió', color: 'var(--red)', bg: 'var(--red-bg)' }
-      : past    ? { label: 'Pasada', color: 'var(--t2)', bg: 'var(--border)' }
+      : past    ? { label: 'Sin marcar', color: 'var(--gold)', bg: 'var(--gold-bg)' }
       :           { label: 'Pendiente', color: 'var(--gold)', bg: 'var(--gold-bg)' }
     return (
       <div style={{
@@ -5488,6 +5527,24 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
             aria-label={`Ir a la cita de ${a.clientName} a las ${fmtTime(a.time)}`}>
             📅 Ir a cita
           </button>
+          {/* «Sin marcar» (pasada sin decisión): se resuelve AQUÍ mismo,
+              con el MISMO flujo de la pestaña Citas — «✓ Completó» pide
+              el método de pago (PayModal) y «✗ No asistió» marca directo.
+              Así la dueña no tiene que salir del calendario a buscarla. */}
+          {past && !done && !noshow && (
+            <>
+              <button className="btn-sm" style={{ flex: 1 }}
+                onClick={() => setPayFor({ appt: a })}
+                aria-label={`Marcar como completada la cita de ${a.clientName}`}>
+                ✓ Completó
+              </button>
+              <button className="btn-sm" style={{ flex: 1 }}
+                onClick={() => markNoShow(a)}
+                aria-label={`Marcar como no asistió la cita de ${a.clientName}`}>
+                ✗ No asistió
+              </button>
+            </>
+          )}
           {/* Editar: abre el mismo formulario de edición con la cita
               precargada por su ID. Ya no navega a la pestaña Citas. */}
           {canModifyAppt(a) && (
@@ -5527,6 +5584,12 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
   const stripPend  = stripMonth.filter(a => !bool(a.completed) && a.completed !== 'noshow' && !isPastAppt(a)).length
   const stripNS    = stripMonth.filter(a => a.completed === 'noshow').length
   const stripRev   = stripMonth.filter(a => bool(a.completed)).reduce((s, a) => s + toN(a.totalPrice || a.servicePrice || 0), 0)
+  /* «Sin marcar» del mes visible: pasadas sin decisión. La ficha es el
+     atajo para encontrarlas — toca y cae en el grupo «Sin marcar» de
+     Citas, abierto sobre la MÁS RECIENTE (focusAppt), como «📅 Ir a cita». */
+  const stripUn = stripMonth.filter(a => isPastAppt(a) && a.completed !== 'noshow' && !bool(a.completed))
+  const lastUn  = [...stripUn].sort((a, b) =>
+    `${cleanDate(b.date)}${cleanTime(b.time)}`.localeCompare(`${cleanDate(a.date)}${cleanTime(a.time)}`))[0]
 
   /* ═══════════════════════════════════════════════════
      RENDER
@@ -5559,6 +5622,10 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
             confirm(`¿Eliminar la cita de ${det.clientName}? También se borrará el evento de Google Calendar.`, () => deleteAppt(det))
           }} />
       })()}
+
+      {/* Modal de método de pago al completar una «Sin marcar» desde el
+          panel del día — el MISMO PayModal de la pestaña Citas. */}
+      {payFor && <PayModal appt={payFor.appt} onPick={pickPayment} onCancel={() => setPayFor(null)}/>}
 
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -5614,7 +5681,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
 
       {/* ── Stats strip ── */}
       {view === 'month' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${stripUn.length ? 5 : 4},minmax(0,1fr))`, gap: 8, marginBottom: 12 }}>
           {[
             { label: 'Citas', val: stripMonth.length, color: 'var(--primary)', bg: 'var(--primary-l)' },
             { label: 'Listas ✓', val: stripDone,  color: 'var(--green)',   bg: 'var(--green-bg)' },
@@ -5626,6 +5693,19 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
               <div style={{ fontSize: 11, color: s.color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', marginTop: 2, lineHeight: 1.3 }}>{s.label}</div>
             </div>
           ))}
+          {/* «Sin marcar»: solo aparece si hay olvidadas en el mes — y es
+              un botón: lleva al grupo «Sin marcar» de Citas. Sin elllas,
+              la tira queda con sus 4 fichas de siempre. */}
+          {stripUn.length > 0 && lastUn && (
+            <button type="button"
+              onClick={() => setTab('appointments', { focusAppt: lastUn.id })}
+              title="Ver las citas pasadas sin marcar en la pestaña Citas"
+              aria-label={`Ir a las ${stripUn.length} citas pasadas sin marcar`}
+              style={{ background: 'var(--gold-bg)', border: 'none', borderRadius: 12, padding: '10px 6px', textAlign: 'center', cursor: 'pointer', fontFamily: 'inherit' }}>
+              <div style={{ fontFamily: 'Georgia,serif', fontSize: 20, fontWeight: 700, color: 'var(--gold)' }}>{stripUn.length}</div>
+              <div style={{ fontSize: 11, color: 'var(--gold)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', marginTop: 2, lineHeight: 1.3 }}>Sin marcar ↗</div>
+            </button>
+          )}
         </div>
       )}
 
@@ -5695,7 +5775,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
             {[
               ['var(--green)', 'Completada'],
               ['var(--primary)', 'Pendiente'],
-              ['var(--t2)', 'Pasada'],
+              ['var(--gold)', 'Sin marcar'],
               ['var(--red)', 'No asistió'],
             ].map(([color, label]) => (
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--t2)' }}>

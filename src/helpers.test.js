@@ -989,17 +989,20 @@ describe('apptLife', () => {
    que hay que abrir para que la cita seleccionada sea visible. */
 describe('apptGroup', () => {
   const NOW = new Date(2026, 0, 15, 13, 0, 0) // 2026-01-15 13:00 local
-  it('clasifica hoy / mañana / próximas / pasadas / no asistió', () => {
+  it('clasifica hoy / mañana / próximas / pasadas / sin marcar / no asistió', () => {
     expect(apptGroup({ date: '2026-01-15', time: '15:00', completed: false }, NOW)).toBe('today')
     expect(apptGroup({ date: '2026-01-16', time: '10:00', completed: false }, NOW)).toBe('tomorrow')
     expect(apptGroup({ date: '2026-01-20', time: '10:00', completed: false }, NOW)).toBe('upcoming')
-    expect(apptGroup({ date: '2026-01-10', time: '10:00', completed: false }, NOW)).toBe('past')
+    expect(apptGroup({ date: '2026-01-10', time: '10:00', completed: true }, NOW)).toBe('past')
+    expect(apptGroup({ date: '2026-01-10', time: '10:00', completed: false }, NOW)).toBe('unmarked')
     expect(apptGroup({ date: '2026-01-20', time: '10:00', completed: 'noshow' }, NOW)).toBe('noshow')
   })
 
-  it('una cita de hoy cuya hora ya empezó cae en «Pasadas»', () => {
-    // 12:00 ya inició (NOW = 13:00) → past, no today
-    expect(apptGroup({ date: '2026-01-15', time: '12:00', completed: false }, NOW)).toBe('past')
+  it('una cita de hoy cuya hora ya empezó cae en «Sin marcar» si nadie la marcó', () => {
+    // 12:00 ya inició (NOW = 13:00) → pasada; sin decisión → unmarked
+    expect(apptGroup({ date: '2026-01-15', time: '12:00', completed: false }, NOW)).toBe('unmarked')
+    // la misma hora pero completada → «Pasadas»
+    expect(apptGroup({ date: '2026-01-15', time: '12:00', completed: true }, NOW)).toBe('past')
     // 13:00 exacto: `start < now` es false → sigue en today
     expect(apptGroup({ date: '2026-01-15', time: '13:00', completed: false }, NOW)).toBe('today')
     // sin hora no se puede decidir → se muestra como hoy
@@ -1012,9 +1015,10 @@ describe('apptGroup', () => {
     expect(apptGroup({ date: '2026-01-20', time: '10:00', completed: 'noshow' }, NOW)).toBe('noshow')
   })
 
-  it('una cita sin fecha nunca se pierde: cae en «Pasadas»', () => {
-    expect(apptGroup({ date: '', time: '10:00', completed: false }, NOW)).toBe('past')
-    expect(apptGroup({}, NOW)).toBe('past')
+  it('una cita sin fecha nunca se pierde: «Sin marcar» si está pendiente', () => {
+    expect(apptGroup({ date: '', time: '10:00', completed: false }, NOW)).toBe('unmarked')
+    expect(apptGroup({ date: '', time: '10:00', completed: true }, NOW)).toBe('past')
+    expect(apptGroup({}, NOW)).toBe('unmarked')
   })
 
   it('no modifica la cita recibida (solo lectura)', () => {

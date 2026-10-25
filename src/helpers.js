@@ -265,14 +265,20 @@ export const clientNoShowStats = (appts, phone) => {
 /**
  * Grupo de la pestaña Citas en el que cae una cita.
  * Réplica de los filtros de `groups` en ApptsTab: sirve para abrir y
- * localizar el grupo correcto cuando se llega desde el Panel.
+ * localizar el grupo correcto cuando se llega desde el Panel o desde
+ * el Calendario.
+ * Una cita PASADA sin decisión (ni ✓ completada ni ✗ no asistió) cae
+ * en «unmarked»: es la lista de citas que esperan una marca y que antes
+ * se perdían dentro de «Pasadas». La pasada completada sigue en
+ * «past»; «No asistió» gana siempre.
  */
 export const apptGroup = (a, now = new Date()) => {
   if (!a) return 'past'
   if (a.completed === 'noshow') return 'noshow'
   const d  = cleanDate(a.date)
   const td = localDateStr(now)
-  if (!d || d < td) return 'past'
+  const pastDone = () => (bool(a.completed) ? 'past' : 'unmarked')
+  if (!d || d < td) return pastDone()
   if (d > td) {
     const tm = localDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1))
     return d === tm ? 'tomorrow' : 'upcoming'
@@ -281,7 +287,7 @@ export const apptGroup = (a, now = new Date()) => {
   const [h, m] = cleanTime(a.time).split(':').map(Number)
   if (isNaN(h)) return 'today'
   const start = new Date(now); start.setHours(h, m, 0, 0)
-  return start < now ? 'past' : 'today'
+  return start < now ? pastDone() : 'today'
 }
 
 /* ══════════════════════════════════════════════════════════════

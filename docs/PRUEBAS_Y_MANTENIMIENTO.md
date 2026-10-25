@@ -99,7 +99,8 @@ Cubre sin depender de React ni del navegador:
   **dentro de `getSlots`**, no en una función aparte.
 - **Duraciones**: `svcDuration`, `sumDuration`, `apptDuration`,
   `fmtDuration`, `endTime`.
-- **Estados**: `apptLife`, `apptGroup`, `apptStatus`, `canModifyAppt`.
+- **Estados**: `apptLife`, `apptGroup` (incluida la clave `unmarked` de
+  «Sin marcar»), `apptStatus`, `canModifyAppt`.
 - **Teléfono**: `phoneMatch` (sufijo y subcadena).
 - **Finanzas**: `reportMetrics`, `periodLedger`, `groupExpensesByCategory`,
   `periodLedger` (con `totalCash` / `totalTransfer`),

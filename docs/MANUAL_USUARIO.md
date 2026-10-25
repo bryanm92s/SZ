@@ -198,11 +198,18 @@ botón **↻** de la barra superior para recargar.
 
 1. Toca **📅 Citas**.
 2. Las citas están agrupadas en acordeones:
-   - **HOY · MAÑANA · PRÓXIMAS · NO ASISTIÓ · PASADAS**
+   - **HOY · MAÑANA · PRÓXIMAS · SIN MARCAR · NO ASISTIÓ · PASADAS ✓**
+   - **SIN MARCAR** son las citas que **ya pasaron y nadie marcó** (ni ✓ ni
+     ✗). Aparecen **de la más reciente a la más vieja** — la de ayer
+     primero, que es la que todavía recuerdas — y se resuelven ahí mismo
+     con **«✓ Completó»** o **«✗ No asistió»**.
+   - **PASADAS ✓** quedaron solo con las completadas: el historial de lo
+     que sí pasó, sin revolverlo con las olvidadas.
 3. Solo **HOY** está abierto; toca el título de otro grupo para abrirlo.
-   - El grupo **PASADAS** se muestra **de 20 en 20** (‹ Ant. / Sig. ›): el
-     historial está completo, solo se pinta de a poquito para que el celular
-     no se trabe. Los totales del grupo son siempre de la lista completa.
+   - **SIN MARCAR** y **PASADAS ✓** se muestran **de 20 en 20** (‹ Ant. /
+     Sig. ›): el historial está completo, solo se pinta de a poquito para
+     que el celular no se trabe. Los totales del grupo son siempre de la
+     lista completa.
 4. Toca **«👁 Detalle»** en una cita para ver todo: clienta, servicios,
    dirección, total, método de pago y estado.
 
@@ -396,12 +403,22 @@ no tiene duración, SZ usa **60 minutos** por defecto.
 
 1. Toca **📆 Calendario**.
 2. Navega entre meses con **‹** y **›** (o cambia a la **vista Semana**).
-3. Verás las citas pintadas en cada día.
+3. Verás las citas pintadas en cada día. El color de los puntitos dice el
+   estado (la leyenda va abajo de la matriz): verde completada, azul
+   pendiente, **dorado «Sin marcar»** —una cita que ya pasó y nadie marcó—
+   y rojo no asistió.
+   - En la vista del mes aparece además la ficha **«SIN MARCAR ↗»** con
+     cuántas citas del mes quedaron sin marcar. Tócala y caes en la
+     pestaña Citas con el grupo **SIN MARCAR** abierto sobre la más
+     reciente.
 4. Toca un día: abajo aparecen sus citas en tarjetas.
 5. Cada tarjeta trae sus botones:
    - **👁 Detalle** — para ver todo de la cita.
    - **📅 Ir a cita** — te lleva a la pestaña **Citas** directamente a ESA
      cita: se resalta unos segundos y la pantalla baja hasta ella.
+   - **✓ Completó** y **✗ No asistió** — solo en las citas **pasadas sin
+     marcar**: se resuelven ahí mismo, sin salir del calendario
+     (completar pide el **método de pago**, igual que en Citas).
    - **✏️ Editar**, **💬 WhatsApp** y **✕** (eliminar) según el estado de
      la cita.
 

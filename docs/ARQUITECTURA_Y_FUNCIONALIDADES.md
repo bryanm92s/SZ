@@ -202,7 +202,7 @@ App → saveData(payload) → call(URL, {method:'POST', body:{token, ...payload}
 | `Dashboard` | 1623 | Panel principal; «Citas de Hoy» (título con el emoji del negocio, `BIZ_EMOJI`) muestra ✓ (completada) o píldora «✗ No asistió» (`apptStatus`) |
 | `MonthlyIncomeState` | 1862 | Estado de ingresos por mes |
 | `MonthlyBalance` | 1920 | Balance mensual |
-| `ApptsTab` | 1996 | Lista de citas en acordeones |
+| `ApptsTab` | 2152 | Lista de citas en acordeones (Hoy · Mañana · Próximas · **Sin marcar** · No asistió · Pasadas ✓) |
 | `ApptDetail` | 2175 | Detalle de una cita |
 | `ApptCard` | 2288 | Tarjeta de cita reutilizable |
 | `EditAppt` | 2373 | Formulario de edición |
@@ -405,20 +405,28 @@ y es **la única fuente de verdad** de la que cuelgan otras reglas. ✅ 🧪
 
 ### 6.3 Grupo visual de la lista de citas
 
-`apptGroup(a, now)` (`helpers.js` 231–246), usado por `ApptsTab` (`App.jsx`
-1996):
+`apptGroup(a, now)` (`helpers.js`), usado por `ApptsTab` y por el salto
+«📅 Ir a cita» (Panel y Calendario):
 
 | Grupo | Condición |
 |---|---|
-| `noshow` | `completed === 'noshow'` |
-| `today` | `date === hoy` |
+| `noshow` | `completed === 'noshow'` (gana siempre) |
+| `today` | `date === hoy` y su hora aún no empieza |
 | `tomorrow` | `date === mañana` |
 | `upcoming` | `date > mañana` |
-| `past` | todo lo demás |
+| `unmarked` | **pasada** (fecha vieja, o de hoy con la hora ya iniciada) y **sin decisión**: ni ✓ ni ✗ |
+| `past` | pasada **completada** |
 
-> 📌 **«Pasada» es una fecha, no un estado.** Un `completed === 'false'` de
-> ayer cae en `past`, **no** cambia de estado. Documentado también en el
-> manual de usuario, sección 8.
+> 📌 **«Sin marcar» es la lista de las olvidadas.** Antes una pasada
+> pendiente se perdía dentro de «Pasadas» (completadas y olvidadas
+> revueltas, 20 por página); ahora tiene su propio acordeón — de la más
+> reciente a la más vieja (`sortGDesc`), paginado y cerrado por defecto —
+> y en el Calendario pinta **dorado**: punto de la matriz, pastilla del
+> panel del día (con «✓ Completó»/«✗ No asistió» en el sitio, usando el
+> MISMO `PayModal` de Citas) y ficha «SIN MARCAR ↗» del mes, que salta al
+> grupo abierto sobre la más reciente. «Completada» y «No asistió» siguen
+> siendo estados que solo toca la operadora; `unmarked` es una fecha
+> combinada con la falta de decisión. Manual de usuario, secciones 6 y 12.
 
 ### 6.4 Nada se marca «solo»
 
@@ -1420,6 +1428,7 @@ Confirmadas leyendo el código; **no son defectos ocultos**.
 | 38h | **Paginación en «Pasadas»** (20 por página) | `App.jsx` `PAST_APPT_PAGE_SIZE`, `pastPage`, `AccGroup` | ✅ | — |
 | 38i | **Bajada automática al abrir una categoría** (al tocarla, la vista baja sola hasta el **título** de la lista desplegada, exactamente debajo de la barra sticky completa —header + pestañas—; cerrar o cambiar de mes **no** la mueve) | `App.jsx` `ExpenseDetail`, `catTitleRef` + `useEffect` de `openCat` | ✅ | — |
 | 38j | **Título «📅 Gastos por día»** sobre la lista de días del detalle de gastos (separa esa sección de la tarjeta de categoría) | `App.jsx` `ExpenseDetail` | ✅ | — |
+| 38k | **«Sin marcar»**: las citas pasadas sin decisión (ni ✓ ni ✗) tienen acordeón propio en Citas — de la más reciente a la más vieja, paginado, cerrado por defecto — y en el Calendario pintan **dorado** (punto de la matriz, pastilla y «✓ Completó»/«✗ No asistió» en el panel del día, ficha «SIN MARCAR ↗» del mes que salta al grupo) | `helpers.js` `apptGroup` (`unmarked`), `App.jsx` `ApptsTab` (`groups.unmarked`, `unmarkedPage`, `sortGDesc`) y `CalendarView` (`dotColor`, `ApptCard`, `markNoShow`/`pickPayment`, tira del mes) | ✅ | 🧪 |
 | **REPORTES** | | | | |
 | 39 | Períodos día / mes / rango / **año** | `helpers.js` `periodLedger` | ✅ | 🧪 |
 | 40 | Excel con 3 hojas (app) | `App.jsx` `exportExcel` (3967), SheetJS | ✅ | — |
