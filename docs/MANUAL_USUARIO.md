@@ -453,6 +453,17 @@ no tiene duración, SZ usa **60 minutos** por defecto.
 > aunque lo quites y lo vuelvas a poner. Tu acceso es de **solo lectura**:
 > ver las citas allí no permite modificar ni borrar la agenda.
 
+> 📱 **¿El calendario compartido no aparece en tu iPhone?** No siempre se
+> ve solo al compartirlo (pasó en la práctica). Según la app que uses:
+>
+> - **App de Google Calendar**: toca **⚙️ Ajustes → tu cuenta de Google** y
+>   **activa el interruptor** del calendario compartido.
+> - **Calendario de Apple** (el del iPhone con tu cuenta Gmail agregada):
+>   abre **Safari** con la sesión de esa cuenta y entra a
+>   **`calendar.google.com/calendar/syncselect`** → marca el calendario
+>   compartido → **Guardar**. En unos minutos aparece en la app Calendario
+>   del iPhone — sin ese paso, **no sale**.
+
 ---
 
 ## 13. Domicilios, dirección, duración y precios

@@ -264,6 +264,13 @@ gestor de contraseñas.
    4. Ella lo agrega en el celular: *calendar.google.com → ⋮ → Ajustes →
       Añadir otro calendario → Suscribirse* (o en la app de Calendar:
       *Añadir → Suscribirse a calendario → pegar el ID*).
+      > 📱 **Tip del iPhone (pasó en la práctica):** en el iPhone el
+      > calendario compartido **no siempre aparece solo**. Si ella usa el
+      > **Calendario de Apple** con su cuenta Gmail, que abra
+      > **`calendar.google.com/calendar/syncselect`** en Safari (con esa
+      > sesión), marque el calendario y **Guarde** — sin ese paso no sale.
+      > Con la **app de Google Calendar** basta activarlo en
+      > *⚙️ Ajustes → su cuenta*.
    5. **Valídelo en 5 s:** en el editor de Apps Script ejecuta la función
       **`pruebaCalendario()`** y mira *Registro de ejecuciones → Registros*:
       `cal = OK → Citas <negocio>` significa que el id apunta al calendario
@@ -571,6 +578,7 @@ Lo que **sí** quedó parametrizado y no requiere tocar nada:
 | El código de reset **no le llega a la usuaria** | Su correo no está en la **lista** `SB_AUTHORIZED_EMAIL` (separa las direcciones con **coma**) |
 | Los reportes llegan a tu bandeja en vez de a la suya | Falta `SB_REPORT_EMAIL` (sin ella, los reportes van a `SB_AUTHORIZED_EMAIL`) |
 | La cita **no aparece** en el calendario de la usuaria | Ejecuta **`pruebaCalendario()`** en el editor: si dice `NULL`, el id de `SB_CALENDAR_ID` no es de un calendario accesible de esa cuenta. Si dice `OK`, falta compartírselo a ella en **solo lectura** |
+| El calendario compartido **no aparece en su iPhone** | No se activó en el teléfono: con la **app de Google Calendar**, ⚙️ Ajustes → su cuenta → interruptor; con el **Calendario de Apple**, abrir `calendar.google.com/calendar/syncselect` en Safari (con su sesión), marcar el calendario y **Guardar** |
 | La cita **no se borra** del calendario | `pruebaCalendario()` → `escr = ERROR`: falta «Realizar cambios y ver los detalles» para la cuenta del proyecto (el de la usuaria se queda en solo lectura). Si el mensaje de Google sale en crudo, el `Code.gs` pegado es viejo |
 | El botón «📧 Enviar por correo» dice «No se pudo enviar el correo» | El `Code.gs` pegado es viejo (falta `sendReportEmailNow`) → pega el actual del repo. Si **no ves el botón**, el frontend de Vercel es viejo → Redeploy |
 | «Carpeta de backups no encontrada» | No se ejecutó `setupDailyBackupTrigger()` / `createDailyBackup()` |

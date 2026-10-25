@@ -512,6 +512,12 @@ En **⚙️ → Propiedades del proyecto → Propiedades de script**, agrega:
   > evento del calendario». Es exactamente el fallo que produjo los avisos
   > de borrado fallido del 24/10/2026 (corregido ese mismo día: `deleteCalEvent`
   > ahora verifica si el evento sigue ahí y explica el permiso).
+  > 📱 **En el iPhone el calendario compartido no aparece solo** (pasó en
+  > la práctica): la usuaria debe activarlo. Con la **app de Google
+  > Calendar**: *⚙️ Ajustes → su cuenta → interruptor*. Con el
+  > **Calendario de Apple** (su cuenta Gmail agregada): abrir
+  > **`calendar.google.com/calendar/syncselect`** en Safari con su sesión,
+  > marcar el calendario y **Guardar** — sin ese paso no sale.
 - **Validar que `SB_CALENDAR_ID` quedó bien:** ejecuta la función
   **`pruebaCalendario()`** desde el editor de Apps Script (no usa token,
   hoja ni lock: solo escribe en *Registro de ejecuciones → Registros*) y
