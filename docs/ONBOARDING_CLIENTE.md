@@ -152,7 +152,7 @@ requiere tocar el código.
 |---|---|---|
 | `VITE_BIZ_NAME` | Nombre del negocio (pestaña, encabezado, pie y mensajes) | `Uñas de Valentina` |
 | `VITE_BIZ_SUBTITLE` | Subtítulo corto (`NOMBRE · SUBTITULO` en la pestaña) | `Spa de uñas` |
-| `VITE_BIZ_EMOJI` | Emoji de favicon, encabezado y cierre del WhatsApp | `💅` |
+| `VITE_BIZ_EMOJI` | Emoji de marca: favicon, splash de carga, encabezado (si no hay logo), pie, título «Citas de Hoy» y cierre del WhatsApp | `💅` |
 | `VITE_BIZ_LOGO` | URL **absoluta** del logo (opcional; sustituye al emoji) | `https://raw.githubusercontent.com/bryanm92s/LOGOS/main/LOGO-<CLIENTE>/logo.png` |
 | `VITE_ADMIN_WHATSAPP` | Número del admin para el botón «💬 WhatsApp admin» | `573001234567` |
 | `VITE_CATALOG` | Catálogo inicial: `cejas` \| `unas` \| `peluqueria` \| `barberia` \| `depilacion` \| `masajes` \| `estetica` \| `maquillaje` | `unas` |
@@ -475,7 +475,8 @@ fase D.
 
 ## 5. Fase D — Verificación (5 minutos)
 
-- [ ] La pestaña dice el nombre del cliente y el favicon es su emoji.
+- [ ] La pestaña dice el nombre del cliente, el favicon es su emoji y el
+      Panel dice «\<su emoji\> Citas de Hoy».
 - [ ] Header en verde: **«✓ Sincronizado»**.
 - [ ] En «Servicios» aparece el catálogo de su actividad.
 - [ ] Creo una cliente de prueba → **aparece en el Google Sheets de la cuenta

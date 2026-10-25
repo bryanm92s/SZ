@@ -357,7 +357,7 @@ Copia `.env.example` a `.env` (local) o configúralas en
 | `VITE_TOKEN` | ✅ | ⚠️ **expuesta** | Debe coincidir exactamente con la propiedad de script `SB_SYNC_TOKEN` |
 | `VITE_BIZ_NAME` | — | pública | Nombre del negocio (header + `<title>`). Defecto: `SZ` (despliegue original) → **obligatoria en un cliente nuevo** |
 | `VITE_BIZ_SUBTITLE` | — | pública | Subtítulo corto: aparece bajo el nombre **y** en la pestaña (`NOMBRE · SUBTITULO`) |
-| `VITE_BIZ_EMOJI` | — | pública | Emoji del icono de la pestaña (favicon), del encabezado y del cierre del mensaje de WhatsApp. Defecto: `🌸` |
+| `VITE_BIZ_EMOJI` | — | pública | Emoji de marca en toda la app: favicon de la pestaña, pantalla de carga (splash), encabezado (si no hay logo), pie de página, título «Citas de Hoy» y estado vacío de Citas, y cierre del mensaje de WhatsApp. Defecto: `🌸` |
 | `VITE_BIZ_LOGO` | — | pública | URL absoluta del logo para `apple-touch-icon` |
 | `VITE_CATALOG` | — | pública | Catálogo inicial de servicios: `cejas` \| `unas` \| `peluqueria` \| `barberia` \| `depilacion` \| `masajes` \| `estetica` \| `maquillaje` (`src/catalogs.js`). Defecto: `cejas` |
 | `VITE_DEFAULT_SERVICES` | — | pública | Lista JSON con los servicios exactos del cliente. **Tiene prioridad** sobre `VITE_CATALOG` |

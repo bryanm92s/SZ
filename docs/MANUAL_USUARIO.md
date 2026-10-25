@@ -118,8 +118,9 @@ En la parte inferior hay 7 botones:
 **El Panel muestra:**
 
 - **Citas de Hoy** — la lista de las citas de hoy con su hora, clienta,
-  servicios y precio. Las completadas muestran una etiqueta verde **✓** y las
-  marcadas como no asistió una etiqueta roja **✗ No asistió**.
+  servicios y precio (el título lleva el emoji de tu negocio). Las
+  completadas muestran una etiqueta verde **✓** y las marcadas como no
+  asistió una etiqueta roja **✗ No asistió**.
 - **Citas por recordar** — citas de mañana (u hoy) a las que aún no les has
   mandado recordatorio, con un botón para mandarlo.
 - **Accesos rápidos** — «+ Nueva cita», «Ver calendario», «Finanzas».

@@ -215,11 +215,11 @@ Todas se leen con `import.meta.env` y **quedan embebidas en el bundle JS**
 |---|---|
 | **Nombre exacto** | `VITE_BIZ_EMOJI` |
 | **Ubicación** | `.env`, Vercel |
-| **Uso** | Emoji del favicon (`App.jsx` 195, 296) y del encabezado (529), del pie (580) y de la pantalla de carga (515). ⚠️ **No va en el `<title>`** (294): el navegador pinta el icono y el texto juntos y se vería `🌸🌸`. |
+| **Uso** | Emoji de marca en toda la app: favicon (`App.jsx` 461), pantalla de carga (809), encabezado (823; solo si no hay `VITE_BIZ_LOGO`), pie (889), título «Citas de Hoy» (1977), estado vacío de Citas (2320) y cierre del WhatsApp (412). ⚠️ **No va en el `<title>`** (459): el navegador pinta el icono y el texto juntos y se vería `🌸🌸`. |
 | **Obligatoria** | No |
 | **Valor predeterminado** | `🌸` |
 | **Sensibilidad** | Pública |
-| **Verificación** | Cambia el ícono de la pestaña. Se codifica con `encodeURIComponent`, así que un emoji inválido no rompe el data-URI. |
+| **Verificación** | Cambia el ícono de la pestaña y el título «… Citas de Hoy» del Panel. Se codifica con `encodeURIComponent`, así que un emoji inválido no rompe el data-URI. |
 
 | Campo | Contenido |
 |---|---|

@@ -199,7 +199,7 @@ App → saveData(payload) → call(URL, {method:'POST', body:{token, ...payload}
 | `Pager` | 930 | Paginación plana **‹ Ant. / Sig. ›** |
 | `CirclePager` | 967 | Paginación anidada con el **número en un círculo** |
 | `GS` | 1006 | **Bloque `<style>` global** (tema, modo oscuro, responsive) |
-| `Dashboard` | 1623 | Panel principal; «Citas de Hoy» muestra ✓ (completada) o píldora «✗ No asistió» (`apptStatus`) |
+| `Dashboard` | 1623 | Panel principal; «Citas de Hoy» (título con el emoji del negocio, `BIZ_EMOJI`) muestra ✓ (completada) o píldora «✗ No asistió» (`apptStatus`) |
 | `MonthlyIncomeState` | 1862 | Estado de ingresos por mes |
 | `MonthlyBalance` | 1920 | Balance mensual |
 | `ApptsTab` | 1996 | Lista de citas en acordeones |
