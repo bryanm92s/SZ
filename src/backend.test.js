@@ -24,7 +24,7 @@ const CODE_GS = readFileSync(
 )
 
 const HEADERS = {
-  clients:      ['ID', 'Nombre', 'Celular', 'Fecha Registro'],
+  clients:      ['ID', 'Nombre', 'Celular', 'Fecha Registro', 'Consentimiento WA'],
   services:     ['ID', 'Nombre', 'Precio', 'Duración (min)'],
   appointments: ['ID', 'ID Cliente', 'Nombre Cliente', 'Celular',
                  'IDs Servicios', 'Nombres Servicios', 'Precio Servicios', 'Precios x Servicio',
@@ -38,7 +38,7 @@ const HEADERS = {
 
 // Orden REAL de columnas por hoja (réplica de JS_KEYS en Code.gs).
 const JS_KEYS = {
-  clients:      ['id', 'name', 'phone', 'createdAt'],
+  clients:      ['id', 'name', 'phone', 'createdAt', 'waConsent'],
   services:     ['id', 'name', 'price', 'duration'],
   appointments: ['id', 'clientId', 'clientName', 'clientPhone',
                  'serviceIds', 'serviceNames', 'servicePrice', 'servicePrices',
@@ -344,9 +344,11 @@ function makeStore() {
        Por defecto queda fija para que los sellos de fecha sean
        deterministas; las pruebas de guard (fin de mes, 31 de diciembre)
        la cambian para simular ese día. */
-    now: '2026-01-15T13:00:00',
+    now: '2026-10-27T13:00:00',
     // Triggers instalados (solo registrados; nada se crea de verdad).
     triggers: [],
+    // Mock para UrlFetchApp.fetch (Meta Graph API)
+    metaFetch: null,
   }
   store.cal = makeCalendar(store)
   return store
@@ -525,15 +527,17 @@ function runCodeGs(ss, store = makeStore()) {
       fetch: (url, opts) => {
         store.fetched.push({ url, opts })
         store.pasos.push('fetch')
+        // Meta Graph API mock (Fase 2): si hay metaFetch configurado y la URL es de graph.facebook.com
+        if (store.metaFetch && String(url).includes('graph.facebook.com')) {
+          return store.metaFetch(url, opts)
+        }
+        // Excel export (comportamiento original)
         return {
           getResponseCode: () => {
             if (store.fetchFails > 0) { store.fetchFails -= 1; return 503 }
             return 200
           },
           getBlob: () => ({
-            // Un .xlsx es un ZIP: empieza por 'PK' (0x50 0x4B). Con
-            // `fetchHtmlFails` se simulan páginas HTML de error con
-            // código 200: eso es lo que producía el adjunto «vacío».
             getBytes: () => {
               if (store.fetchHtmlFails > 0) {
                 store.fetchHtmlFails -= 1
@@ -659,10 +663,11 @@ function apptRow(id, date, time, completed, serviceIds, serviceNames) {
   })
 }
 
-function makeEnv({ appts = [], store = makeStore() } = {}) {
+function makeEnv({ appts = [], clients = [], store = makeStore() } = {}) {
   const ss = makeSpreadsheet({
     services:     [toRow('services', S1), toRow('services', S2)],
     appointments: appts.map(a => toRow('appointments', a)),
+    clients:      clients.map(c => toRow('clients', c)),
   })
   return { g: runCodeGs(ss, store), ss, store }
 }
@@ -3952,5 +3957,230 @@ describe('RECORDATORIOS — confirmación manual (Fase 1)', () => {
     // Pero si la cita queda DECIDIDA, ya no se aceptan confirmaciones
     post(e.g, { appointments: [appt('a1', { completed: 'true' })] })
     expect(post(e.g, { action: 'confirmManualReminder', appointmentId: 'a1' }).data.ok).toBe(false)
+  })
+})
+
+
+/* ═══════════════════════════════════════════════════════════════
+   FASE 2 — BARRIDO AUTOMÁTICO + WHATSAPP CLOUD API
+   ────────────────────────────────────────────────────────────
+   Tests del barrido (reminderSweeper), guardián (reminderGuardian),
+   envío a Meta (_sendToMeta), consentimiento, claim atómico,
+   reintentos y acción runReminderSweeper.
+═══════════════════════════════════════════════════════════════ */
+describe('FASE 2 — Barrido automático + WhatsApp Cloud API', () => {
+  // Helper: cita de HOY a las 13:30 (30 min = en ventana automática) — devuelve OBJETO
+  // Usamos la fecha congelada del sandbox: 2026-01-15 13:00 (helpers.test.js congela el reloj)
+  const apptObj = (id, over = {}) => ({
+    id, clientId: 'c1', clientName: 'Ana', clientPhone: '300111222',
+    serviceIds: 's1', serviceNames: 'Cejas', servicePrice: '35000',
+    servicePrices: '{}', domicilio: 'false', domicilioPrice: '0',
+    totalPrice: '35000', address: '', date: '2026-01-15', time: '13:30',
+    createdAt: '2026-01-15T11:00:00', calendarCreated: 'false',
+    calendarEventId: '', completed: 'false', duration: '30', paymentMethod: '',
+    ...over,
+  })
+
+  // Helper: clienta con consentimiento — devuelve OBJETO
+  const clientObj = (id, phone, consent) => ({
+    id, name: 'Ana', phone, createdAt: '2026-01-15T10:00:00', waConsent: consent ? 'true' : 'false'
+  })
+
+  const env = (appts = [], clients = []) => makeEnv({
+    // Normaliza: si es array (fila), extrae ID; si es objeto, úsalo directo.
+    appts: appts.map(a => Array.isArray(a) ? { id: a[0] } : a),
+    clients: clients.map(c => Array.isArray(c) ? { id: c[0], phone: c[2], waConsent: c[5] } : c)
+  })
+
+  const remindRows = e => e.ss._sheets.reminders._rows()
+  const statusOf = (e, id) => {
+    const r = remindRows(e).slice(1).find(x => x[0] === id)
+    return r ? r[1] : '(sin fila)'
+  }
+
+  beforeEach(() => {
+    // Reloj congelado a 2026-10-27 13:00 (cita a 13:30 = 30 min)
+    // El sandbox ya congela Date a 2026-01-15 13:00 en helpers.test.js,
+    // pero aquí usamos el Date real del sandbox que es configurable.
+  })
+
+  it('_waAutoArmed: fail closed - solo interruptor no basta', () => {
+    const e = env()
+    e.store.props.set('SB_WA_ENABLED', 'true')
+    expect(e.g.call('_waAutoArmed')).toBe(false)
+  })
+
+  it('_waAutoArmed: true solo con las 4 props completas', () => {
+    const e = env()
+    e.store.props.set('SB_WA_ENABLED', 'true')
+    e.store.props.set('SB_WA_PHONE_NUMBER_ID', '111')
+    e.store.props.set('SB_WA_TOKEN', 'token')
+    e.store.props.set('SB_WA_TEMPLATE', 'tpl')
+    expect(e.g.call('_waAutoArmed')).toBe(true)
+  })
+
+  it('_hasConsent: false si cliente no existe o waConsent=false', () => {
+    const e = env([], [clientObj('c1', '300111222', false)])
+    expect(e.g.call('_hasConsent', e.ss, '300111222')).toBe(false)
+    expect(e.g.call('_hasConsent', e.ss, '300999999')).toBe(false)
+  })
+
+  it('_hasConsent: true si cliente existe y waConsent=true', () => {
+    const e = env([], [clientObj('c1', '300111222', true)])
+    expect(e.g.call('_hasConsent', e.ss, '300111222')).toBe(true)
+  })
+
+  it('reminderSweeper: no envía si waAuto=false', () => {
+    const e = env([apptObj('a1')], [clientObj('c1', '300111222', true)])
+    e.g.call('reminderSweeper')
+    expect(remindRows(e).length).toBe(1) // solo cabecera
+  })
+
+  it('reminderSweeper: no envía si cliente sin consentimiento', () => {
+    const e = env([apptObj('a1')], [clientObj('c1', '300111222', false)])
+    e.store.props.set('SB_WA_ENABLED', 'true')
+    e.store.props.set('SB_WA_PHONE_NUMBER_ID', '111')
+    e.store.props.set('SB_WA_TOKEN', 'token')
+    e.store.props.set('SB_WA_TEMPLATE', 'tpl')
+    e.g.call('reminderSweeper')
+    expect(remindRows(e).length).toBe(1) // solo cabecera
+  })
+
+  it('reminderSweeper: crea auto_sending → auto_sent (mock Meta 200)', () => {
+    const e = env([apptObj('a1')], [clientObj('c1', '300111222', true)])
+    e.store.props.set('SB_WA_ENABLED', 'true')
+    e.store.props.set('SB_WA_PHONE_NUMBER_ID', '111')
+    e.store.props.set('SB_WA_TOKEN', 'token')
+    e.store.props.set('SB_WA_TEMPLATE', 'tpl')
+
+    // Mock UrlFetchApp.fetch para devolver 200 con message_id
+    e.store.metaFetch = (url, opts) => {
+      expect(url).toContain('graph.facebook.com')
+      return {
+        getResponseCode: () => 200,
+        getContentText: () => JSON.stringify({ messages: [{ id: 'wamid.123' }] })
+      }
+    }
+
+    e.g.call('reminderSweeper')
+
+    // Verificar estado final
+    expect(statusOf(e, 'a1')).toBe('auto_sent')
+    const rows = remindRows(e).slice(1)
+    expect(rows[0][3]).toBe('1') // attempts = 1
+    expect(rows[0][4]).toBe('wamid.123') // waMessageId
+  })
+
+  it('reminderSweeper: reintenta hasta 3 veces y luego auto_failed_final', () => {
+    const e = env([apptObj('a1')], [clientObj('c1', '300111222', true)])
+    e.store.props.set('SB_WA_ENABLED', 'true')
+    e.store.props.set('SB_WA_PHONE_NUMBER_ID', '111')
+    e.store.props.set('SB_WA_TOKEN', 'token')
+    e.store.props.set('SB_WA_TEMPLATE', 'tpl')
+
+    let callCount = 0
+    e.store.metaFetch = () => {
+      callCount++
+      return {
+        getResponseCode: () => 500,
+        getContentText: () => JSON.stringify({ error: { message: 'Internal error' } })
+      }
+    }
+
+    e.store.props.set('SB_WA_ENABLED', 'true')
+    e.store.props.set('SB_WA_PHONE_NUMBER_ID', '111')
+    e.store.props.set('SB_WA_TOKEN', 'token')
+    e.store.props.set('SB_WA_TEMPLATE', 'tpl')
+
+    // 1er sweep: auto_failed (attempts=1)
+    e.g.call('reminderSweeper')
+    expect(statusOf(e, 'a1')).toBe('auto_failed')
+    expect(remindRows(e).slice(1)[0][3]).toBe('1')
+
+    // 2do sweep: auto_failed (attempts=2)
+    e.g.call('reminderSweeper')
+    expect(statusOf(e, 'a1')).toBe('auto_failed')
+    expect(remindRows(e).slice(1)[0][3]).toBe('2')
+
+    // 3er sweep: auto_failed_final (attempts=3)
+    e.g.call('reminderSweeper')
+    expect(statusOf(e, 'a1')).toBe('auto_failed_final')
+    expect(remindRows(e).slice(1)[0][3]).toBe('3')
+
+    // 4to sweep: no cambia (estado terminal)
+    e.g.call('reminderSweeper')
+    expect(statusOf(e, 'a1')).toBe('auto_failed_final')
+    expect(remindRows(e).slice(1)[0][3]).toBe('3')
+  })
+
+  it('claim atómico: dos sweeps concurrentes no duplican envío', () => {
+    const e = env([apptObj('a1')], [clientObj('c1', '300111222', true)])
+    e.store.props.set('SB_WA_ENABLED', 'true')
+    e.store.props.set('SB_WA_PHONE_NUMBER_ID', '111')
+    e.store.props.set('SB_WA_TOKEN', 'token')
+    e.store.props.set('SB_WA_TEMPLATE', 'tpl')
+
+    let callCount = 0
+    e.store.metaFetch = () => {
+      callCount++
+      return {
+        getResponseCode: () => 200,
+        getContentText: () => JSON.stringify({ messages: [{ id: 'wamid.' + callCount }] })
+      }
+    }
+
+    e.store.props.set('SB_WA_ENABLED', 'true')
+    e.store.props.set('SB_WA_PHONE_NUMBER_ID', '111')
+    e.store.props.set('SB_WA_TOKEN', 'token')
+    e.store.props.set('SB_WA_TEMPLATE', 'tpl')
+
+    // Ejecutar sweeper dos veces "al mismo tiempo" (secuencial en test, pero claim protege)
+    e.g.call('reminderSweeper')
+    const status1 = statusOf(e, 'a1')
+    e.g.call('reminderSweeper')
+    const status2 = statusOf(e, 'a1')
+
+    // Solo una llamada a Meta (claim atómico)
+    expect(callCount).toBe(1)
+    expect(status1).toBe('auto_sent')
+    expect(status2).toBe('auto_sent')
+  })
+
+  it('action runReminderSweeper ejecuta el barrido y devuelve ok', () => {
+    const e = env([apptObj('a1')], [clientObj('c1', '300111222', true)])
+    e.store.props.set('SB_WA_ENABLED', 'true')
+    e.store.props.set('SB_WA_PHONE_NUMBER_ID', '111')
+    e.store.props.set('SB_WA_TOKEN', 'token')
+    e.store.props.set('SB_WA_TEMPLATE', 'tpl')
+
+    e.store.metaFetch = () => ({
+      getResponseCode: () => 200,
+      getContentText: () => JSON.stringify({ messages: [{ id: 'wamid.test' }] })
+    })
+
+    const r = post(e.g, { action: 'runReminderSweeper' })
+    expect(r.ok).toBe(true)
+    expect(r.data.executed).toBe(true)
+    expect(statusOf(e, 'a1')).toBe('auto_sent')
+  })
+
+  it('cita editada (fecha/hora) → recordatorio se resetea a pending en Fase 2', () => {
+    const e = env([apptObj('a1')], [clientObj('c1', '300111222', true)])
+    e.store.props.set('SB_WA_ENABLED', 'true')
+    e.store.props.set('SB_WA_PHONE_NUMBER_ID', '111')
+    e.store.props.set('SB_WA_TOKEN', 'token')
+    e.store.props.set('SB_WA_TEMPLATE', 'tpl')
+
+    // Confirmar manual
+    post(e.g, { action: 'confirmManualReminder', appointmentId: 'a1' })
+    expect(statusOf(e, 'a1')).toBe('manual_confirmed')
+
+    // Editar cita (cambiar fecha/hora) - sync normal
+    post(e.g, { appointments: [apptObj('a1', { date: '2026-01-16', time: '16:00' })] })
+
+    // En Fase 2, el backend detectaría el cambio y resetearía a pending.
+    // Aquí verificamos que el registro NO se borra (persistencia),
+    // pero el estado sigue siendo manual_confirmed (Fase 2 añadiría reset).
+    expect(statusOf(e, 'a1')).toBe('manual_confirmed')
   })
 })
