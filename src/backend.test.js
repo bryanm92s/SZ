@@ -33,6 +33,7 @@ const HEADERS = {
                  'Completada', 'Duración (min)', 'Método de pago'],
   expenses:     ['ID', 'Descripción', 'Monto', 'Categoría', 'Fecha'],
   priceHistory: ['ID Servicio', 'Nombre Servicio', 'Precio', 'Fecha Cambio'],
+  reminders:    ['ID Cita', 'Estado', 'Actualizada', 'Intentos', 'ID Mensaje WA', 'Confirmada el'],
 }
 
 // Orden REAL de columnas por hoja (réplica de JS_KEYS en Code.gs).
@@ -46,6 +47,7 @@ const JS_KEYS = {
                  'completed', 'duration', 'paymentMethod'],
   expenses:     ['id', 'description', 'amount', 'category', 'date'],
   priceHistory: ['serviceId', 'serviceName', 'price', 'changedAt'],
+  reminders:    ['appointmentId', 'status', 'updatedAt', 'attempts', 'waMessageId', 'confirmedAt'],
 }
 
 // Convierte un objeto fila → arreglo en el orden de columnas de la hoja
@@ -56,7 +58,7 @@ const toRow = (key, obj) =>
 // Nombres REALES de las hojas en Code.gs (SHEETS).
 const SHEET_NAME = {
   clients: 'Clientes', services: 'Servicios', appointments: 'Citas',
-  expenses: 'Gastos', priceHistory: 'HistorialPrecios',
+  expenses: 'Gastos', priceHistory: 'HistorialPrecios', reminders: 'Recordatorios',
 }
 
 /* ── Hoja simulada en memoria (solo los métodos que usa Code.gs) ── */
@@ -1873,13 +1875,15 @@ describe('TEST-01 — doPost: validaciones y operaciones', () => {
     expect(dataRows(env.ss, 'expenses')).toHaveLength(0)
   })
 
-  it('doGet con token correcto devuelve las 5 colecciones + config', () => {
+  it('doGet con token correcto devuelve las 6 colecciones + config + waAuto', () => {
     const out = rawGet(env.g, TOKEN)
     expect(out.ok).toBe(true)
     expect(Object.keys(out.data).sort())
-      .toEqual(['appointments', 'clients', 'config', 'expenses', 'priceHistory', 'services'])
+      .toEqual(['appointments', 'clients', 'config', 'expenses', 'priceHistory', 'reminders', 'services', 'waAuto'])
     expect(out.data.services.map(s => s.id).sort()).toEqual(['s1', 's2'])
     expect(out.data.config).toEqual({ openingBalance: 0 })   // hoja vacía → 0
+    expect(out.data.reminders).toEqual([])                   // hoja Recordatorios vacía
+    expect(out.data.waAuto).toBe(false)                      // sin config de Meta → fail closed
   })
 
   it('doGet con token incorrecto o ausente → "No autorizado"', () => {
@@ -1942,18 +1946,18 @@ describe('TEST-01 — doPost: validaciones y operaciones', () => {
 
   it('initSheets solo crea las hojas que faltan', () => {
     const creadas = []
-    const nombres = ['Clientes', 'Servicios', 'Citas', 'Gastos', 'HistorialPrecios', 'Config']
+    const nombres = ['Clientes', 'Servicios', 'Citas', 'Gastos', 'HistorialPrecios', 'Config', 'Recordatorios']
     const fake = {
       getSheets: () => nombres.slice(0, 3).map(n => ({ getName: () => n })),
       insertSheet: (n) => { creadas.push(n) },
     }
     env.g.call('initSheets', fake)
-    expect(creadas).toEqual(['Gastos', 'HistorialPrecios', 'Config'])
+    expect(creadas).toEqual(['Gastos', 'HistorialPrecios', 'Config', 'Recordatorios'])
   })
 
   it('initSheets no hace nada cuando ya existen todas', () => {
     const creadas = []
-    const nombres = ['Clientes', 'Servicios', 'Citas', 'Gastos', 'HistorialPrecios', 'Config']
+    const nombres = ['Clientes', 'Servicios', 'Citas', 'Gastos', 'HistorialPrecios', 'Config', 'Recordatorios']
     const fake = {
       getSheets: () => nombres.map(n => ({ getName: () => n })),
       insertSheet: (n) => { creadas.push(n) },
@@ -3823,5 +3827,130 @@ describe('ENVIAR POR CORREO — sendReportEmailNow (botón de reportes)', () => 
     expect(r.data.cc).toBe('')
     expect(g.store.mail[0].cc).toBe('')
     expect(JSON.stringify(g.store.logs)).toContain('SIN copia')
+  })
+})
+
+
+/* ══════════════════════════════════════════════════════════════
+   RECORDATORIOS (Fase 1) — confirmación manual + hoja propia
+   ────────────────────────────────────────────────────────────
+   El estado del recordatorio de cada cita vive en la hoja
+   «Recordatorios», que el sync del frontend NO toca: writeSheet
+   reemplaza hojas completas (clearContents), así que como columnas
+   extra de «Citas» se pisaría en el primer guardado. Aquí se
+   prueba el action confirmManualReminder (registro, idempotencia,
+   rechazos), que la hoja SOBREVIVA a un guardado normal de citas
+   (la regresión del «pisado») y que waAuto salga false sin
+   configuración completa de Meta (fail closed).
+   ══════════════════════════════════════════════════════════════ */
+describe('RECORDATORIOS — confirmación manual (Fase 1)', () => {
+  // Objeto de cita (NO fila): makeEnv lo pasa por toRow al sembrar la hoja
+  // y los POST de sync viajan con objetos, como en la app real.
+  const appt = (id, over = {}) => ({
+    id, clientId: 'c1', clientName: 'Ana', clientPhone: '300111222',
+    serviceIds: 's1', serviceNames: 'Diseño de cejas', servicePrice: '35000',
+    servicePrices: '{}', domicilio: 'false', domicilioPrice: '0',
+    totalPrice: '35000', address: '', date: '2026-10-27', time: '13:00',
+    createdAt: '2026-10-27T11:00:00', calendarCreated: 'false',
+    calendarEventId: '', completed: 'false', duration: '30', paymentMethod: '',
+    ...over,
+  })
+  const env = (appts = [appt('a1')]) => makeEnv({ appts })
+
+  // Filas de la hoja Recordatorios (índice 1 = cabecera).
+  const remindRows = e => e.ss._sheets.reminders._rows()
+  const statusOf = (e, id) => {
+    const r = remindRows(e).slice(1).find(x => x[0] === id)
+    return r ? r[1] : '(sin fila)'
+  }
+
+  it('doGet expone la hoja vacía ([]) y waAuto:false sin configurar nada', () => {
+    const e = env()
+    const r = rawGet(e.g, TOKEN)
+    expect(r.ok).toBe(true)
+    expect(r.data.reminders).toEqual([])
+    expect(r.data.waAuto).toBe(false)
+  })
+
+  it('confirmManualReminder registra manual_confirmed con su marca de tiempo', () => {
+    const e = env()
+    const r = post(e.g, { action: 'confirmManualReminder', appointmentId: 'a1' })
+    expect(r.ok).toBe(true)
+    expect(r.data.changed).toBe(true)
+    expect(r.data.reminder.appointmentId).toBe('a1')
+    expect(r.data.reminder.status).toBe('manual_confirmed')
+    // Sello de tiempo local (TZ del script), como changedAt del historial.
+    expect(r.data.reminder.confirmedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/)
+    // La hoja quedó con cabecera + UNA fila, con las columnas nuevas.
+    expect(remindRows(e).length).toBe(2)
+    expect(remindRows(e)[0]).toEqual(HEADERS.reminders)
+    expect(statusOf(e, 'a1')).toBe('manual_confirmed')
+  })
+
+  it('es idempotente: reconfirmar no reescribe (changed:false, misma hora)', () => {
+    const e = env()
+    post(e.g, { action: 'confirmManualReminder', appointmentId: 'a1' })
+    const first = rawGet(e.g, TOKEN).data.reminders[0]
+    const r2 = post(e.g, { action: 'confirmManualReminder', appointmentId: 'a1' })
+    expect(r2.ok).toBe(true)
+    expect(r2.data.changed).toBe(false)
+    expect(r2.data.reminder.confirmedAt).toBe(first.confirmedAt)   // no se tocó
+    expect(remindRows(e).length).toBe(2)                          // sin duplicados
+  })
+
+  it('rechaza cita inexistente, sin id y citas decididas (✓ o ✗)', () => {
+    const e = env([appt('ok'), appt('done', { completed: 'true' }), appt('ns', { completed: 'noshow' })])
+    expect(post(e.g, { action: 'confirmManualReminder', appointmentId: 'no-existe' }).data.ok).toBe(false)
+    expect(post(e.g, { action: 'confirmManualReminder' }).data.ok).toBe(false)
+    expect(post(e.g, { action: 'confirmManualReminder', appointmentId: 'done' }).data.ok).toBe(false)
+    expect(post(e.g, { action: 'confirmManualReminder', appointmentId: 'ns' }).data.ok).toBe(false)
+    // Nada se escribió: la hoja sigue VACÍA (ni siquiera cabecera).
+    expect(remindRows(e).length).toBe(0)
+  })
+
+  it('REGRESIÓN DEL PISADO: un guardado normal de citas NO borra Recordatorios', () => {
+    const e = env()
+    post(e.g, { action: 'confirmManualReminder', appointmentId: 'a1' })
+    // La app manda la colección COMPLETA de citas (sync normal):
+    const r = post(e.g, { appointments: [appt('a1'), appt('a2', { time: '15:00' })] })
+    expect(r.ok).toBe(true)
+    expect(e.ss._sheets.appointments._rows().length).toBe(3)   // cabecera + 2 citas
+    // El registro de a1 SOBREVIVIÓ al guardado de citas:
+    expect(statusOf(e, 'a1')).toBe('manual_confirmed')
+    const g2 = rawGet(e.g, TOKEN)
+    expect(g2.data.reminders.length).toBe(1)
+    expect(g2.data.reminders[0].status).toBe('manual_confirmed')
+    expect(g2.data.reminders[0].appointmentId).toBe('a1')
+  })
+
+  it('waAuto es fail closed: exige el interruptor Y las tres propiedades de Meta', () => {
+    const e = env()
+    // Solo el interruptor → false (faltan las propiedades de Meta)
+    e.store.props.set('SB_WA_ENABLED', 'true')
+    expect(rawGet(e.g, TOKEN).data.waAuto).toBe(false)
+    // Todo completo → true
+    e.store.props.set('SB_WA_PHONE_NUMBER_ID', '111')
+    e.store.props.set('SB_WA_TOKEN', 'token-de-sistema')
+    e.store.props.set('SB_WA_TEMPLATE', 'recordatorio_cita')
+    expect(rawGet(e.g, TOKEN).data.waAuto).toBe(true)
+    // Cualquier pieza que falte → false de nuevo
+    e.store.props.delete('SB_WA_TOKEN')
+    expect(rawGet(e.g, TOKEN).data.waAuto).toBe(false)
+    // Interruptor explícito en 'false' (o vacío) → false
+    e.store.props.set('SB_WA_TOKEN', 'token-de-sistema')
+    e.store.props.set('SB_WA_ENABLED', 'false')
+    expect(rawGet(e.g, TOKEN).data.waAuto).toBe(false)
+  })
+
+  it('editar la cita (sync normal) conserva el registro; decidida no registra nada nuevo', () => {
+    const e = env()
+    post(e.g, { action: 'confirmManualReminder', appointmentId: 'a1' })
+    // La operadora reprograma: la fila de Recordatorios NO se pierde
+    // (la hoja es del backend; Fase 2 reseteará a pending por el cambio).
+    post(e.g, { appointments: [appt('a1', { date: '2026-10-28', time: '16:00' })] })
+    expect(statusOf(e, 'a1')).toBe('manual_confirmed')
+    // Pero si la cita queda DECIDIDA, ya no se aceptan confirmaciones
+    post(e.g, { appointments: [appt('a1', { completed: 'true' })] })
+    expect(post(e.g, { action: 'confirmManualReminder', appointmentId: 'a1' }).data.ok).toBe(false)
   })
 })

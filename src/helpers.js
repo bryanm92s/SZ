@@ -205,16 +205,17 @@ export const canModifyAppt = a => apptStatus(a) === 'pending'
 
 /* ── ¿Se puede enviar el recordatorio de esta cita? ──────────────────
    Regla ÚNICA para el Panel, la pestaña Citas y el Calendario: no se
-   manda recordatorio de una cita que ya pasó (el mensaje anuncia una
-   fecha y una hora, avisar de algo de lo que ya pasó confunde a la
-   clienta). La única concesión es la ventana de gracia de `graceMin`
-   (10 min por defecto) después de empezar — la misma del aviso
-   «⏰ Recordar ahora» — pensada para el recordatorio que se manda
-   justo a la hora.
+   manda recordatorio de una cita que ya empezó o ya pasó (el mensaje
+   anuncia una fecha y una hora; avisar de algo que ya ocurrió
+   confunde a la clienta). El aviso y los botones desaparecen EN el
+   momento en que la cita arranca: `graceMin` quedó en 0 (antes eran
+   10 min de tolerancia tras el inicio).
    También devuelve false si la cita está completada o marcada como
    «no asistió», o si no tiene fecha y hora válidas: sin ellas no hay
-   recordatorio posible (el mensaje las lleva dentro).             */
-export const canRemindAppt = (a, now = new Date(), graceMin = 10) => {
+   recordatorio posible (el mensaje las lleva dentro).
+   `graceMin` sigue inyectable (nadie lo usa hoy) por si algún día se
+   quisiera volver a tolerar retrasos tras el inicio.              */
+export const canRemindAppt = (a, now = new Date(), graceMin = 0) => {
   if (!a) return false
   if (bool(a.completed) || a.completed === 'noshow') return false
   const d = cleanDate(a.date)
@@ -227,6 +228,70 @@ export const canRemindAppt = (a, now = new Date(), graceMin = 10) => {
   if (isNaN(h)) return false
   const start = new Date(now); start.setHours(h, m, 0, 0)
   return (now.getTime() - start.getTime()) <= graceMin * 60000
+}
+
+/* ── PROTOCOLO DEL RECORDATORIO (manual + respaldo automático) ──
+   Solo aplica en instalaciones con el envío automático ARMADO
+   (el backend reporta `waAuto` en doGet, que a su vez lee
+   SB_WA_ENABLED y las propiedades de Meta en Script Properties).
+   Sin él, la app se comporta como siempre: botón manual, nada
+   registrado, nada automático.
+
+   Ventanas para una cita pendiente de HOY:
+   · REMIND_OPEN_MIN (60): abre la fase manual — el aviso del Panel
+     y la pregunta «¿ya lo enviaste?» cuentan desde aquí.
+   · REMIND_AUTO_MIN (30): el respaldo automático toma el relevo —
+     la confirmación manual ya no bloquea nada y el barrido es el
+     dueño del recordatorio.                                      */
+export const REMIND_OPEN_MIN = 60
+export const REMIND_AUTO_MIN = 30
+
+/* Minutos que faltan para que empiece la cita (solo citas de HOY).
+   null si la cita es de otro día o no trae fecha/hora válidas.
+   + = aún no empieza · 0 = empieza ya · − = ya empezó.          */
+export const apptMinsToStart = (a, now = new Date()) => {
+  if (!a) return null
+  const d = cleanDate(a.date)
+  const t = cleanTime(a.time)
+  if (!d || !t) return null
+  if (d !== localDateStr(now)) return null   // otra fecha: sin ventana
+  const [h, m] = t.split(':').map(Number)
+  if (isNaN(h)) return null
+  const start = new Date(now); start.setHours(h, m, 0, 0)
+  return Math.round((start.getTime() - now.getTime()) / 60000)
+}
+
+/* Fase del protocolo para una cita:
+   'antes'  → fuera de la ventana (>60 min, cita de otro día o sin
+               datos válidos): el botón abre el chat, nada se
+               pregunta y nada se registra.
+   'manual' → ventana del manual (30,60]: la pregunta «¿ya lo
+               enviaste?» SÍ cuenta y bloquea el automático.
+   'auto'   → (0,30]: el barrido es el dueño; el manual ya no cuenta.
+   'cerrada'→ cita ya iniciada o decidida (✓/✗): nada que hacer.  */
+export const remindPhase = (a, now = new Date()) => {
+  if (!a) return 'cerrada'
+  if (bool(a.completed) || a.completed === 'noshow') return 'cerrada'
+  const mins = apptMinsToStart(a, now)
+  if (mins === null) return 'antes'
+  if (mins <= 0) return 'cerrada'
+  if (mins > REMIND_OPEN_MIN) return 'antes'
+  if (mins > REMIND_AUTO_MIN) return 'manual'
+  return 'auto'
+}
+
+/* Estado del recordatorio de una cita según la colección `reminders`
+   que devuelve doGet (hoja «Recordatorios» del backend, de SOLO
+   LECTURA en el frontend: jamás viaja en un POST de sync, porque
+   writeSheet reemplaza hojas completas y la pisaría).
+   Sin fila → 'pending' (el estado inicial implícito).
+   REMINDER_TERMINAL: estados que cierran el protocolo de la cita:
+   nada más se envía ni se pregunta por ella.                    */
+export const REMINDER_TERMINAL = ['manual_confirmed', 'auto_sent', 'auto_failed_final']
+export const reminderStatusOf = (reminders, apptId) => {
+  const r = (Array.isArray(reminders) ? reminders : [])
+    .find(x => x && String(x.appointmentId) === String(apptId))
+  return (r && r.status) || 'pending'
 }
 
 /* ── ¿Se puede MARCAR (✓ o ✗) esta cita? ──────────────────────────

@@ -4,6 +4,7 @@ import {
   requestResetCode as apiRequestResetCode,
   verifyResetCode   as apiVerifyResetCode,
   resetData         as apiResetData,
+  confirmManualReminder as apiConfirmManualReminder,
 } from './api.js'
 // Helpers puros extraídos para poder testearlos sin React:
 import {
@@ -13,6 +14,7 @@ import {
   apptStatus, canModifyAppt, canRemindAppt, canMarkAppt, MARK_LEAD_MIN, checkSlot, confirmOutcome, projectedIncome, movsRanges,
   serviceDeletionCheck, apptGroup, reportMetrics, isResetOutcome, domBreakdown, clientNoShowStats, NOSHOW_WINDOW,
   reportLines, apptServiceIds, apptServiceRefs, topServicesByDemand,
+  REMIND_OPEN_MIN, REMIND_AUTO_MIN, REMINDER_TERMINAL, apptMinsToStart, remindPhase, reminderStatusOf,
 } from './helpers.js'
 // Catálogo de servicios inicial, elegible por variable de entorno
 // (VITE_CATALOG / VITE_DEFAULT_SERVICES) sin tocar este archivo:
@@ -455,6 +457,18 @@ export default function App() {
   const [appts,        setA]   = useState([])
   const [expenses,     setE]   = useState([])
   const [priceHistory, setPH]  = useState([])
+  // ── Protocolo de recordatorios (Fase 1) ──
+  // `reminders`: colección de SOLO LECTURA que devuelve doGet (hoja
+  // «Recordatorios» del backend). JAMÁS viaja en un POST de sync: si
+  // viajara, writeSheet reemplazaría la hoja con este array y pisaría
+  // lo que el backend registre. Su única escritura desde aquí es el
+  // action confirmManualReminder (y el ajuste optimista de abajo).
+  // `waAuto`: ¿el respaldo automático está ARMADO en esta instalación?
+  // Lo decide el backend (SB_WA_ENABLED + propiedades de Meta en
+  // Script Properties) y doGet lo reporta. Sin él (false), la app se
+  // comporta exactamente como siempre.
+  const [reminders, setREM]  = useState([])
+  const [waAuto,    setWA]   = useState(false)
   const [status,   setSt]  = useState('loading')
   const [errMsg,   setEM]  = useState('')
   const [lastSync, setLS]  = useState(null)
@@ -515,6 +529,11 @@ export default function App() {
       setA(Array.isArray(d.appointments)?d.appointments:[])
       setE(Array.isArray(d.expenses)?d.expenses:[])
       setPH(Array.isArray(d.priceHistory)?d.priceHistory:[])
+      // Recordatorios: el backend manda la colección y el estado armado.
+      // Tolerante con un despliegue viejo del script (sin estos campos):
+      // sin reminders → [], sin waAuto → false → la app va como siempre.
+      setREM(Array.isArray(d.reminders)?d.reminders:[])
+      setWA(!!d.waAuto)
       // Saldo inicial desde la hoja Config (si el backend aún no la
       // devuelve, p.ej. Code.gs sin desplegar, se conserva la caché local).
       if (d.config && typeof d.config==='object') {
@@ -677,6 +696,52 @@ export default function App() {
   const confirm  = (msg, onOk) => setModal({type:'confirm', msg, onOk})
   const infoModal= (msg)       => setModal({type:'info', msg})
 
+  /* ── Recordatorio manual confirmado (Fase 1) ──────────────────────
+     Registra en la hoja «Recordatorios» (action del backend) la
+     AFIRMACIÓN de la operadora de que ya envió el recordatorio desde
+     su propio WhatsApp. NO es una entrega verificada — wa.me no
+     informa si pulsó Enviar — pero con el respaldo automático ARMADO
+     esta confirmación bloquea el envío por Cloud API de ESA cita.
+     Ajuste optimista + reversión si el servidor no lo toma: un fallo
+     aquí NUNCA deja la app creyendo que quedó registrado.        */
+  const confirmReminderSent = useCallback(async (appt) => {
+    if (!appt || !appt.id) return
+    const id      = String(appt.id)
+    const nowISO  = localNowISO()
+    const snapshot = reminders   // para revertir si el servidor falla
+    setREM(prev => {
+      const row = { appointmentId:id, status:'manual_confirmed', updatedAt:nowISO,
+                    attempts:'0', waMessageId:'', confirmedAt:nowISO }
+      const i = prev.findIndex(r => String(r.appointmentId) === id)
+      return i === -1 ? [...prev, row]
+        : prev.map(r => String(r.appointmentId) === id
+          ? { ...r, status:'manual_confirmed', updatedAt:nowISO, confirmedAt:nowISO } : r)
+    })
+    try {
+      await apiConfirmManualReminder(id)
+      setTimeout(() => refresh(true), 1200)   // el registro del servidor llega en el próximo refresco
+    } catch(e) {
+      // No quedó en el servidor: revertir la fila optimista y avisar.
+      // El aviso del Panel sigue saliendo (nada se bloqueó de verdad).
+      setREM(snapshot)
+      setModal({ type:'info', msg:`No se pudo registrar la confirmación del recordatorio (${(e && e.message) || 'error de conexión'}). El aviso seguirá apareciendo; inténtalo de nuevo.` })
+    }
+  }, [reminders, refresh])
+
+  /* Pregunta «¿ya lo enviaste?» tras abrir WhatsApp, solo con el
+     respaldo automático ARMADO y dentro de la ventana manual
+     (T-60 → T-30; fuera de ella no se pregunta porque no cuenta).
+     Con waAuto en false es un no-op: la app va como siempre.       */
+  const askReminder = useCallback((a) => {
+    if (!waAuto || !a) return
+    if (remindPhase(a) !== 'manual') return
+    setModal({ type:'confirm',
+      msg:`¿Ya le enviaste el recordatorio por WhatsApp a ${a.clientName || 'la clienta'}?`,
+      onOk:()=>confirmReminderSent(a),
+      okLabel:'Sí, ya lo envié', cancelLabel:'Todavía no' })
+  }, [waAuto, confirmReminderSent])
+
+
   /* ── Restablecimiento protegido (R2/R4) ──────────────────────
      El correo, el código de recuperación y la autorización de reset
      los resuelve y valida el servidor. Aquí solo se piden pasos:
@@ -814,7 +879,7 @@ export default function App() {
   // El estado y su setter viven arriba, junto a `refresh` (la fuente de
   // verdad es la hoja Config de Google Sheets; ver comentario ahí).
 
-  const p = {clients,services,appts,expenses,SC,SS,SA,SE,sync,deleteAppt,setTab,confirm,infoModal,tabExtra,resetAll,requestResetCode,themePalette,setThemePalette,priceHistory,openingBalance,setOpeningBalance}
+  const p = {clients,services,appts,expenses,SC,SS,SA,SE,sync,deleteAppt,setTab,confirm,infoModal,tabExtra,resetAll,requestResetCode,themePalette,setThemePalette,priceHistory,openingBalance,setOpeningBalance,reminders,waAuto,confirmReminderSent,askReminder}
 
   if (status==='loading') return <Cent><div style={{fontSize:52,animation:'pulse 2s ease-in-out infinite'}}>{BIZ_EMOJI}</div></Cent>
   if (status==='noconfig') return <Cent><div style={{fontSize:36,marginBottom:8}}>⚙️</div><p style={{fontSize:16,fontWeight:600}}>Configura VITE_SCRIPT_URL y VITE_TOKEN en Vercel</p></Cent>
@@ -822,7 +887,7 @@ export default function App() {
   return (
     <div className="app-root" style={{fontFamily:"'DM Sans',system-ui,sans-serif",background:'var(--bg)',color:'var(--t)'}}>
       <GS/>
-      {modal?.type==='confirm' && <Modal msg={modal.msg} onOk={()=>{modal.onOk();setModal(null)}} onCancel={()=>setModal(null)}/>}
+      {modal?.type==='confirm' && <Modal msg={modal.msg} onOk={()=>{modal.onOk();setModal(null)}} onCancel={()=>setModal(null)} okLabel={modal.okLabel} cancelLabel={modal.cancelLabel}/>}
       {modal?.type==='info'    && <Modal msg={modal.msg} onOk={()=>setModal(null)} okLabel="Entendido" cancelLabel={null}/>}
 
       <div style={{position:'sticky',top:0,zIndex:100}}>
@@ -1786,7 +1851,7 @@ function GS() { return <style>{`
 /* ══════════════════════════════════════════════════════════════
    DASHBOARD
 ══════════════════════════════════════════════════════════════ */
-function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,openingBalance=0}) {
+function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,openingBalance=0,reminders=[],waAuto=false,confirmReminderSent=null}) {
   const [selMonth, setSelMonth] = useState(monthStr)
   const [finTab,   setFinTab]   = useState('general')
   // «👁 Detalle» de «Citas de Hoy»: guarda el ID (no el objeto) y se resuelve
@@ -1798,19 +1863,29 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
   const safeA = Array.isArray(appts)?appts:[]
   const safeE = Array.isArray(expenses)?expenses:[]
 
-  // Citas "por recordar": pendientes de HOY a ≤60 min de empezar
-  // (o que empezaron hace <10 min). Botón rápido para enviar el WA.
+  // Citas "por recordar": pendientes de HOY que aún NO empiezan y están
+  // a ≤60 min. SIN gracia: en cuanto la cita arranca, el aviso desaparece
+  // (ya no se recuerda algo que ya empezó). Con el respaldo automático
+  // ARMADO, el aviso cubre solo la ventana manual (T-60 → T-30): a
+  // partir de T-30 el barrido es el dueño y las confirmadas/enviadas
+  // también salen del aviso.
   const remindNow = new Date()
-  // Misma regla que Citas y Calendario (canRemindAppt: pendiente, con
-  // fecha y hora válidas, y dentro de la gracia de 10 min tras empezar),
-  // más la ventana de «≤60 min antes» que define este aviso del Panel.
   const toRemind = ta.filter(a => {
-    if (!canRemindAppt(a)) return false
-    const [h, m] = cleanTime(a.time).split(':').map(Number)
-    if (isNaN(h)) return false
-    const start = new Date(); start.setHours(h, m, 0, 0)
-    return Math.round((start - remindNow) / 60000) <= 60
+    if (!canRemindAppt(a)) return false      // pendiente, hoy, sin gracia tras iniciar
+    const mins = apptMinsToStart(a, remindNow)
+    if (mins === null || mins <= 0) return false   // (defensivo) ya empezó
+    if (mins > REMIND_OPEN_MIN) return false        // ventana del aviso: ≤1 h antes
+    if (waAuto) {
+      if (mins <= REMIND_AUTO_MIN) return false     // modo ON: desde T-30 manda el barrido
+      if (REMINDER_TERMINAL.includes(reminderStatusOf(reminders, a.id))) return false  // confirmada/enviada
+    }
+    return true
   })
+
+  // Pregunta pegajosa «¿ya lo enviaste?» (solo con el protocolo ARMADO):
+  // aparece al pulsar Recordar y se queda hasta responderse — nunca se
+  // borra con el refresco — porque abrir WhatsApp no prueba que se envió.
+  const [askId, setAskId] = useState(null)
 
   const allDone  = safeA.filter(a=>bool(a.completed))
   const allNoShow= safeA.filter(a=>a.completed==='noshow')
@@ -1886,14 +1961,26 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
         {toRemind.map(a => {
           const isDom = bool(a.domicilio)
           return (
-            <div key={a.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:'var(--surface)',borderRadius:10,marginBottom:6}}>
+            <div key={a.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:'var(--surface)',borderRadius:10,marginBottom:6,flexWrap:'wrap'}}>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontWeight:600,fontSize:13}}>{a.clientName} · <span style={{color:'var(--t2)'}}>{fmtTime(a.time)}</span></div>
                 <div style={{fontSize:11,color:'var(--t2)'}}>✨ {a.serviceNames}</div>
               </div>
-              <button className="btn-wa" onClick={()=>openWA(a.clientPhone,a.clientName,a.time,a.date,a.serviceNames,a.totalPrice||a.servicePrice,isDom,a.domicilioPrice)}>
-                💬 Recordar
-              </button>
+              {/* Con el protocolo ARMADO, tras abrir WhatsApp la pregunta se
+                  queda aquí hasta responderse: «Sí, ya lo envié» es lo ÚNICO
+                  que bloquea el recordatorio automático de esta cita. */}
+              {waAuto && askId===a.id ? (
+                <div style={{flexBasis:'100%',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',background:'var(--primary-l)',borderRadius:10,padding:'6px 10px'}}>
+                  <span style={{fontSize:12,fontWeight:600,flex:'1 1 auto',minWidth:0}}>¿Ya le enviaste el recordatorio a {a.clientName}?</span>
+                  <button className="btn-sm" style={{background:'var(--primary)',color:'var(--grad-t)',border:'none',whiteSpace:'nowrap'}}
+                    onClick={()=>{ setAskId(null); confirmReminderSent && confirmReminderSent(a) }}>✔ Sí, ya lo envié</button>
+                  <button className="btn-sm" style={{whiteSpace:'nowrap'}} onClick={()=>setAskId(null)}>Todavía no</button>
+                </div>
+              ) : (
+                <button className="btn-wa" onClick={()=>{openWA(a.clientPhone,a.clientName,a.time,a.date,a.serviceNames,a.totalPrice||a.servicePrice,isDom,a.domicilioPrice); if (waAuto) setAskId(a.id)}}>
+                  💬 Recordar
+                </button>
+              )}
             </div>
           )
         })}
@@ -2159,7 +2246,7 @@ function MonthlyBalance({appts,expenses,selMonth,setSelMonth,setTab}) {
 /* ══════════════════════════════════════════════════════════════
    APPOINTMENTS TAB — Fixed accordion (independent toggle)
 ══════════════════════════════════════════════════════════════ */
-function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModal,priceHistory,tabExtra,setTab}) {
+function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModal,priceHistory,tabExtra,setTab,waAuto=false,reminders=[],askReminder=null}) {
   // Si se llega desde otra pestaña con "+ Nueva cita" (Calendario, Panel),
   // el formulario se abre directo. tabExtra: {newAppt, date?, origin?, clientId?}
   const [showNew,  setNew]  = useState(()=>!!(tabExtra && tabExtra.newAppt))
@@ -2261,7 +2348,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
     SA(next)
   }
 
-  if (showNew)  return <NewWizard  clients={clients} services={services} appts={appts} SA={SA} SC={SC} sync={sync} infoModal={infoModal}
+  if (showNew)  return <NewWizard  clients={clients} services={services} appts={appts} SA={SA} SC={SC} sync={sync} infoModal={infoModal} waAuto={waAuto} askReminder={askReminder}
     initialDate={tabExtra && tabExtra.date && tabExtra.date >= todayStr() ? tabExtra.date : undefined}
     initialClientId={tabExtra && tabExtra.clientId ? tabExtra.clientId : undefined}
     onClose={()=>{ setNew(false); if (tabExtra && tabExtra.origin && setTab) setTab(tabExtra.origin) }}/>
@@ -2299,6 +2386,9 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
                 onChangePay={()=>setPayFor({appt:a, change:true})}
                 onEdit={()=>setEdit(a)}
                 onDelete={()=>confirm(`¿Eliminar la cita de ${a.clientName}? También se borrará el evento de Google Calendar.`,()=>deleteAppt(a))}
+                waAuto={waAuto}
+                reminders={reminders}
+                onRemind={askReminder}
               />
             ))}
             {pageSize && <Pager page={page} total={items.length} onPage={onPage} label="citas" size={pageSize}/>}
@@ -2464,14 +2554,14 @@ function ApptDetail({appt,services,onClose,onEdit,onDelete}) {
   )
 }
 
-function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePay}) {
+function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePay,waAuto=false,reminders=[],onRemind=null}) {
   const calOk  = bool(appt.calendarCreated)
   const dom    = bool(appt.domicilio)
   const status = apptStatus(appt)
   const past   = isPastAppt(appt)
   // El recordatorio se rige por canRemindAppt — MISMA regla que el Panel
-  // y el Calendario: nada de avisos a citas que ya pasaron, salvo la
-  // gracia de 10 min tras empezar (la del aviso «⏰ Recordar ahora»).
+  // y el Calendario: nada de avisos a citas que ya empezaron o pasaron
+  // (SIN gracia: el aviso desaparece en el momento en que la cita arranca).
   const remindable = canRemindAppt(appt)
   // Es una cita futura si su fecha es posterior a HOY (aún no llega
   // el día). En ese caso no se puede marcar como Completada ni como
@@ -2491,10 +2581,11 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
     const tot = Math.max(0, h*60 + m - MARK_LEAD_MIN)
     return `${String(Math.floor(tot/60)).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`
   })()
-  // ¿Hay que recordar YA? Solo para citas pendientes de HOY cuya hora
-  // de inicio está a ≤60 min en el futuro o ya empezó hace <10 min.
-  // (Las que empezaron hace más rato caen en "● Pasada".) El badge
-  // te avisa visualmente: "pulsa 💬 Recordatorio ahora".
+  // ¿Hay que recordar YA? Solo citas pendientes de HOY cuya hora de
+  // inicio está a ≤60 min y AÚN NO LLEGÓ (sin gracia: apenas empieza,
+  // el badge se apaga). Con el protocolo ARMADO, el badge solo cubre
+  // la ventana manual (T-60 → T-30) y desaparece si el recordatorio
+  // ya está confirmado o enviado — eso ya lo cuenta el chip de estado.
   const minsToAppt = (() => {
     if (cleanDate(appt.date) !== today) return null
     const [h, m] = cleanTime(appt.time).split(':').map(Number)
@@ -2502,7 +2593,8 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
     const start = new Date(); start.setHours(h, m, 0, 0)
     return Math.round((start - new Date()) / 60000) // + = futuro, - = pasado
   })()
-  const remindNow = status==='pending' && minsToAppt !== null && minsToAppt <= 60 && minsToAppt > -10
+  const remindDone = waAuto && REMINDER_TERMINAL.includes(reminderStatusOf(reminders, appt.id))
+  const remindNow = status==='pending' && !remindDone && minsToAppt !== null && minsToAppt > 0 && minsToAppt <= 60 && (!waAuto || minsToAppt > REMIND_AUTO_MIN)
   const bgMap  = {done:'var(--green-bg)', noshow:'var(--red-bg)', pending: past?'var(--border)':'var(--surface)'}
   const brdMap = {done:'#B0DDC0', noshow:'#F5C0B0', pending: past?'#E0D8D5':'var(--border)'}
   return (
@@ -2550,7 +2642,7 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
           style={{background:status==='noshow'?'var(--red)':'#FFF4F0',color:status==='noshow'?'white':'var(--red)',border:`1.5px solid ${status==='noshow'?'var(--red)':'#F5C0B0'}`,borderRadius:8,padding:'6px 10px',fontSize:12,fontWeight:600,cursor:!markable?'not-allowed':'pointer',fontFamily:'inherit',transition:'all .15s',opacity: status==='done'?.5:1}}>
           ✗ No asistió
         </button>
-        {status==='pending' && remindable && <button className="btn-wa" onClick={()=>openWA(appt.clientPhone,appt.clientName,appt.time,appt.date,appt.serviceNames,appt.totalPrice||appt.servicePrice,dom,appt.domicilioPrice)}>💬 Recordatorio</button>}
+        {status==='pending' && remindable && <button className="btn-wa" onClick={()=>{openWA(appt.clientPhone,appt.clientName,appt.time,appt.date,appt.serviceNames,appt.totalPrice||appt.servicePrice,dom,appt.domicilioPrice); onRemind && onRemind(appt)}}>💬 Recordatorio</button>}
         {/* Editar/Eliminar: única decisión canModifyAppt (solo pendientes),
             la misma que aplican el Calendario y el detalle. Una cita pasada
             PENDIENTE también se puede editar o eliminar desde aquí. */}
@@ -2863,7 +2955,7 @@ function EditAppt({appt,services,appts,SA,priceHistory,onClose}) {
 /* ══════════════════════════════════════════════════════════════
    NEW APPOINTMENT WIZARD
 ══════════════════════════════════════════════════════════════ */
-function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialDate,initialClientId}) {
+function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialDate,initialClientId,waAuto=false,askReminder=null}) {
   const [step,    setStep]  = useState(1)
   const [query,   setQ]     = useState('')
   const [suggs,   setSuggs] = useState([])
@@ -3192,9 +3284,20 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
       </div>
       {/* WhatsApp note */}
       <div style={{background:'var(--green-bg)',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:12,color:'var(--green)',textAlign:'left'}}>
-        <strong>💬 Sobre el recordatorio automático:</strong> WhatsApp no permite envíos automáticos desde web. Al dar clic en el botón se abre WhatsApp con el mensaje listo — solo tienes que presionar enviar.
+        {waAuto ? (
+          <>
+            <strong>💬 Sobre el recordatorio:</strong> si la cita es para dentro de
+            una hora, te preguntaremos si ya la enviaste por WhatsApp. Sin tu
+            confirmación, el recordatorio saldrá automáticamente a partir de
+            30 minutos antes de la cita.
+          </>
+        ) : (
+          <>
+            <strong>💬 Sobre el recordatorio automático:</strong> WhatsApp no permite envíos automáticos desde web. Al dar clic en el botón se abre WhatsApp con el mensaje listo — solo tienes que presionar enviar.
+          </>
+        )}
       </div>
-      <button className="btn-wa" style={{width:'100%',marginBottom:10}} onClick={()=>openWA(fc?.phone,fc?.name,time,date,selSvcs.map(s=>s.name).join(', '),grand,dom,domP)}>
+      <button className="btn-wa" style={{width:'100%',marginBottom:10}} onClick={()=>{openWA(fc?.phone,fc?.name,time,date,selSvcs.map(s=>s.name).join(', '),grand,dom,domP); askReminder && askReminder({date, time:cleanTime(time)||time, completed:false, clientName:fc?.name})}}>
         💬 Abrir WhatsApp con mensaje listo
       </button>
       <button className="btn" style={{width:'100%'}} onClick={onClose}>Finalizar</button>
@@ -5325,7 +5428,7 @@ function ExpenseDetail({expenses,SE,setTab,tabExtra,confirm}) {
 /* ══════════════════════════════════════════════════════════════
    CALENDAR VIEW
 ══════════════════════════════════════════════════════════════ */
-function CalendarView({ clients, services, appts, SA, priceHistory, setTab, confirm, deleteAppt }) {
+function CalendarView({ clients, services, appts, SA, priceHistory, setTab, confirm, deleteAppt, askReminder = null }) {
   const today = new Date()
   const [curYear,  setCurYear]  = useState(today.getFullYear())
   const [curMonth, setCurMonth] = useState(today.getMonth()) // 0-indexed
@@ -5579,12 +5682,17 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
             </button>
           )}
           {/* Recordatorio: MISMA regla que en Citas y en el Panel
-              (canRemindAppt) — no se avisa de una cita que ya pasó. */}
+              (canRemindAppt, sin gracia tras iniciar). Con el protocolo
+              ARMADO, abrir WhatsApp va seguido de la pregunta «¿ya lo
+              enviaste?» dentro de la ventana manual (T-60 → T-30). */}
           {canRemindAppt(a) && (
             <button className="btn-sm" style={{ flex: 1 }}
               onClick={() => {
                 const phone = clients.find(c => c.id === a.clientId)?.phone || ''
-                if (phone) openWA(phone, a.clientName, a.time, a.date, a.serviceNames, a.totalPrice || a.servicePrice, bool(a.domicilio), a.domicilioPrice)
+                if (phone) {
+                  openWA(phone, a.clientName, a.time, a.date, a.serviceNames, a.totalPrice || a.servicePrice, bool(a.domicilio), a.domicilioPrice)
+                  askReminder && askReminder(a)
+                }
               }}>
               💬 WhatsApp
             </button>

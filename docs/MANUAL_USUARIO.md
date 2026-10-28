@@ -511,8 +511,9 @@ no tiene duración, SZ usa **60 minutos** por defecto.
 
 **Resultado:** la clienta recibe el mensaje con todos los datos.
 
-> ⚠️ **No se puede mandar recordatorio de una cita que ya pasó.** Si la fecha
-> ya venció, el botón no aparece o está deshabilitado.
+> ⚠️ **No se puede mandar recordatorio de una cita que ya empezó o ya pasó.**
+> En el momento en que la cita arranca, el aviso del Panel y el botón
+> desaparecen: recordar algo que ya ocurrió confunde a la clienta.
 
 > 💡 SZ **no envía mensajes solo**: siempre se abre WhatsApp con el texto
 > listo. **Tú decides** si lo envías.
@@ -529,6 +530,44 @@ escribas, con copia automática al tuyo). Envía el resumen del período al
 > [`MANUAL_TECNICO.md`](MANUAL_TECNICO.md), variable `VITE_ADMIN_WHATSAPP`).
 
 ---
+
+
+### Recordatorio automático (opcional, requiere configuración técnica)
+
+> 📋 **Esta función solo está disponible si el propietario del negocio la ha activado.**
+> No requiere ningún cambio en tu forma de trabajar; el sistema la gestiona solo.
+
+Si el recordatorio automático está **activado** en tu instalación:
+
+1. **Entre 60 y 30 minutos antes** de la cita (ventana manual):
+   - El aviso «⏰ citas por recordar» aparece en el Panel.
+   - Los botones «💬 Recordar» / «💬 Recordatorio» / «💬 WhatsApp» funcionan igual que siempre: abren WhatsApp con el mensaje listo.
+   - **Después de abrir WhatsApp**, la app te pregunta: **«¿Ya le enviaste el recordatorio a [clienta]?»**
+   - Si respondes **«✔ Sí, ya lo envié»**, el sistema registra tu confirmación y **no enviará el recordatorio automático** para esa cita. Es gratis y tú tienes el control.
+   - Si respondes **«Todavía no»** o no respondes, el aviso sigue ahí.
+
+2. **A partir de 30 minutos antes** de la cita (ventana automática):
+   - El sistema toma el control: si la cita sigue pendiente de recordatorio (no confirmaste el envío manual), **el recordatorio se envía automáticamente** por WhatsApp Cloud API de Meta.
+   - Esto **tiene un coste por mensaje** (tarifa de Meta para plantillas de utilidad en Colombia; verifica la tarifa vigente).
+   - En la tarjeta de la cita verás el estado: *«Enviado automáticamente 12:32 · aceptado por Meta»* o *«⚠️ Falló el envío automático — mándalo a mano»*.
+   - **Importante:** «Aceptado por Meta» significa que la plataforma recibió la petición; **no garantiza que la clienta recibió o leyó el mensaje** (eso requeriría webhook, fase futura).
+
+3. **Si la cita ya empezó** (0 minutos o menos):
+   - No se envía ningún recordatorio (ni manual ni automático).
+   - El aviso del Panel y los botones desaparecen.
+
+**Resumen visual:**
+
+| Minutos antes | Qué pasa |
+|---|---|
+| > 60 | Botones abren WhatsApp, sin pregunta, nada automático |
+| 60 → 30 | Botones + pregunta «¿Ya lo enviaste?» → tu confirmación bloquea el automático |
+| 30 → 0 | Barrido automático cada 5 min → envío por Cloud API (coste) si no confirmaste |
+| ≤ 0 (iniciada) | Nada, aviso y botones desaparecen |
+
+> 💡 **Nota de coste:** El recordatorio **manual** (tú abres WhatsApp y envías) **siempre es gratis**. Solo el **automático** (a partir de 30 min si no confirmaste) genera coste por mensaje de plantilla de Meta. Verifica la tarifa vigente en Meta for Developers → WhatsApp Business → Precios.
+
+> ⚙️ **Para activarlo:** el propietario debe configurar 4 propiedades en Apps Script (`SB_WA_ENABLED=true`, `SB_WA_PHONE_NUMBER_ID`, `SB_WA_TOKEN`, `SB_WA_TEMPLATE`) con una plantilla aprobada en Meta. Si falta cualquiera, la función está **apagada** y la app funciona como siempre (solo manual).
 
 ## 15. Finanzas
 

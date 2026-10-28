@@ -139,3 +139,15 @@ export async function resetData(grant, services) {
     services,
   })
 }
+
+/* ── Recordatorio manual confirmado ────────────────────────────────
+   Registra en la hoja «Recordatorios» del servidor la AFIRMACIÓN de
+   la operadora de que ya envió el recordatorio desde su propio
+   WhatsApp (abrir wa.me no prueba nada — la operadora responde «sí,
+   ya lo envié» a una pregunta explícita de la app). Con el respaldo
+   automático armado, esta confirmación bloquea el envío por Cloud
+   API de ESA cita. Es una afirmación de la operadora, nunca una
+   entrega verificada.                                            */
+export async function confirmManualReminder(appointmentId) {
+  return saveData({ action: 'confirmManualReminder', appointmentId })
+}

@@ -136,7 +136,7 @@ final puedes borrar ese archivo.
 | # | Artefacto | Dónde se crea | Qué lo hace único |
 |---|---|---|---|
 | 1 | **Google Spreadsheet** | `sheets.google.com` con la **cuenta del proyecto** | Su base de datos |
-| 2 | **Apps Script (Web App)** | `script.google.com` o *Extensiones → Apps Script* desde la hoja | `SB_SYNC_TOKEN` (nueva), `SB_AUTHORIZED_EMAIL` (lista), `SB_BIZ_NAME` y, opcionales, `SB_REPORT_EMAIL`, `SB_BACKUP_EMAIL`, `SB_CALENDAR_ID` |
+| 2 | **Apps Script (Web App)** | `script.google.com` o *Extensiones → Apps Script* desde la hoja | `SB_SYNC_TOKEN` (nueva), `SB_AUTHORIZED_EMAIL` (lista), `SB_BIZ_NAME` y, opcionales, `SB_REPORT_EMAIL`, `SB_BACKUP_EMAIL`, `SB_CALENDAR_ID`, `SB_WA_ENABLED`, `SB_WA_PHONE_NUMBER_ID`, `SB_WA_TOKEN`, `SB_WA_TEMPLATE` |
 | 3 | **Repo en GitHub** | `github.com` (tu misma cuenta, un repo por cliente) | Código + `package.json` `name` |
 | 4 | **Proyecto en Vercel** | `vercel.com` | `VITE_SCRIPT_URL`, `VITE_TOKEN`, `VITE_BIZ_*`, `VITE_CATALOG`, `VITE_ADMIN_WHATSAPP` |
 | 5 | **Triggers de Apps Script** | Editor → ⏰ | Reportes diario/semanal/mensual/anual y respaldos |
@@ -242,14 +242,17 @@ gestor de contraseñas.
    *Extensiones → Apps Script*, así ya tiene acceso a la hoja.)
 4. **Propiedades de script** (⚙️ → Propiedades del proyecto → Propiedades
    de script):
-
    | Propiedad | Valor | Nota |
    |---|---|---|
    | `SB_SYNC_TOKEN` | Token **nuevo**, largo y aleatorio | **Nunca** reutilices el de otro cliente; debe coincidir con `VITE_TOKEN` |
    | `SB_AUTHORIZED_EMAIL` | **Lista:** `cuenta.proyecto@gmail.com, usuaria@gmail.com` | Obligatoria: el código de restablecimiento llega a **las dos** (tú controlas el despliegue, ella tiene copia). Direcciones separadas por **coma**; solo se admiten las que traen `@` |
    | `SB_REPORT_EMAIL` | Correo **de la usuaria** (o los dos, con coma) | Opcional: aquí llegan los 4 reportes automáticos. Si falta → van a `SB_AUTHORIZED_EMAIL` |
-   | `SB_BACKUP_EMAIL` | Otro correo (opcional) | Si quiere la **copia semanal de la hoja** en otro sitio (gestoría, correo personal…). Vacío → el respaldo va a `SB_AUTHORIZED_EMAIL` |
+   | `SB_BACKUP_EMAIL` | Otro correo (opcional) | Si quiere la **copia semanal de la hoja** en otro sitio (gestoría, correo personal...). Vacío → el respaldo va a `SB_AUTHORIZED_EMAIL` |
    | `SB_BIZ_NAME` | Nombre del negocio | Es el que firma los correos. Si falta → «SZ» |
+   | `SB_CALENDAR_ID` | Id del calendario «Citas \<negocio\>» (paso 5) | Opcional: manda las citas a ese calendario secundario. Vacío → calendario por defecto |
+   | `SB_WA_ENABLED` | **`"true"`** para encender el recordatorio automático | **Opcional (fail closed):** si falta o no es `"true"`, la app funciona como siempre (solo manual). Requiere las 3 de abajo completas. |
+   | `SB_WA_PHONE_NUMBER_ID` | ID del número verificado en Meta | Requerida si `SB_WA_ENABLED=true`. Meta Business → WhatsApp → Configuración → API. Solo dígitos. |
+   | `SB_WA_TOKEN` | Token permanente de Meta | Requerida si `SB_WA_ENABLED=true`. Meta Business → WhatsApp → Configuración → API → Token de acceso. Formato `EAAXXXXXXXXXXXXX...` |
    | `SB_CALENDAR_ID` | Id del calendario «Citas \<negocio\>» (paso 5) | Opcional: manda las citas a ese calendario secundario. Vacío → calendario por defecto |
 
 5. **Calendario dedicado y compartido con la usuaria** (5 min, una vez):
@@ -600,7 +603,7 @@ problemas) y [`MANUAL_TECNICO.md`](MANUAL_TECNICO.md) sección F.
 [ ] Code.gs pegado y desplegado como Web App (URL …/exec copiada)
 [ ] Propiedades: SB_SYNC_TOKEN (nueva) · SB_AUTHORIZED_EMAIL (lista: proyecto + usuaria)
       · SB_BIZ_NAME · SB_REPORT_EMAIL (usuaria) · SB_BACKUP_EMAIL (opcional)
-      · SB_CALENDAR_ID (opcional)
+      · SB_CALENDAR_ID (opcional) · SB_WA_ENABLED · SB_WA_PHONE_NUMBER_ID · SB_WA_TOKEN · SB_WA_TEMPLATE
 [ ] Calendario «Citas <negocio>» creado, con ID en SB_CALENDAR_ID y
       compartido con la usuaria en SOLO LECTURA
 [ ] Triggers: reportes + backup diario + correo semanal
@@ -674,13 +677,16 @@ git --no-pager log --oneline -1    # el sha de la plantilla
 4. Pegar **todo** `apps-script/Code.gs` → Guardar → nombrar el proyecto
    `NOMBRE API`.
 5. ⚙️ → Propiedades del proyecto → **Propiedades de script** — *antes* de
-   implementar:
    | `SB_SYNC_TOKEN` | token nuevo: `(New-Guid).ToString('N') + (New-Guid).ToString('N')` |
    | `SB_AUTHORIZED_EMAIL` | **lista**: `cuenta.proyecto@gmail.com, usuaria@gmail.com` (ambas reciben el código de reset) |
    | `SB_REPORT_EMAIL` | correo de la usuaria: aquí van los 4 reportes (opcional) |
    | `SB_BACKUP_EMAIL` | otro correo si la copia semanal va a otro sitio (opcional) |
    | `SB_BIZ_NAME` | nombre del negocio (firma los correos) |
    | `SB_CALENDAR_ID` | id del calendario «Citas NOMBRE» (paso 7; opcional) |
+   | `SB_WA_ENABLED` | **"true"** para encender el recordatorio automático (fail closed: requiere las 3 de abajo) |
+   | `SB_WA_PHONE_NUMBER_ID` | ID del número verificado en Meta (requerido si WA_ENABLED=true) |
+   | `SB_WA_TOKEN` | Token permanente de Meta (requerido si WA_ENABLED=true) |
+   | `SB_WA_TEMPLATE` | Nombre exacto de la plantilla aprobada (requerido si WA_ENABLED=true) |
 6. **Implementar → Nueva implementación → Aplicación web** →
    *Ejecutar como:* **Yo** · *Quién tiene acceso:* **Cualquier usuario** →
    Implementar → autorizar permisos → **copiar URL `…/exec`**.

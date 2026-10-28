@@ -165,8 +165,10 @@ La documentación completa vive en [`docs/`](docs/INDEX.md):
 ### 🔔 Extras de experiencia
 - **Recordatorios por WhatsApp con 1 clic** (mensaje pre-escrito con emoji,
   fecha, hora, desglose de servicios/domicilio y total). **No se puede enviar
-  recordatorio de una cita que ya pasó.**
-- **Avisos de “cita por recordar”** en el Panel.
+  recordatorio de una cita que ya empezó o ya pasó: el aviso y el botón
+  desaparecen en el momento en que la cita arranca.**
+- **Avisos de “cita por recordar”** en el Panel (solo mientras la cita aún
+  no empieza).
 - **Sincronización automática cada 30 s**, pausada cuando la pestaña no está
   visible.
 - **Modo sin conexión**: si falla la red, se sigue trabajando con respaldo en

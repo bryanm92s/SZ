@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { toN, bool, cleanDate, cleanTime, getSlots, TIME_SLOTS, phoneMatch, checkSlot, apptStatus, canModifyAppt, canRemindAppt, canMarkAppt, MARK_LEAD_MIN, confirmOutcome, projectedIncome, movsRanges, serviceDeletionCheck, apptLife, apptServiceIds, apptServiceRefs, topServicesByDemand, apptGroup, reportMetrics, periodLedger, isResetOutcome, domBreakdown, reportLines, expenseLabel,
-MAX_REPORT_EXPENSES, REPORT_EXPENSE_DETAIL_MAX, groupExpensesByCategory, clientNoShowStats, NOSHOW_WINDOW, PAYMENT_METHODS, payMethodOf } from './helpers.js'
+MAX_REPORT_EXPENSES, REPORT_EXPENSE_DETAIL_MAX, groupExpensesByCategory, clientNoShowStats, NOSHOW_WINDOW, PAYMENT_METHODS, payMethodOf,
+REMIND_OPEN_MIN, REMIND_AUTO_MIN, REMINDER_TERMINAL, apptMinsToStart, remindPhase, reminderStatusOf } from './helpers.js'
 
 // phoneMatch/getSlots depend on todayStr() (local today). Freeze the clock
 // so the tests are deterministic.
@@ -1454,10 +1455,10 @@ describe('canRemindAppt', () => {
     expect(canRemindAppt({ ...base, date: hoy,    time: '13:05' })).toBe(true)
   })
 
-  it('gracia de 10 min tras empezar (la del aviso «⏰ Recordar ahora»)', () => {
-    expect(canRemindAppt({ ...base, date: hoy, time: '12:59' })).toBe(true)  // hace 1 min
-    expect(canRemindAppt({ ...base, date: hoy, time: '12:50' })).toBe(true)  // hace 10
-    expect(canRemindAppt({ ...base, date: hoy, time: '12:49' })).toBe(false) // hace 11
+  it('NO se puede recordar una cita que ya empezó (sin gracia)', () => {
+    expect(canRemindAppt({ ...base, date: hoy, time: '12:59' })).toBe(false)  // hace 1 min
+    expect(canRemindAppt({ ...base, date: hoy, time: '12:50' })).toBe(false)  // hace 10
+    expect(canRemindAppt({ ...base, date: hoy, time: '12:00' })).toBe(false)  // hace 1 h
   })
 
   it('NO se puede recordar una cita pasada', () => {
@@ -1480,9 +1481,72 @@ describe('canRemindAppt', () => {
     expect(canRemindAppt(undefined)).toBe(false)
   })
 
-  it('la ventana de gracia es configurable', () => {
+  it('la ventana de gracia sigue siendo configurable (hoy nadie la usa)', () => {
     expect(canRemindAppt({ ...base, date: hoy, time: '12:49' }, undefined, 30)).toBe(true)
     expect(canRemindAppt({ ...base, date: hoy, time: '12:59' }, undefined, 0)).toBe(false)
+  })
+})
+
+/* ── Protocolo del recordatorio ──────────────────────────────────
+   Ventanas y fases del manual-confirmado + respaldo automático.
+   El reloj congelado del beforeAll marca las 13:00 del 2026-01-15,
+   así que la cita de las 13:30 está a 30 min y la de las 14:00 a 60. */
+describe('protocolo del recordatorio (ventanas y fases)', () => {
+  const base = { clientName: 'Ana', clientPhone: '3001234567' }
+  const hoy    = '2026-01-15'   // 13:00 (reloj congelado)
+  const manana = '2026-01-16'
+
+  it('constantes de ventana: manual a T-60, relevo automático a T-30', () => {
+    expect(REMIND_OPEN_MIN).toBe(60)
+    expect(REMIND_AUTO_MIN).toBe(30)
+  })
+
+  it('apptMinsToStart: minutos hasta el inicio, solo citas de HOY', () => {
+    expect(apptMinsToStart({ ...base, date: hoy, time: '14:00' })).toBe(60)
+    expect(apptMinsToStart({ ...base, date: hoy, time: '13:30' })).toBe(30)
+    expect(apptMinsToStart({ ...base, date: hoy, time: '13:00' })).toBe(0)
+    expect(apptMinsToStart({ ...base, date: hoy, time: '12:59' })).toBe(-1)   // ya empezó
+    expect(apptMinsToStart({ ...base, date: manana, time: '09:00' })).toBeNull()
+    expect(apptMinsToStart({ ...base, date: '',      time: '09:00' })).toBeNull()
+    expect(apptMinsToStart({ ...base, date: hoy,     time: ''     })).toBeNull()
+    expect(apptMinsToStart(null)).toBeNull()
+  })
+
+  it('remindPhase: antes / manual / auto / cerrada', () => {
+    // Futuras o lejos: el botón abre el chat, pero nada cuenta.
+    expect(remindPhase({ ...base, date: manana, time: '09:00' })).toBe('antes')
+    expect(remindPhase({ ...base, date: hoy, time: '16:00' })).toBe('antes')   // 3 h
+    // Ventana manual: (30, 60] — la pregunta «¿ya lo enviaste?» cuenta.
+    expect(remindPhase({ ...base, date: hoy, time: '14:00' })).toBe('manual')  // 60
+    expect(remindPhase({ ...base, date: hoy, time: '13:31' })).toBe('manual')  // 31
+    // Relevo automático: (0, 30] — el barrido es el dueño.
+    expect(remindPhase({ ...base, date: hoy, time: '13:30' })).toBe('auto')    // 30
+    expect(remindPhase({ ...base, date: hoy, time: '13:05' })).toBe('auto')    // 5
+    // Cerrada: iniciada o decidida.
+    expect(remindPhase({ ...base, date: hoy, time: '13:00' })).toBe('cerrada')
+    expect(remindPhase({ ...base, date: hoy, time: '12:59' })).toBe('cerrada')
+    expect(remindPhase({ ...base, date: manana, time: '09:00', completed: 'true'  })).toBe('cerrada')
+    expect(remindPhase({ ...base, date: manana, time: '09:00', completed: 'noshow' })).toBe('cerrada')
+    expect(remindPhase(null)).toBe('cerrada')
+  })
+
+  it('reminderStatusOf: sin fila → pending; la fila manda; id ajeno → pending', () => {
+    const rows = [
+      { appointmentId: 'a1', status: 'manual_confirmed' },
+      { appointmentId: 'a2', status: 'auto_sent' },
+    ]
+    expect(reminderStatusOf(rows, 'a1')).toBe('manual_confirmed')
+    expect(reminderStatusOf(rows, 'a3')).toBe('pending')
+    expect(reminderStatusOf([], 'a1')).toBe('pending')
+    expect(reminderStatusOf(undefined, 'a1')).toBe('pending')
+  })
+
+  it('REMINDER_TERMINAL cierra el protocolo (manual confirmado o ya enviado)', () => {
+    expect(REMINDER_TERMINAL).toContain('manual_confirmed')
+    expect(REMINDER_TERMINAL).toContain('auto_sent')
+    expect(REMINDER_TERMINAL).toContain('auto_failed_final')
+    expect(REMINDER_TERMINAL).not.toContain('auto_failed')   // reintentos pendientes
+    expect(REMINDER_TERMINAL).not.toContain('pending')
   })
 })
 
