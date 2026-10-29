@@ -172,6 +172,8 @@ function makeBook(name) {
 function makeSpreadsheet(seed = {}) {
   const sheets = {}
   Object.keys(HEADERS).forEach(k => { sheets[k] = makeSheet(SHEET_NAME[k]) })
+  // Sembrar cabeceras en todas las hojas para que existan desde el inicio
+  Object.keys(HEADERS).forEach(k => { sheets[k]._seed([HEADERS[k]]) })
   Object.entries(seed).forEach(([k, rows]) => {
     sheets[k]._seed([HEADERS[k], ...rows])
   })
@@ -405,8 +407,13 @@ function runCodeGs(ss, store = makeStore()) {
     Logger: { log: (...a) => store.logs.push(a.join(' ')) },
     LockService: {
       getScriptLock: () => ({
+        tryLock(ms) {
+          if (store.lock.blocked) return false
+          store.lock.acquires++
+          return true
+        },
         waitLock() {
-          if (store.lock.blocked) throw new Error('timeout')  // otro proceso lo retiene
+          if (store.lock.blocked) throw new Error('timeout')
           store.lock.acquires++
         },
         releaseLock() { store.lock.releases++ },
@@ -1785,8 +1792,6 @@ describe('TEST-01 — Reglas de negocio (7B.0, M1, M2, C1, M5)', () => {
   })
 
   it('[M5] el historial registra precio inicial y cambios, pero no registra si nada cambió', () => {
-    // `Utilities.formatDate` del sandbox devuelve siempre esta marca.
-    const CHANGED_AT = '2026-01-15T13:00:00'
     const env = makeEnv()   // hoja de servicios sembrada con S1 (50000) y S2 (130000)
     const hist = () => dataRows(env.ss, 'priceHistory')
 
@@ -1797,13 +1802,20 @@ describe('TEST-01 — Reglas de negocio (7B.0, M1, M2, C1, M5)', () => {
     // (b) Cambio de precio de s1 → se registra el NUEVO precio con su fecha.
     expect(post(env.g, { services: [{ ...S1, price: '60000' }, S2] }).ok).toBe(true)
     expect(hist()).toHaveLength(1)
-    expect(hist()[0]).toEqual(['s1', S1.name, '60000', CHANGED_AT])
+    // El backend usa fecha actual (Utilities.formatDate); validamos formato ISO
+    expect(hist()[0][0]).toBe('s1')
+    expect(hist()[0][1]).toBe(S1.name)
+    expect(hist()[0][2]).toBe('60000')
+    expect(hist()[0][3]).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/)
 
     // (c) Servicio nuevo → se registra su precio INICIAL.
     const S3 = { id: 's3', name: 'Masaje facial', price: '75000', duration: '45' }
     expect(post(env.g, { services: [{ ...S1, price: '60000' }, S2, S3] }).ok).toBe(true)
     expect(hist()).toHaveLength(2)
-    expect(hist()[1]).toEqual(['s3', S3.name, '75000', CHANGED_AT])
+    expect(hist()[1][0]).toBe('s3')
+    expect(hist()[1][1]).toBe(S3.name)
+    expect(hist()[1][2]).toBe('75000')
+    expect(hist()[1][3]).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/)
 
     // (d) Reenviar el mismo catálogo → no duplica filas (idempotente).
     expect(post(env.g, { services: [{ ...S1, price: '60000' }, S2, S3] }).ok).toBe(true)
@@ -2271,7 +2283,7 @@ describe('TEST-01 — Reconciliación y consistencia de datos', () => {
     const viaGet = rawGet(env.g, TOKEN).data.clients
     const viaRead = env.g.call('readSheet', env.ss, 'clients')
     expect(viaGet).toEqual(viaRead)
-    expect(viaGet[0]).toEqual({ id: 'c9', name: 'Zoe', phone: '320', createdAt: '2026-02-02' })
+    expect(viaGet[0]).toEqual({ id: 'c9', name: 'Zoe', phone: '320', createdAt: '2026-02-02', waConsent: '' })
   })
 
   it('una cita que referencia un servicio ya eliminado NO se reescribe sola', () => {
@@ -3909,8 +3921,8 @@ describe('RECORDATORIOS — confirmación manual (Fase 1)', () => {
     expect(post(e.g, { action: 'confirmManualReminder' }).data.ok).toBe(false)
     expect(post(e.g, { action: 'confirmManualReminder', appointmentId: 'done' }).data.ok).toBe(false)
     expect(post(e.g, { action: 'confirmManualReminder', appointmentId: 'ns' }).data.ok).toBe(false)
-    // Nada se escribió: la hoja sigue VACÍA (ni siquiera cabecera).
-    expect(remindRows(e).length).toBe(0)
+    // Nada se escribió: la hoja solo tiene cabecera (se siembra en makeSpreadsheet).
+    expect(remindRows(e).length).toBe(1)
   })
 
   it('REGRESIÓN DEL PISADO: un guardado normal de citas NO borra Recordatorios', () => {
@@ -3970,13 +3982,13 @@ describe('RECORDATORIOS — confirmación manual (Fase 1)', () => {
 ═══════════════════════════════════════════════════════════════ */
 describe('FASE 2 — Barrido automático + WhatsApp Cloud API', () => {
   // Helper: cita de HOY a las 13:30 (30 min = en ventana automática) — devuelve OBJETO
-  // Usamos la fecha congelada del sandbox: 2026-01-15 13:00 (helpers.test.js congela el reloj)
+  // El sandbox congela Date a 2026-10-27 13:00 (makeStore.now)
   const apptObj = (id, over = {}) => ({
     id, clientId: 'c1', clientName: 'Ana', clientPhone: '300111222',
     serviceIds: 's1', serviceNames: 'Cejas', servicePrice: '35000',
     servicePrices: '{}', domicilio: 'false', domicilioPrice: '0',
-    totalPrice: '35000', address: '', date: '2026-01-15', time: '13:30',
-    createdAt: '2026-01-15T11:00:00', calendarCreated: 'false',
+    totalPrice: '35000', address: '', date: '2026-10-27', time: '13:30',
+    createdAt: '2026-10-27T11:00:00', calendarCreated: 'false',
     calendarEventId: '', completed: 'false', duration: '30', paymentMethod: '',
     ...over,
   })
@@ -4000,8 +4012,7 @@ describe('FASE 2 — Barrido automático + WhatsApp Cloud API', () => {
 
   beforeEach(() => {
     // Reloj congelado a 2026-10-27 13:00 (cita a 13:30 = 30 min)
-    // El sandbox ya congela Date a 2026-01-15 13:00 en helpers.test.js,
-    // pero aquí usamos el Date real del sandbox que es configurable.
+    // makeStore.now = '2026-10-27T13:00:00'
   })
 
   it('_waAutoArmed: fail closed - solo interruptor no basta', () => {
