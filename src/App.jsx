@@ -2039,11 +2039,11 @@ function GS() { return <style>{`
     .tap{min-height:44px;min-width:44px}
     button,a,input,select,label{touch-action:manipulation}
 
-    /* Acciones de cita en Calendario: apila en móvil, 2 columnas en tablet+ */
-    .cal-appt-actions{display:flex;flex-wrap:wrap;gap:8}
-    .cal-appt-actions .btn-sm{flex:1 1 calc(50% - 4px);min-width:0;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    /* Acciones de cita en Calendario: 2 columnas en móvil con buen espacio, 1 fila en tablet+ */
+    .cal-appt-actions{display:flex;flex-wrap:wrap;gap:12;padding:4px}
+    .cal-appt-actions .btn-sm{flex:1 1 calc(50% - 6px);min-width:0;min-height:48px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     @media (min-width: 640px){
-      .cal-appt-actions .btn-sm{flex:1 1 auto;min-width:0}
+      .cal-appt-actions .btn-sm{flex:1 1 auto;min-width:0;min-height:44px}
     }
   }
   
