@@ -1,0 +1,14 @@
+# SZ · OcupadAPP — herramienta de gestión interna (citas, clientes y
+# finanzas del negocio). No es un sitio público.
+#
+# Política de indexación (H-09): index.html declara
+#   <meta name="robots" content="noindex, nofollow">
+# por lo que este archivo PERMITE el rastreo (Allow): los buscadores
+# deben poder leer esa meta para no indexar las vistas internas.
+# Bloquear el rastreo desde aquí (Disallow) impediría que vieran el noindex.
+#
+# IMPORTANTE: robots.txt y la meta robots NO protegen la información.
+# La protección real depende de los controles de acceso existentes
+# (URL del Apps Script y token SB_SYNC_TOKEN validado en el backend).
+User-agent: *
+Allow: /

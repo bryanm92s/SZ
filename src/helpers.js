@@ -964,7 +964,10 @@ export const openWhatsApp = (phone, msg) => {
   const ios = isIOS()
   const url = waUrl(phone, msg, ios)
   if (ios) window.location.href = url
-  else window.open(url, '_blank')
+  // noopener,noreferrer explícitos (Fase 7/R5): la ventana de WhatsApp
+  // no debe poder acceder a window.opener. En navegadores actuales
+  // target=_blank ya implica noopener, pero aquí no se deja al azar.
+  else window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 /* ── Restablecimiento: comprobación contra el servidor ────────────

@@ -287,9 +287,75 @@ export const PALETTES = [
   },
 ]
 
+/* ── Derivación de color (lee la paleta activa, no la modifica) ──
+   Convierten hex↔HSL/rgba para calcular tokens derivados del rojo y
+   del primario del tema SIN tocar la definición de las 12 paletas:
+    · --red-line → borde suave «No asistió» (antes #F5C0B0/#F5B0B0 fijos)
+    · --red-d    → tono claro del gradiente destructivo (antes #D04040)
+    · --ring     → anillo de foco visible (misma familia que --glass)
+   Al derivarse de p.red/p.primary, la paleta Barbería —que define su
+   propio rojo #C8102E— hereda derivados coherentes con su marca. */
+const hexToHsl = (hex) => {
+  const n = parseInt(hex.slice(1), 16)
+  const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn
+  let h = 0
+  if (d) {
+    if (mx === r) h = ((g - b) / d) % 6
+    else if (mx === g) h = (b - r) / d + 2
+    else h = (r - g) / d + 4
+    h *= 60; if (h < 0) h += 360
+  }
+  const l = (mx + mn) / 2
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1))
+  return [h, s, l]
+}
+const hslToHex = (h, s, l) => {
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = l - c / 2
+  const [r, g, b] = [[c,x,0],[x,c,0],[0,c,x],[0,x,c],[x,0,c],[c,0,x]][Math.floor(h / 60) % 6]
+  const f = v => Math.round((v + m) * 255).toString(16).padStart(2, '0')
+  return `#${f(r)}${f(g)}${f(b)}`
+}
+const lightenHsl = (hex, dl) => { const [h, s, l] = hexToHsl(hex); return hslToHex(h, s, Math.min(1, l + dl)) }
+const hexA = (hex, a) => {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
+}
+/* ── Luminancia y ratio WCAG (H-10) ──
+   Deciden la luminosidad de los colores de categoría contra la
+   superficie REAL de la paleta activa (tarjeta y tinte de fila
+   abierta), no contra un blanco supuesto. */
+const relLum = (hex) => {
+  const n = parseInt(hex.slice(1), 16)
+  const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4) }
+  return 0.2126 * f((n >> 16) & 255) + 0.7152 * f((n >> 8) & 255) + 0.0722 * f(n & 255)
+}
+const contrastRatio = (a, b) => {
+  const x = relLum(a), y = relLum(b)
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+}
+/* Tono de categoría AA: sube la L desde casi negro y se queda con el
+   valor MÁS CLARO que aún mantiene ≥4.6:1 contra TODAS las superficies
+   dadas; al primer paso que deja de cumplir, corta (el anterior es el
+   más suave válido). S=0.55: 8 tonos vivos, 45° de separación en la
+   rueda — distinguibles entre sí y con contraste de sobra para texto,
+   punto y barra. */
+const aaTone = (h, s, surfaces) => {
+  let best = hslToHex(h, s, 0.06)
+  for (let l = 0.06; l <= 0.62; l += 0.02) {
+    const hex = hslToHex(h, s, l)
+    if (surfaces.every(bg => contrastRatio(hex, bg) >= 4.6)) best = hex
+    else break
+  }
+  return best
+}
+
 const applyTheme = (pid) => {
   const p = PALETTES.find(x=>x.id===pid)||PALETTES[0]
   const r = document.documentElement.style
+
   
   r.setProperty('--primary',   p.primary)
   r.setProperty('--primary-d', p.pd)
@@ -312,6 +378,26 @@ const applyTheme = (pid) => {
   r.setProperty('--gold-bg',   p.goldBg  ?? '#FFF8E6')
   r.setProperty('--red',       p.red     ?? '#B03030')
   r.setProperty('--red-bg',    p.redBg   ?? '#FFF0F0')
+  /* Derivados del rojo ACTIVO: borde suave de tarjetas «No asistió» y
+     tono claro del gradiente destructivo (ver hexToHsl arriba). */
+  r.setProperty('--red-line',  lightenHsl(p.red ?? '#B03030', 0.33))
+  r.setProperty('--red-d',     lightenHsl(p.red ?? '#B03030', 0.09))
+  /* Tinte del gris secundario (contadores del grupo «Pasadas»): misma
+     fórmula que el `${color}22` original (13% de opacidad) pero sobre
+     --t2 del tema, para que los chips pasen AA en las 12 paletas. */
+  r.setProperty('--t2-bg',     hexA(p.t2, 0.13))
+  /* Anillo de foco: primario del tema con más opacidad que --glass
+     (0.12), para que el foco de teclado sea realmente visible. */
+  r.setProperty('--ring',      hexA(p.primary, 0.35))
+  /* ── Colores de categoría (H-10): rueda de 8 tonos anclada al matiz
+     del primario ACTIVO (45° entre tonos) y con la luminosidad ajustada
+     a AA sobre las superficies reales de la paleta. Sustituyen los 8 hex
+     fijos de CAT_COLORS sin tocar PALETTES ni la estructura de las
+     categorías: cada paleta aporta su propia rueda coherente con su
+     marca y los montos/puntos/barras de «Por categoría» quedan ≥4.6:1. */
+  const catSurfaces = [p.card ?? '#FFFFFF', p.pl ?? p.bg ?? '#FFFFFF']
+  const catHue0 = hexToHsl(p.primary)[0]
+  for (let ci = 0; ci < 8; ci++) r.setProperty(`--cat${ci + 1}`, aaTone((catHue0 + ci * 45) % 360, 0.55, catSurfaces))
   r.setProperty('--warn-bg',   p.warnBg  ?? '#FFF4DC')
   r.setProperty('--warn-t',    p.warnT   ?? '#7A5000')
   r.setProperty('--input-bg',  p.inputBg ?? '#FFFFFF')
@@ -332,6 +418,33 @@ const applyTheme = (pid) => {
   /* ── Gradient & Glassmorphism ── */
   r.setProperty('--gradient',       p.gradient)
   r.setProperty('--gradient-soft',  p.gradientSoft)
+  /* ── R2: tinte de contraste de .btn ──
+     El texto de .btn es blanco (ninguna paleta redefine --grad-t). Si
+     el stop MÁS CLARO del gradiente deja el blanco por debajo de
+     4.5:1 (L > 0.165, ratio ≈4.9 con margen de seguridad), se calcula
+     la capa de tinte negro --btn-tint (α en pasos de 0.01, tope 0.6)
+     que oscurece el gradiente hasta que el stop claro cumple. Paletas
+     cuyo gradiente ya es oscuro → α = 0 (botón SIN cambio visual). */
+  {
+    const stops = String(p.gradient).match(/#[0-9A-Fa-f]{6}/g) || []
+    const txtL  = relLum(p.gradT ?? '#FFFFFF')
+    let tint = 0
+    if (stops.length && txtL > 0.5) {
+      const lightest = stops.reduce((a, b) => (relLum(b) > relLum(a) ? b : a))
+      if (relLum(lightest) > 0.165) {
+        const lumMix = (hex, a) => {
+          const n = parseInt(hex.slice(1), 16)
+          const m = (v) => { v = (v * (1 - a)) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4) }
+          return 0.2126 * m((n >> 16) & 255) + 0.7152 * m((n >> 8) & 255) + 0.0722 * m(n & 255)
+        }
+        for (let a = 0.01; a <= 0.6001; a += 0.01) {
+          if (lumMix(lightest, a) <= 0.165) { tint = Math.round(a * 100) / 100; break }
+        }
+        if (!tint) tint = 0.6
+      }
+    }
+    r.setProperty('--btn-tint', String(tint))
+  }
   r.setProperty('--glass',          p.glass)
   r.setProperty('--glass-strong',   p.glassStrong)
   
@@ -385,7 +498,11 @@ const DEFAULT_ADMIN_WHATSAPP = import.meta.env.VITE_ADMIN_WHATSAPP || ''
 const ADMIN_WA_DIGITS = String(DEFAULT_ADMIN_WHATSAPP).replace(/\D/g, '')
 
 const DEF_CATS   = ['Insumos','Arriendo','Publicidad','Servicios','Transporte','Gasolina','Otros']
-const CAT_COLORS = ['#C4827A','#7A9FC4','#82C494','#C4A87A','#A47AC4','#C4C47A','#7AC4C4','#C47AA4']
+/* Colores por categoría (H-10): tokens --cat1..8 que applyTheme DERIVA
+   del tema activo (rueda anclada al matiz del primario + AA sobre las
+   superficies). La estructura NO cambia: 8 colores, asignación por
+   índice con módulo —el consumidor en Detalle Gastos sigue intacto. */
+const CAT_COLORS = ['var(--cat1)','var(--cat2)','var(--cat3)','var(--cat4)','var(--cat5)','var(--cat6)','var(--cat7)','var(--cat8)']
 
 const uid        = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7)
 const capWords   = s => String(s||'').trim().replace(/\b\w/g, c=>c.toUpperCase())
@@ -593,6 +710,46 @@ export default function App() {
     applyTheme(themePalette)
     try{ localStorage.setItem('sz_palette',themePalette) }catch{}
   },[themePalette])
+
+  // ── Nav: fade de desplazamiento (pista en móvil) ────────────────
+  // El nav de 7 pestañas necesita scroll horizontal en pantallas
+  // angostas y la scrollbar está oculta a propósito; este degradado en
+  // el borde derecho aparece SOLO cuando quedan pestañas fuera de
+  // vista y se apaga al llegar al final. En desktop (todo visible)
+  // permanece apagado. No altera el scroll nativo al tab activo.
+  // App muestra un splash mientras carga (status==='loading') y el nav
+  // monta DESPUÉS del primer render: este efecto espera a que exista
+  // (sondeo acotado) antes de engancharse.
+  useEffect(()=>{
+    let n = null
+    const upd = () => n && n.classList.toggle('nav-fade',
+      n.scrollWidth > n.clientWidth + 4 && n.scrollLeft + n.clientWidth < n.scrollWidth - 8)
+    const t = setInterval(() => {
+      const el = document.getElementById('main-nav')
+      if (!el) return
+      clearInterval(t)
+      n = el
+      upd()
+      n.addEventListener('scroll', upd, {passive:true})
+      window.addEventListener('resize', upd)
+      window.addEventListener('load', upd)
+      // DM Sans cambia el ancho del nav DESPUÉS del primer render; sin
+      // esta re-medición el fade puede quedar apagado de forma
+      // permanente. fonts.ready puede resolverse ANTES de que el @import
+      // de Google Fonts empiece a cargar: loadingdone cubre ese caso.
+      document.fonts?.ready?.then(upd).catch(()=>{})
+      document.fonts?.addEventListener?.('loadingdone', upd)
+    }, 120)
+    return () => {
+      clearInterval(t)
+      if (n) {
+        n.removeEventListener('scroll', upd)
+        window.removeEventListener('resize', upd)
+        window.removeEventListener('load', upd)
+        document.fonts?.removeEventListener?.('loadingdone', upd)
+      }
+    }
+  },[])
 
   // Reconexión exitosa → el banner se rearma para un próximo fallo.
   useEffect(()=>{ if(status!=='error') setErrHidden(false) },[status])
@@ -899,16 +1056,26 @@ export default function App() {
           }
           <div>
             <div style={{fontFamily:'Georgia,serif',fontSize:16,color:'var(--grad-t)',fontWeight:700}}>{BIZ_NAME}</div>
-            <div style={{fontSize:11,color:'var(--grad-t2)',letterSpacing:'0.14em',textTransform:'uppercase',fontWeight:500}}>{BIZ_SUBTITLE||BIZ_NAME}</div>
+            {/* R2: color pleno (--grad-t = blanco) en vez de --grad-t2
+                (75% de opacidad), que caía por debajo de 4.5:1. En
+                móvil el bbox del subtítulo llega a la zona más clara del
+                gradiente (Palo de Rosa medía 4,41:1) → superficie local
+                de contraste: tinte negro 10% con padding mínimo y
+                border-radius, sin tocar el título ni el gradiente. */}
+            <div style={{fontSize:11,color:'var(--grad-t)',letterSpacing:'0.14em',textTransform:'uppercase',fontWeight:500,display:'inline-block',padding:'1px 5px',borderRadius:'4px',background:'rgba(0,0,0,0.1)'}}>{BIZ_SUBTITLE||BIZ_NAME}</div>
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={()=>refresh(true)} style={{background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:20,padding:'6px 12px',color:'var(--grad-t)',fontSize:14,cursor:'pointer',fontFamily:'inherit',fontWeight:600,backdropFilter:'var(--glass-blur-sm)',WebkitBackdropFilter:'var(--glass-blur-sm)',transition:'all .15s'}} onMouseOver={e=>e.target.style.background='rgba(255,255,255,0.3)'} onMouseOut={e=>e.target.style.background='rgba(255,255,255,0.2)'}>↻</button>
+          {/* R2: el ↻ era texto blanco sobre blanco al 20% (≈1.6:1).
+             Tinte oscuro local (0.28 base / 0.38 hover) sobre el MISMO
+             gradiente del header: se conserva el glass/backdrop-blur,
+             el borde blanco y la transición; solo cambia el tinte. */}
+          <button onClick={()=>refresh(true)} className="tap" style={{background:'rgba(0,0,0,0.28)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:20,padding:'6px 12px',color:'var(--grad-t)',fontSize:14,cursor:'pointer',fontFamily:'inherit',fontWeight:600,backdropFilter:'var(--glass-blur-sm)',WebkitBackdropFilter:'var(--glass-blur-sm)',transition:'all .15s'}} onMouseOver={e=>e.target.style.background='rgba(0,0,0,0.38)'} onMouseOut={e=>e.target.style.background='rgba(0,0,0,0.28)'}>↻</button>
           <SyncBadge status={status} lastSync={lastSync}/>
         </div>
       </header>
 
-      <nav style={{background:'var(--chrome-bg)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)',borderBottom:'1px solid rgba(0,0,0,0.04)',display:'flex',overflowX:'auto',padding:'0 4px',scrollbarWidth:'none',boxShadow:'var(--shadow-sm)'}}>
+      <nav id="main-nav" className="nav-scroll" style={{background:'var(--chrome-bg)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)',borderBottom:'1px solid rgba(0,0,0,0.04)',display:'flex',overflowX:'auto',padding:'0 4px',scrollbarWidth:'none',boxShadow:'var(--shadow-sm)'}}>
         {[
           ['dashboard',  'grid',   'Panel'],
           ['appointments','cal',   'Citas'],
@@ -921,7 +1088,7 @@ export default function App() {
           <button key={id} onClick={()=>setTab(id)} className={`nb${tab===id?' act':''}`}
             style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,paddingTop:9,paddingBottom:9,paddingLeft:12,paddingRight:12}}>
             <NavIcon type={ic} active={tab===id}/>
-            <span style={{fontSize:11,letterSpacing:'.02em'}}>{lb}</span>
+            <span style={{fontSize:12,letterSpacing:'.02em'}}>{lb}</span>
           </button>
         ))}
       </nav>
@@ -960,11 +1127,11 @@ export default function App() {
       </main>
 
       <footer style={{textAlign:'center',padding:'20px 14px calc(28px + env(safe-area-inset-bottom, 0px))',borderTop:'1px solid var(--border)',marginTop:8,background:'var(--chrome-bg)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)'}}>
-        <span style={{fontSize:11,color:'var(--t2)',letterSpacing:'.03em',display:'inline-flex',alignItems:'center',gap:6,flexWrap:'wrap',justifyContent:'center'}}>
+        <span style={{fontSize:11,color:'var(--t2)',letterSpacing:'.03em',display:'inline-flex',alignItems:'center',gap:10,flexWrap:'wrap',justifyContent:'center'}}>
           <span>{BIZ_EMOJI} {BIZ_NAME} © {new Date().getFullYear()}</span>
-          <span style={{color:'var(--border)'}}>|</span>
+          <span style={{color:'var(--t2)'}}>|</span>
           <span>Hecho con ❤️ {APP_NAME}<span style={{fontFamily:'Georgia,serif',fontStyle:'italic',fontWeight:700,color:'var(--primary)',letterSpacing:'.03em'}}>APP</span></span>
-          <span style={{color:'var(--border)'}}>|</span>
+          <span style={{color:'var(--t2)'}}>|</span>
           <svg width="20" height="14" viewBox="0 0 20 14" style={{verticalAlign:'middle',borderRadius:2,display:'inline-block',flexShrink:0}}>
             <rect width="20" height="14" fill="#FCD116"/>
             <rect y="7" width="20" height="7" fill="#003893"/>
@@ -984,7 +1151,7 @@ function Modal({msg, onOk, onCancel, okLabel='Eliminar', cancelLabel='Cancelar'}
         <div style={{fontSize:15,fontWeight:600,color:'var(--t)',marginBottom:22,lineHeight:1.5}}>{msg}</div>
         <div style={{display:'flex',gap:10,justifyContent:'center'}}>
           {cancelLabel && <button className="btn-o" style={{flex:1}} onClick={onCancel}>{cancelLabel}</button>}
-          <button className="btn" style={{flex:1,background:okLabel==='Eliminar'?'linear-gradient(135deg, #B03030 0%, #D04040 100%)':'var(--gradient)'}} onClick={onOk}>{okLabel}</button>
+          <button className="btn" style={{flex:1,background:okLabel==='Eliminar'?'linear-gradient(135deg, var(--red) 0%, var(--red-d) 100%)':'var(--gradient)'}} onClick={onOk}>{okLabel}</button>
         </div>
       </div>
     </div>
@@ -1106,7 +1273,10 @@ function SyncBadge({status,lastSync}) {
     const t=()=>{const m=Math.floor((Date.now()-lastSync)/60000);setAgo(m===0?'ahora':m+'min')}
     t(); const i=setInterval(t,30000); return()=>clearInterval(i)
   },[lastSync])
-  const c={ok:{bg:'rgba(255,255,255,0.18)',col:'white',l:ago?`✓ ${ago}`:'✓'},saving:{bg:'rgba(255,255,255,0.18)',col:'white',l:'⏳'},error:{bg:'rgba(220,80,80,0.4)',col:'white',l:'⚠️'}}[status]||{bg:'transparent',col:'transparent',l:''}
+  /* R2: los estados ok/saving eran blanco al 18% sobre el gradiente del
+     header (≈1.5:1). Tinte oscuro local 0.28; el estado de error
+     (⚠️, solo emoji) conserva su tinte rojo. */
+  const c={ok:{bg:'rgba(0,0,0,0.28)',col:'white',l:ago?`✓ ${ago}`:'✓'},saving:{bg:'rgba(0,0,0,0.28)',col:'white',l:'⏳'},error:{bg:'rgba(220,80,80,0.4)',col:'white',l:'⚠️'}}[status]||{bg:'transparent',col:'transparent',l:''}
   return <div style={{background:c.bg,color:c.col,borderRadius:20,padding:'4px 10px',fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>{c.l}</div>
 }
 
@@ -1235,7 +1405,9 @@ function GS() { return <style>{`
     --bg:#F9F1F3;--card:#FFFFFF;--surface:#FFFFFF;--border:#EAD0D7;
     --t:#1F1014;--t2:#7A5E64;--gold:#8A6700;--gold-bg:#FFF8E6;
     --green:#2E7D52;--green-bg:#F2FBF6;--red:#B03030;--red-bg:#FFF0F0;
+    --red-line:#E6A3A3;--red-d:#CC4343;--t2-bg:rgba(122,94,100,0.13);
     --warn-bg:#FFF4DC;--warn-t:#7A5000;--input-bg:#FFFFFF;
+    --ring:rgba(168,75,96,0.35);
     --grad-t:#FFFFFF;--grad-t2:rgba(255,255,255,0.75);
     /* Superficies translúcidas (chrome): nav/footer/tarjetas glass/modales.
        applyTheme las actualiza por paleta; el oscuro las redefine. */
@@ -1243,6 +1415,7 @@ function GS() { return <style>{`
     --chrome-bgr:rgba(255,255,255,0.96);
     --chrome-brd:rgba(255,255,255,0.5);
     /* Gradient & Glassmorphism (updated by applyTheme) */
+    --btn-tint:0;
     --gradient:linear-gradient(135deg, #A84B60 0%, #B45A6E 50%, #C57F93 100%);
     --gradient-soft:linear-gradient(135deg, #FAE9ED 0%, #F9F1F3 50%, #EAD0D7 100%);
     --glass:rgba(181, 82, 74, 0.12);
@@ -1325,6 +1498,8 @@ function GS() { return <style>{`
     border-bottom-color:var(--primary);
     font-weight:700
   }
+  /* Foco de teclado tematizado en la nav (antes: outline nativo de 1px) */
+  .nb:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
   
   /* ── Cards ── */
   .card{
@@ -1375,14 +1550,16 @@ function GS() { return <style>{`
   }
   .inp:focus{
     border-color:var(--primary);
-    box-shadow:0 0 0 3px var(--glass), var(--shadow-inner);
+    /* --ring (primario al 35%) en vez de --glass (12%): el anillo pasa
+       de «apenas visible» a un indicador de foco claro (H-05). */
+    box-shadow:0 0 0 3px var(--ring), var(--shadow-inner);
   }
   .inp::placeholder{color:var(--t2)}
   
   /* ── Labels ── */
   .lbl{
     display:block;
-    font-size:11px;
+    font-size:12px;
     font-weight:600;
     color:var(--t2);
     text-transform:uppercase;
@@ -1392,7 +1569,12 @@ function GS() { return <style>{`
   
   /* ── Buttons ── */
   .btn{
-    background:var(--gradient);
+    /* R2: capa de tinte negro --btn-tint (calculado por applyTheme,
+       0 por defecto) debajo del MISMO gradiente del tema, para que el
+       texto blanco cumpla ≥4.5:1 también en las paletas cuyo gradiente
+       tiene stops claros. Donde el gradiente ya es oscuro, --btn-tint
+       es 0 y el botón NO cambia visualmente. */
+    background:linear-gradient(rgba(0,0,0,var(--btn-tint,0)),rgba(0,0,0,var(--btn-tint,0))),var(--gradient);
     color:var(--grad-t);
     border:none;
     border-radius:12px;
@@ -1496,8 +1678,12 @@ function GS() { return <style>{`
   .btn-del:active{box-shadow:var(--shadow-inner)}
   
   .btn-wa{
+    /* Gradiente WhatsApp LITERAL (R1): #25D366 → #1DB954 intacto, sin
+       tematizar. Solo cambia el color del texto: blanco → verde muy
+       oscuro #0B2E1A (L≈0.021) que da ≥4.5:1 contra TODO el rango del
+       gradiente (peor punto ≈6.2:1). */
     background:linear-gradient(135deg, #25D366 0%, #1DB954 100%);
-    color:white;
+    color:#0B2E1A;
     border:none;
     border-radius:10px;
     padding:8px 14px;
@@ -1510,6 +1696,18 @@ function GS() { return <style>{`
   }
   .btn-wa:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
   .btn-wa:active{box-shadow:var(--shadow-inner);transform:translateY(0)}
+  /* R3: estado deshabilitado. Opacidad reducida + cursor not-allowed,
+     sin elevación ni hover. El atributo nativo disabled (React) ya
+     bloquea teclado y ratón; no se añade aria-disabled. */
+  .btn-wa:disabled{
+    opacity:.5;
+    cursor:not-allowed;
+    transform:none;
+    box-shadow:var(--shadow-sm);
+    transition:none;
+  }
+  .btn-wa:disabled:hover{box-shadow:var(--shadow-sm);transform:none}
+  .btn-wa:disabled:active{box-shadow:var(--shadow-sm);transform:none}
   
   .btn-edit{
     background:var(--primary-l);
@@ -1647,7 +1845,7 @@ function GS() { return <style>{`
     min-width:0;
   }
   .kpi-label{
-    font-size:10px;
+    font-size:11px;
     text-transform:uppercase;
     letter-spacing:.05em;
     color:var(--t2);
@@ -1661,7 +1859,7 @@ function GS() { return <style>{`
     line-height:1.15;
     overflow-wrap:anywhere;
   }
-  .kpi-sub{font-size:10px;color:var(--t2);margin-top:3px}
+  .kpi-sub{font-size:11px;color:var(--t2);margin-top:3px}
   /* El neto hereda el mismo gradiente que usa el Panel para el balance */
   .kpi-net{background:var(--gradient);border:none;color:white}
   .kpi-net .kpi-label,.kpi-net .kpi-sub{color:rgba(255,255,255,.85)}
@@ -1802,6 +2000,23 @@ function GS() { return <style>{`
   
   nav::-webkit-scrollbar{display:none}
 
+  /* ── Nav móvil: pista de desplazamiento horizontal (H-03) ──
+     Degradado en el borde derecho, tema-aware vía --chrome-bg; visible
+     solo con .nav-fade (lo activa el efecto de App cuando quedan
+     pestañas fuera de vista) y apagado en desktop. */
+  .nav-scroll{position:relative}
+  .nav-scroll::after{
+    content:'';
+    position:absolute;
+    top:0;right:0;bottom:0;
+    width:26px;
+    pointer-events:none;
+    background:linear-gradient(90deg, transparent, var(--chrome-bg));
+    opacity:0;
+    transition:opacity .2s;
+  }
+  .nav-scroll.nav-fade::after{opacity:1}
+
   /* ── iOS / pantallas táctiles ── */
   @supports (-webkit-touch-callout:none){
     /* iOS hace zoom al enfocar campos con letra < 16px */
@@ -1813,7 +2028,15 @@ function GS() { return <style>{`
     .btn:hover,.btn-wa:hover,.stat:hover,.stat-neo:hover{transform:none}
   }
   @media (pointer:coarse){
-    .btn-o,.btn-sm,.btn-del,.btn-edit,.btn-check,.btn-wa{min-height:40px}
+    /* Objetivos táctiles ≥ 44 px (H-04): el primario .btn no estaba
+       cubierto («+ Nueva cita» medía 30 px) y .btn-o/.btn-sm/etc. 40.
+       min-width cubre iconos compactos («✕» 34 px). Solo aplica en
+       pantallas táctiles: desktop intacto. */
+    .btn{min-height:44px}
+    .btn-o,.btn-sm,.btn-del,.btn-edit,.btn-check,.btn-wa{min-height:44px;min-width:44px}
+    /* Botones sueltos con estilo inline (↻, ‹ ›, Hoy, segmentadores,
+       «Gestionar categorías»): llevan la clase .tap. */
+    .tap{min-height:44px;min-width:44px}
     button,a,input,select,label{touch-action:manipulation}
   }
   
@@ -2026,7 +2249,7 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
 
       <div style={{display:'flex',borderBottom:'1px solid var(--border)',background:'var(--bg)'}}>
         {[['general','General'],['month','Por mes']].map(([v,l])=>(
-          <button key={v} onClick={()=>setFinTab(v)}
+          <button key={v} className="tap" onClick={()=>setFinTab(v)}
             style={{flex:1,background:'none',border:'none',borderBottom:`2.5px solid ${finTab===v?'var(--primary)':'transparent'}`,padding:'9px 0',fontSize:12,fontWeight:finTab===v?700:500,color:finTab===v?'var(--primary)':'var(--t2)',cursor:'pointer',fontFamily:'inherit',transition:'all .15s'}}>
             {l}
           </button>
@@ -2354,7 +2577,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
     onClose={()=>{ setNew(false); if (tabExtra && tabExtra.origin && setTab) setTab(tabExtra.origin) }}/>
   if (editAppt) return <EditAppt   appt={editAppt} services={services} appts={appts} SA={SA} priceHistory={priceHistory} onClose={()=>setEdit(null)}/>
 
-  const AccGroup = ({label,color,gKey,items,pageSize,page,onPage,sortDesc}) => {
+  const AccGroup = ({label,color,colorBg,countColor,gKey,items,pageSize,page,onPage,sortDesc}) => {
     if (items.length===0) return null
     const sum     = items.reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
     const doneSum = items.filter(a=>bool(a.completed)&&a.completed!=='noshow').reduce((s,a)=>s+toN(a.totalPrice||a.servicePrice||0),0)
@@ -2369,7 +2592,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             <div style={{width:10,height:10,borderRadius:'50%',background:color,flexShrink:0}}/>
             <span style={{fontWeight:700,fontSize:14,color:'var(--t)'}}>{label}</span>
-            <span style={{background:`${color}22`,color,borderRadius:20,padding:'2px 8px',fontSize:12,fontWeight:700}}>{items.length}</span>
+            <span style={{background:colorBg||`${color}22`,color:countColor||color,borderRadius:20,padding:'2px 8px',fontSize:12,fontWeight:700}}>{items.length}</span>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <span style={{fontSize:13,fontWeight:700,color}}>{fmtM(doneSum>0?doneSum:sum)}</span>
@@ -2425,8 +2648,13 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
         viejo y paginado como «Pasadas» (el mismo PAGE_SIZE). */}
     <AccGroup label="Sin marcar"  color="#8A6700" gKey="unmarked" items={groups.unmarked}
       pageSize={PAST_APPT_PAGE_SIZE} page={unmarkedPage} onPage={setUnmarkedPage} sortDesc/>
-    <AccGroup label="No asistió"  color="#B03030" gKey="noshow"   items={groups.noshow}/>
-    <AccGroup label="Pasadas ✓"   color="#888888" gKey="past"     items={groups.past}
+    {/* Colores por token del tema (H-01): «No asistió» usa el rojo de la
+        paleta activa (Barbería aporta el suyo) y «Pasadas» el gris
+        secundario del tema. El CONTADOR lleva var(--t) (texto principal):
+        --t2 sobre su propio tinte al 13% queda 3.94–4.49 en 8 paletas,
+        y --t es ≥ AA en las 12. */}
+    <AccGroup label="No asistió"  color="var(--red)" colorBg="var(--red-bg)" gKey="noshow"   items={groups.noshow}/>
+    <AccGroup label="Pasadas ✓"   color="var(--t2)"  colorBg="var(--t2-bg)"  countColor="var(--t)" gKey="past"     items={groups.past}
       pageSize={PAST_APPT_PAGE_SIZE} page={pastPage} onPage={setPastPage}/>
     {appts.length===0 && (
       <div className="card" style={{textAlign:'center',padding:30,color:'var(--t2)'}}>
@@ -2596,7 +2824,7 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
   const remindDone = waAuto && REMINDER_TERMINAL.includes(reminderStatusOf(reminders, appt.id))
   const remindNow = status==='pending' && !remindDone && minsToAppt !== null && minsToAppt > 0 && minsToAppt <= 60 && (!waAuto || minsToAppt > REMIND_AUTO_MIN)
   const bgMap  = {done:'var(--green-bg)', noshow:'var(--red-bg)', pending: past?'var(--border)':'var(--surface)'}
-  const brdMap = {done:'#B0DDC0', noshow:'#F5C0B0', pending: past?'#E0D8D5':'var(--border)'}
+  const brdMap = {done:'#B0DDC0', noshow:'var(--red-line)', pending: past?'#E0D8D5':'var(--border)'}
   return (
     <div id={`appt-${appt.id}`} className={focused?'appt-flash':''} style={{background:bgMap[status],borderRadius:12,border:`1.5px solid ${remindNow?'var(--primary)':brdMap[status]}`,padding:14,marginTop:8,boxShadow:remindNow?'0 0 0 3px var(--primary-l)':'none'}}>
       {remindNow && <div style={{background:'var(--primary)',color:'var(--grad-t)',borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:700,marginBottom:8,display:'inline-block',animation:'remindPing 1.4s ease-in-out infinite'}}>
@@ -2639,7 +2867,7 @@ function ApptCard({appt,focused=false,onOpen,onToggle,onEdit,onDelete,onChangePa
         </button>
         <button onClick={()=>onToggle('noshow')}
           disabled={!markable}
-          style={{background:status==='noshow'?'var(--red)':'#FFF4F0',color:status==='noshow'?'white':'var(--red)',border:`1.5px solid ${status==='noshow'?'var(--red)':'#F5C0B0'}`,borderRadius:8,padding:'6px 10px',fontSize:12,fontWeight:600,cursor:!markable?'not-allowed':'pointer',fontFamily:'inherit',transition:'all .15s',opacity: status==='done'?.5:1}}>
+          style={{background:status==='noshow'?'var(--red)':'var(--red-bg)',color:status==='noshow'?'white':'var(--red)',border:`1.5px solid ${status==='noshow'?'var(--red)':'var(--red-line)'}`,borderRadius:8,padding:'6px 10px',fontSize:12,fontWeight:600,cursor:!markable?'not-allowed':'pointer',fontFamily:'inherit',transition:'all .15s',opacity: status==='done'?.5:1}}>
           ✗ No asistió
         </button>
         {status==='pending' && remindable && <button className="btn-wa" onClick={()=>{openWA(appt.clientPhone,appt.clientName,appt.time,appt.date,appt.serviceNames,appt.totalPrice||appt.servicePrice,dom,appt.domicilioPrice); onRemind && onRemind(appt)}}>💬 Recordatorio</button>}
@@ -3616,7 +3844,7 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
 
       {/* Category manager */}
       <div style={{marginTop:14,borderTop:'1px solid var(--border)',paddingTop:12}}>
-        <button onClick={()=>setSCM(p=>!p)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:12,color:'var(--t2)',fontWeight:600,padding:0,display:'flex',alignItems:'center',gap:5}}>
+        <button className="tap" onClick={()=>setSCM(p=>!p)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:12,color:'var(--t2)',fontWeight:600,padding:0,display:'flex',alignItems:'center',gap:5}}>
           <span style={{transition:'transform .2s',display:'inline-block',transform:showCatMgr?'rotate(90deg)':'rotate(0deg)'}}>▶</span>
           Gestionar categorías
         </button>
@@ -3756,8 +3984,8 @@ function ClientHistory({appts,services,setTab,tabExtra}) {
         {[
           [cAppts.length,'Citas','var(--primary)','var(--primary-l)'],
           [done.length,'Completadas','var(--green)','var(--green-bg)'],
-          [noshow.length,'No asistió','var(--red)','#FFF4F0'],
-          [pend.length,'Pendientes','var(--gold)','#FFF8E6'],
+          [noshow.length,'No asistió','var(--red)','var(--red-bg)'],
+          [pend.length,'Pendientes','var(--gold)','var(--gold-bg)'],
         ].map(([v,l,col,bg])=>(
           <div key={l} style={{background:bg,borderRadius:12,padding:'10px 6px',textAlign:'center'}}>
             <div style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:700,color:col}}>{v}</div>
@@ -3802,7 +4030,7 @@ function ClientHistory({appts,services,setTab,tabExtra}) {
           ?<div style={{textAlign:'center',padding:20,color:'var(--t2)',fontSize:14}}>Sin citas registradas</div>
           :apptShown.map(a=>{
             const st = a.completed==='noshow'?'noshow':bool(a.completed)?'done':'pending'
-            const stCfg = {done:{bg:'var(--green-bg)',col:'var(--green)',lbl:'✓ Completada'},noshow:{bg:'#FFF4F0',col:'var(--red)',lbl:'✗ No asistió'},pending:{bg:'var(--primary-l)',col:'var(--primary)',lbl:'Pendiente'}}[st]
+            const stCfg = {done:{bg:'var(--green-bg)',col:'var(--green)',lbl:'✓ Completada'},noshow:{bg:'var(--red-bg)',col:'var(--red)',lbl:'✗ No asistió'},pending:{bg:'var(--primary-l)',col:'var(--primary)',lbl:'Pendiente'}}[st]
             return (
               <div key={a.id} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 0',borderBottom:'1px solid var(--border)'}}>
                 <div style={{textAlign:'center',flexShrink:0}}>
@@ -4532,7 +4760,7 @@ function ReportTab({appts,expenses,services,setTab,infoModal}) {
           VITE_ADMIN_WHATSAPP (Vercel → Environment Variables). Si falta,
           se avisa de forma VISIBLE, no solo al pasar el mouse. */}
       {!ADMIN_WA_DIGITS && (
-        <div style={{background:'var(--warn-bg)',border:'1px solid #F5C0B0',borderRadius:12,padding:'10px 14px',marginBottom:10,fontSize:12,color:'var(--warn-t)',lineHeight:1.6}}>
+        <div style={{background:'var(--warn-bg)',border:'1px solid var(--red-line)',borderRadius:12,padding:'10px 14px',marginBottom:10,fontSize:12,color:'var(--warn-t)',lineHeight:1.6}}>
           ⚠️ Falta configurar el número del administrador. Agrega la variable <strong>VITE_ADMIN_WHATSAPP</strong> en Vercel <em>(Settings → Environment Variables)</em> y vuelve a desplegar: mientras tanto el botón de WhatsApp queda apagado.
         </div>
       )}
@@ -4942,7 +5170,7 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
         <button className="btn-sm" onClick={()=>setStep(0)}>← Volver</button>
         <span style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:600}}>Restablecer datos</span>
       </div>
-      <div className="card-neo" style={{background:'var(--red-bg)',border:'2px solid #F5B0B0',borderRadius:20,padding:28,textAlign:'center'}}>
+      <div className="card-neo" style={{background:'var(--red-bg)',border:'2px solid var(--red-line)',borderRadius:20,padding:28,textAlign:'center'}}>
         <div style={{fontSize:52,marginBottom:16}}>⚠️</div>
         <div style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:700,color:'var(--red)',marginBottom:12}}>
           ¿Estás segura?
@@ -4975,7 +5203,7 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
         <div style={{display:'flex',gap:10}}>
           <button className="btn-o" style={{flex:1}} onClick={()=>setStep(0)}>Cancelar</button>
           <button onClick={()=>setStep(2)}
-            style={{flex:1,background:'linear-gradient(135deg, #B03030 0%, #D04040 100%)',color:'var(--grad-t)',border:'none',borderRadius:10,padding:'12px 22px',fontWeight:700,fontSize:15,cursor:'pointer',fontFamily:'inherit',boxShadow:'var(--shadow-sm)'}}>
+            style={{flex:1,background:'linear-gradient(135deg, var(--red) 0%, var(--red-d) 100%)',color:'var(--grad-t)',border:'none',borderRadius:10,padding:'12px 22px',fontWeight:700,fontSize:15,cursor:'pointer',fontFamily:'inherit',boxShadow:'var(--shadow-sm)'}}>
             Sí, continuar →
           </button>
         </div>
@@ -5040,7 +5268,7 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
               <div style={{display:'flex',gap:10,marginTop:20}}>
                 <button className="btn-o" style={{flex:1}} onClick={back}>No, cancelar</button>
                 <button onClick={()=>{if(ok&&!busy)requestCode()}} disabled={!ok||busy}
-                  style={{flex:1,background:ok&&!busy?'linear-gradient(135deg, #B03030 0%, #D04040 100%)':'var(--border)',color:ok&&!busy?'white':'var(--t2)',border:'none',borderRadius:10,padding:'12px 10px',fontWeight:700,fontSize:14,cursor:ok&&!busy?'pointer':'not-allowed',fontFamily:'inherit',transition:'all .2s',boxShadow:ok&&!busy?'var(--shadow-sm)':'none'}}>
+                  style={{flex:1,background:ok&&!busy?'linear-gradient(135deg, var(--red) 0%, var(--red-d) 100%)':'var(--border)',color:ok&&!busy?'white':'var(--t2)',border:'none',borderRadius:10,padding:'12px 10px',fontWeight:700,fontSize:14,cursor:ok&&!busy?'pointer':'not-allowed',fontFamily:'inherit',transition:'all .2s',boxShadow:ok&&!busy?'var(--shadow-sm)':'none'}}>
                   {busy?'Enviando…':'📧 Enviar código de autorización'}
                 </button>
               </div>
@@ -5074,7 +5302,7 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
                   {busy?'Enviando…':'🔁 Reenviar'}
                 </button>
                 <button onClick={handleReset} disabled={!codeOk||busy}
-                  style={{flex:1.4,background:codeOk&&!busy?'linear-gradient(135deg, #B03030 0%, #D04040 100%)':'var(--border)',color:codeOk&&!busy?'white':'var(--t2)',border:'none',borderRadius:10,padding:'12px 10px',fontWeight:700,fontSize:14,cursor:codeOk&&!busy?'pointer':'not-allowed',fontFamily:'inherit',transition:'all .2s'}}>
+                  style={{flex:1.4,background:codeOk&&!busy?'linear-gradient(135deg, var(--red) 0%, var(--red-d) 100%)':'var(--border)',color:codeOk&&!busy?'white':'var(--t2)',border:'none',borderRadius:10,padding:'12px 10px',fontWeight:700,fontSize:14,cursor:codeOk&&!busy?'pointer':'not-allowed',fontFamily:'inherit',transition:'all .2s'}}>
                   {busy?'Verificando…':'🗑️ Verificar y eliminar'}
                 </button>
               </div>
@@ -5775,7 +6003,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
         {/* Toggle month/week */}
         <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1.5px solid var(--border)', marginBottom: 14 }}>
           {[['month', '📆 Mes'], ['week', '🗓 Semana']].map(([v, l]) => (
-            <button key={v}
+            <button key={v} className="tap"
               onClick={() => { setView(v); if (v === 'week' && !selDay) setSelDay(todStr) }}
               style={{
                 flex: 1, border: 'none', padding: '8px 0', fontSize: 12, fontWeight: view === v ? 700 : 500,
@@ -5789,7 +6017,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
 
         {/* Nav row */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button onClick={goBack} style={{ background: 'var(--primary-l)', border: 'none', borderRadius: 10, width: 36, height: 36, fontSize: 18, cursor: 'pointer', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
+          <button onClick={goBack} className="tap" style={{ background: 'var(--primary-l)', border: 'none', borderRadius: 10, width: 36, height: 36, fontSize: 18, cursor: 'pointer', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
 
           <div style={{ textAlign: 'center' }}>
             <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 17, fontWeight: 700, color: 'var(--t)', margin: 0 }}>
@@ -5802,12 +6030,12 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                 : capFirst(monthLabel)
               }
             </h1>
-            <button onClick={goToday} aria-label="Ir a hoy" style={{ background: 'var(--primary-l)', border: 'none', fontSize: 11, color: 'var(--primary)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, marginTop: 1, padding: '6px 14px', borderRadius: 8, minHeight: 24, minWidth: 24 }}>
+            <button onClick={goToday} aria-label="Ir a hoy" className="tap" style={{ background: 'var(--primary-l)', border: 'none', fontSize: 11, color: 'var(--primary)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, marginTop: 1, padding: '6px 14px', borderRadius: 8 }}>
               Hoy
             </button>
           </div>
 
-          <button onClick={goFwd} style={{ background: 'var(--primary-l)', border: 'none', borderRadius: 10, width: 36, height: 36, fontSize: 18, cursor: 'pointer', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+          <button onClick={goFwd} className="tap" style={{ background: 'var(--primary-l)', border: 'none', borderRadius: 10, width: 36, height: 36, fontSize: 18, cursor: 'pointer', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
         </div>
       </div>
 

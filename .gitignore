@@ -17,3 +17,13 @@ apps-script/
 # producto ni viaja a los clientes ni al repo publico.
 .agents/
 skills-lock.json
+
+# 🎬 VIDEOS renderizados: NUNCA se commitean.
+# Se guardan FUERA de este repo, en C:\Users\root\Desktop\PROYECTOS GITHUB\
+# (carpetas ocupadapp-cita / crece / dinero / promo / ... como out.mp4).
+*.mp4
+*.mov
+*.webm
+*.mkv
+*.avi
+renders/
