@@ -2040,10 +2040,13 @@ function GS() { return <style>{`
     button,a,input,select,label{touch-action:manipulation}
 
     /* Acciones de cita en Calendario: 2 columnas en móvil con buen espacio, 1 fila en tablet+ */
-    .cal-appt-actions{display:flex;flex-wrap:wrap;gap:12;padding:4px}
-    .cal-appt-actions .btn-sm{flex:1 1 calc(50% - 6px);min-width:0;min-height:48px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .cal-appt-actions{display:flex;flex-wrap:wrap;gap:12;padding:8}
+    .cal-appt-actions .btn-sm{flex:1 1 calc(50% - 6px);min-width:0;min-height:52px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;line-height:1.3;padding:8px 10px}
+    .cal-appt-actions .btn-sm:only-child{flex-basis:100%}
+    .cal-appt-actions .btn-sm:last-child:nth-child(odd):first-child{flex-basis:100%}
     @media (min-width: 640px){
-      .cal-appt-actions .btn-sm{flex:1 1 auto;min-width:0;min-height:44px}
+      .cal-appt-actions .btn-sm{flex:1 1 auto;min-width:0;min-height:44px;padding:8px 14px}
+      .cal-appt-actions .btn-sm:only-child,.cal-appt-actions .btn-sm:last-child:nth-child(odd):first-child{flex-basis:auto}
     }
   }
   
