@@ -2038,6 +2038,13 @@ function GS() { return <style>{`
        «Gestionar categorías»): llevan la clase .tap. */
     .tap{min-height:44px;min-width:44px}
     button,a,input,select,label{touch-action:manipulation}
+
+    /* Acciones de cita en Calendario: apila en móvil, 2 columnas en tablet+ */
+    .cal-appt-actions{display:flex;flex-wrap:wrap;gap:8}
+    .cal-appt-actions .btn-sm{flex:1 1 calc(50% - 4px);min-width:0;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    @media (min-width: 640px){
+      .cal-appt-actions .btn-sm{flex:1 1 auto;min-width:0}
+    }
   }
   
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -2491,7 +2498,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
 
   const toggle = k => setOpen(p => ({...p, [k]: !p[k]}))
 
-  // Llegada desde el Panel («📅 Ir a cita»): abrir el grupo donde vive la
+  // Llegada desde el Panel («📅 Ir a cita») o Calendar: abrir el grupo donde vive la
   // cita, resaltarla unos segundos y desplazarse hasta ella. Se localiza
   // por su ID real. NO se abre el detalle: la navegación y la consulta son
   // acciones separadas. Si ya no existe se avisa y NO se abre ninguna otra
@@ -2499,6 +2506,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
   // Con tabExtra.editAppt («✏️ Editar» del detalle del Panel) se abre
   // directamente el formulario de edición de ESA cita, sin pasar por la
   // lista.
+  // Se ejecuta cuando cambia tabExtra.focusAppt (también al montar).
   useEffect(() => {
     if (!tabExtra || !tabExtra.focusAppt) return
     const target = tabExtra.focusAppt
@@ -2510,8 +2518,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
     if (tabExtra.editAppt) { setEdit(found); return }
     setOpen(p => ({...p, [apptGroup(found)]: true}))
     setFocusId(target)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [tabExtra?.focusAppt])
 
   // Libera el resaltado temporal después de la animación.
   useEffect(() => {
@@ -2521,13 +2528,23 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
   }, [focusId])
 
   // Desplaza la vista hasta la cita resaltada (el grupo ya está abierto).
+  // Espera a que termine la animación slide-in (~180ms) + margen.
+  // Si el elemento aún no existe (grupo renderizándose), reintenta.
   useEffect(() => {
     if (!focusId) return
-    const t = setTimeout(() => {
+    let cancelled = false
+    const scroll = () => {
+      if (cancelled) return
       const el = document.getElementById(`appt-${focusId}`)
-      if (el && el.scrollIntoView) el.scrollIntoView({behavior:'smooth', block:'center'})
-    }, 60)
-    return () => clearTimeout(t)
+      if (el && el.scrollIntoView) {
+        el.scrollIntoView({behavior:'smooth', block:'center'})
+      } else if (!cancelled) {
+        // Reintento: el grupo puede estar animándose o renderizándose
+        setTimeout(scroll, 120)
+      }
+    }
+    const t = setTimeout(scroll, 250) // 180ms animación + 70ms margen
+    return () => { cancelled = true; clearTimeout(t) }
   }, [focusId])
 
   // Groups — past includes today-past. «Sin marcar»: pasadas SIN
@@ -5863,11 +5880,11 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10, flexWrap: 'wrap' }}>
+        <div className="cal-appt-actions" style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
           {/* Detalle: disponible para cualquier cita y no escribe nada.
               El contenedor de la tarjeta no tiene onClick, así que el clic
               no se propaga a ninguna acción padre. */}
-          <button className="btn-sm" style={{ flex: 1 }}
+          <button className="btn-sm"
             onClick={() => setDetailId(a.id)}
             aria-label={`Ver detalle de la cita de ${a.clientName}`}>
             👁 Detalle
@@ -5876,7 +5893,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
               la pestaña Citas directamente sobre ESTA cita (focusAppt abre
               su grupo, la resalta unos segundos y hace scroll hasta ella).
               Solo navega; nunca abre el detalle. */}
-          <button className="btn-sm" style={{ flex: 1 }}
+          <button className="btn-sm"
             onClick={() => setTab('appointments', { focusAppt: a.id })}
             aria-label={`Ir a la cita de ${a.clientName} a las ${fmtTime(a.time)}`}>
             📅 Ir a cita
@@ -5888,12 +5905,12 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
               «✗ No asistió» marca directo. */}
           {!done && !noshow && canMarkAppt(a) && (
             <>
-              <button className="btn-sm" style={{ flex: 1 }}
+              <button className="btn-sm"
                 onClick={() => setPayFor({ appt: a })}
                 aria-label={`Marcar como completada la cita de ${a.clientName}`}>
                 ✓ Completó
               </button>
-              <button className="btn-sm" style={{ flex: 1 }}
+              <button className="btn-sm"
                 onClick={() => markNoShow(a)}
                 aria-label={`Marcar como no asistió la cita de ${a.clientName}`}>
                 ✗ No asistió
@@ -5903,7 +5920,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
           {/* Editar: abre el mismo formulario de edición con la cita
               precargada por su ID. Ya no navega a la pestaña Citas. */}
           {canModifyAppt(a) && (
-            <button className="btn-sm" style={{ flex: 1 }}
+            <button className="btn-sm"
               onClick={() => setEditAppt(a.id)}
               aria-label={`Editar la cita de ${a.clientName}`}>
               ✏️ Editar
@@ -5914,7 +5931,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
               ARMADO, abrir WhatsApp va seguido de la pregunta «¿ya lo
               enviaste?» dentro de la ventana manual (T-60 → T-30). */}
           {canRemindAppt(a) && (
-            <button className="btn-sm" style={{ flex: 1 }}
+            <button className="btn-sm"
               onClick={() => {
                 const phone = clients.find(c => c.id === a.clientId)?.phone || ''
                 if (phone) {
