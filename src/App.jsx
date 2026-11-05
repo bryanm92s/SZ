@@ -2097,14 +2097,14 @@ function GS() { return <style>{`
     }
     @media (min-width: 768px){
       .cal-appt-actions{
-        gap: 14px !important;
-        padding: 12px !important;
+        gap: 24px !important;
+        padding: 16px !important;
       }
       .cal-appt-actions .btn-sm{
         flex: 1 1 auto;
         min-height: 44px;
-        padding: 10px 16px !important;
-        font-size: 12px !important;
+        padding: 12px 20px !important;
+        font-size: 13px !important;
       }
     }
   }
