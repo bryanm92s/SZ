@@ -1887,6 +1887,7 @@ function GS() { return <style>{`
     cursor:pointer;
     transition:all .2s;
     box-shadow:var(--shadow-sm);
+    color:var(--t);
   }
   .stat:hover{
     transform:translateY(-2px);
@@ -2050,14 +2051,17 @@ function GS() { return <style>{`
       min-height:48px;min-width:48px
     }
 
+    /* DayDots: estilos base para indicadores de citas (desktop y móvil) */
+    .day-dot{
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
     /* DayDots: gap mayor en móvil */
     .day-dots{
-      gap: 6px !important;
-    }
-    .day-dot{
-      width: 8px !important;
-      height: 8px !important;
-      border-radius: 50% !important;
+      gap: 6px;
     }
 
     /* Touch targets para inputs, selects */
