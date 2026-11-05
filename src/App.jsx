@@ -2097,14 +2097,16 @@ function GS() { return <style>{`
     }
     @media (min-width: 768px){
       .cal-appt-actions{
-        gap: 32px !important;
-        padding: 20px !important;
+        gap: 40px !important;
+        padding: 24px !important;
+        justify-content: center;
       }
       .cal-appt-actions .btn-sm{
-        flex: 1 1 auto;
+        flex: 0 1 auto;
         min-height: 48px;
-        padding: 14px 24px !important;
+        padding: 14px 28px !important;
         font-size: 14px !important;
+        max-width: 220px;
       }
     }
   }
@@ -5942,7 +5944,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
         </div>
 
         {/* Actions */}
-        <div className="cal-appt-actions" style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+        <div className="cal-appt-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10, paddingBottom: 10 }}>
           {/* Detalle: disponible para cualquier cita y no escribe nada.
               El contenedor de la tarjeta no tiene onClick, así que el clic
               no se propaga a ninguna acción padre. */}
