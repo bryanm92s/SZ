@@ -2039,14 +2039,126 @@ function GS() { return <style>{`
     .tap{min-height:44px;min-width:44px}
     button,a,input,select,label{touch-action:manipulation}
 
-    /* Acciones de cita en Calendario: 2 columnas en móvil con buen espacio, 1 fila en tablet+ */
-    .cal-appt-actions{display:flex;flex-wrap:wrap;gap:12;padding:8}
-    .cal-appt-actions .btn-sm{flex:1 1 calc(50% - 6px);min-width:0;min-height:52px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;line-height:1.3;padding:8px 10px}
-    .cal-appt-actions .btn-sm:only-child{flex-basis:100%}
-    .cal-appt-actions .btn-sm:last-child:nth-child(odd):first-child{flex-basis:100%}
-    @media (min-width: 640px){
-      .cal-appt-actions .btn-sm{flex:1 1 auto;min-width:0;min-height:44px;padding:8px 14px}
-      .cal-appt-actions .btn-sm:only-child,.cal-appt-actions .btn-sm:last-child:nth-child(odd):first-child{flex-basis:auto}
+    /* Touch targets universales ≥ 48px en móvil */
+    @media (pointer: coarse){
+      button,input,select,textarea,[role="button"],[tabindex]:not([tabindex="-1"]){
+        min-height:48px;min-width:48px
+      }
+      .chip,.badge,.tag,.tag-g,.tag-gold,.tag-past,[class*="tag-"]{
+        min-height:32px;min-width:32px;padding:4px 10px
+      }
+      div[onClick],span[onClick],td[onClick],th[onClick]{
+        min-height:48px;min-width:48px
+      }
+    }
+
+    /* Acciones de cita en Calendario: stack vertical en móvil, 2 columnas en tablet, 1 fila en desktop */
+    .cal-appt-actions{display:flex;flex-wrap:wrap;gap:8;padding:8}
+    .cal-appt-actions .btn-sm{flex:1 1 100%;min-width:0;min-height:48px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;line-height:1.4;padding:12px 16px}
+    @media (min-width: 480px){
+      .cal-appt-actions .btn-sm{flex:1 1 calc(50% - 4px);min-height:44px;padding:10px 12px;font-size:12px}
+    }
+    @media (min-width: 768px){
+      .cal-appt-actions .btn-sm{flex:1 1 auto;min-height:44px;padding:8px 14px}
+    }
+
+    /* Calendar Month: stack 1-col en móvil (< 480px) */
+    @media (max-width: 479px){
+      .calendar-month-grid{
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+      }
+      .calendar-day-cell{
+        min-height: 100px !important;
+        padding: 16px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+      }
+      .calendar-day-number{
+        font-size: 18px !important;
+        font-weight: 700 !important;
+      }
+      .day-dots{
+        gap: 6px !important;
+        margin-top: auto !important;
+        justify-content: center !important;
+      }
+      .day-dot{
+        width: 10px !important;
+        height: 10px !important;
+      }
+      /* Month view headers */
+      .calendar-header-row{
+        grid-template-columns: repeat(7, 1fr) !important;
+        font-size: 10px !important;
+      }
+    }
+
+    /* Calendar Week: stack 1-col en móvil (< 480px) */
+    @media (max-width: 479px){
+      .calendar-week-grid{
+        grid-template-columns: 1fr !important;
+        min-width: auto !important;
+        gap: 8px !important;
+      }
+      .calendar-week-day{
+        min-width: 0 !important;
+        border-radius: 12px !important;
+        margin-bottom: 8px !important;
+      }
+      .calendar-week-header{
+        padding: 12px 8px !important;
+      }
+      .calendar-week-header .weekday{
+        font-size: 10px !important;
+      }
+      .calendar-week-header .daynum{
+        font-size: 18px !important;
+        font-weight: 700 !important;
+      }
+      .calendar-week-appts{
+        gap: 6px !important;
+      }
+      .calendar-week-pill{
+        padding: 8px 10px !important;
+        font-size: 12px !important;
+      }
+    }
+
+    /* Month legend: padding y gap visual */
+    .calendar-legend{
+      padding: 12px !important;
+      gap: 12px !important;
+    }
+
+    /* DayDots: gap mayor en móvil */
+    @media (pointer: coarse){
+      .day-dots{
+        gap: 6px !important;
+      }
+      .day-dot{
+        width: 8px !important;
+        height: 8px !important;
+      }
+    }
+
+    /* Time badge en ApptCard: ancho auto */
+    .time-badge{
+      min-width: 0 !important;
+      width: auto !important;
+      flex-shrink: 0 !important;
+    }
+
+    /* Touch targets para inputs, selects, chips */
+    @media (pointer: coarse){
+      input,select,textarea{
+        min-height: 48px !important;
+        font-size: 16px !important; /* evita zoom en iOS */
+      }
+      select{
+        padding-right: 40px !important; /* espacio para flecha */
+      }
     }
   }
   
@@ -5810,9 +5922,9 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
     if (!arr?.length) return null
     const max = 4
     return (
-      <div style={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap', marginTop: 2 }}>
+      <div className="day-dots" style={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap', marginTop: 2 }}>
         {arr.slice(0, max).map((a, i) => (
-          <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: dotColor(a), flexShrink: 0 }} />
+          <div key={i} className="day-dot" style={{ width: 5, height: 5, borderRadius: '50%', background: dotColor(a), flexShrink: 0 }} />
         ))}
         {arr.length > max && (
           <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--t2)', flexShrink: 0 }} />
@@ -5829,7 +5941,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
     const bg     = done ? 'var(--green-bg)' : noshow ? 'var(--red-bg)' : past ? 'var(--gold-bg)' : 'var(--primary-l)'
     const col    = done ? 'var(--green)' : noshow ? 'var(--red)' : past ? 'var(--gold)' : 'var(--primary)'
     return (
-      <div style={{
+      <div className="calendar-week-pill" style={{
         background: bg, border: `1.5px solid ${col}`, borderRadius: 8,
         padding: '5px 8px', marginBottom: 4, cursor: 'pointer',
         transition: 'transform .12s', opacity: noshow ? 0.7 : 1,
@@ -5863,7 +5975,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           {/* Time badge */}
-          <div style={{
+          <div className="time-badge" style={{
             background: 'var(--primary-l)', borderRadius: 10, padding: '8px 10px',
             textAlign: 'center', minWidth: 58, flexShrink: 0,
           }}>
@@ -6095,7 +6207,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
       {view === 'month' && (
         <div className="card" style={{ marginBottom: 12, padding: '10px 8px' }}>
           {/* Day-of-week headers */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', marginBottom: 4 }}>
+          <div className="calendar-header-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', marginBottom: 4 }}>
             {['D', 'L', 'M', 'X', 'J', 'V', 'S'].map(d => (
               <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.06em', paddingBottom: 4 }}>{d}</div>
             ))}
@@ -6103,7 +6215,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
 
           {/* Weeks */}
           {weeks.map((week, wi) => (
-            <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', gap: '3px 3px', marginBottom: 3 }}>
+            <div key={wi} className="calendar-month-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', gap: '3px 3px', marginBottom: 3 }}>
               {week.map(dateStr => {
                 const isThisMonth = parseInt(dateStr.slice(5, 7), 10) - 1 === curMonth
                 const isToday     = dateStr === todStr
@@ -6111,7 +6223,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                 const hasAppts    = !!apptsByDate[dateStr]?.length
                 const count       = apptsByDate[dateStr]?.length || 0
                 return (
-                  <div key={dateStr}
+                  <div key={dateStr} className="calendar-day-cell"
                     onClick={() => setSelDay(isSel ? null : dateStr)}
                     style={{
                       borderRadius: 10, padding: '5px 2px 4px', textAlign: 'center', cursor: 'pointer',
@@ -6151,7 +6263,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
           ))}
 
           {/* Legend */}
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+          <div className="calendar-legend" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
             {[
               ['var(--green)', 'Completada'],
               ['var(--primary)', 'Pendiente'],
@@ -6172,16 +6284,16 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
       ═══════════════════════ */}
       {view === 'week' && (
         <div className="card" style={{ marginBottom: 12, padding: '10px 8px', overflowX: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', gap: 4, minWidth: 320 }}>
+          <div className="calendar-week-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', gap: 4, minWidth: 320 }}>
             {weekDays.map(dateStr => {
               const isToday  = dateStr === todStr
               const isSel    = dateStr === selDay
               const dayAppts = sortAppts(apptsByDate[dateStr] || [])
               const d        = new Date(dateStr + 'T12:00:00')
               return (
-                <div key={dateStr} style={{ minWidth: 0 }}>
+                <div key={dateStr} className="calendar-week-day" style={{ minWidth: 0 }}>
                   {/* Day header */}
-                  <div
+                  <div className="calendar-week-header"
                     onClick={() => setSelDay(isSel ? null : dateStr)}
                     style={{
                       textAlign: 'center', borderRadius: 10, padding: '6px 4px', marginBottom: 6, cursor: 'pointer',
@@ -6189,10 +6301,10 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                       border: isToday && !isSel ? '1.5px solid var(--primary)' : '1.5px solid transparent',
                       transition: 'background .12s',
                     }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: isSel ? 'var(--grad-t2)' : 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                    <div className="weekday" style={{ fontSize: 11, fontWeight: 700, color: isSel ? 'var(--grad-t2)' : 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
                       {d.toLocaleDateString('es-CO', { weekday: 'short' }).replace('.', '')}
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: isSel ? 'var(--grad-t)' : isToday ? 'var(--primary)' : 'var(--t)', marginTop: 1 }}>
+                    <div className="daynum" style={{ fontSize: 14, fontWeight: 700, color: isSel ? 'var(--grad-t)' : isToday ? 'var(--primary)' : 'var(--t)', marginTop: 1 }}>
                       {d.getDate()}
                     </div>
                     {dayAppts.length > 0 && (
@@ -6203,7 +6315,9 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                   </div>
 
                   {/* Pills */}
-                  {dayAppts.map(a => <ApptPill key={a.id} a={a} />)}
+                  <div className="calendar-week-appts" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {dayAppts.map(a => <ApptPill key={a.id} a={a} />)}
+                  </div>
 
                   {/* Empty day hint */}
                   {dayAppts.length === 0 && (
