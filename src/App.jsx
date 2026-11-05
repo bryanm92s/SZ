@@ -2096,6 +2096,10 @@ function GS() { return <style>{`
       }
     }
     @media (min-width: 768px){
+      .cal-appt-actions{
+        gap: 14px !important;
+        padding: 12px !important;
+      }
       .cal-appt-actions .btn-sm{
         flex: 1 1 auto;
         min-height: 44px;
