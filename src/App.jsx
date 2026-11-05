@@ -2580,7 +2580,24 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
       return
     }
     if (tabExtra.editAppt) { setEdit(found); return }
-    setOpen(p => ({...p, [apptGroup(found)]: true}))
+    const group = apptGroup(found)
+    setOpen(p => ({...p, [group]: true}))
+    // Si el grupo está paginado, calcular la página correcta
+    if (group === 'past') {
+      const sorted = sortG(groups.past)
+      const idx = sorted.findIndex(a => a.id === target)
+      if (idx >= 0) {
+        const page = Math.floor(idx / PAST_APPT_PAGE_SIZE) + 1
+        setPastPage(page)
+      }
+    } else if (group === 'unmarked') {
+      const sorted = sortGDesc(groups.unmarked)
+      const idx = sorted.findIndex(a => a.id === target)
+      if (idx >= 0) {
+        const page = Math.floor(idx / PAST_APPT_PAGE_SIZE) + 1
+        setUnmarkedPage(page)
+      }
+    }
     setFocusId(target)
   }, [tabExtra?.focusAppt])
 
