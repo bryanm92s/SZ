@@ -2068,17 +2068,18 @@ function GS() { return <style>{`
       padding-right: 40px !important;
     }
 
-    /* Acciones de cita en panel día: stack vertical en móvil con espacio generoso */
+    /* Acciones de cita en panel día: 2 por fila en móvil, 2 en tablet, 1 fila en desktop */
     .cal-appt-actions{
       display: flex;
-      flex-direction: column;
-      gap: 12px !important;
-      padding: 12px !important;
+      flex-wrap: wrap;
+      gap: 10px !important;
+      padding: 10px !important;
     }
     .cal-appt-actions .btn-sm{
-      width: 100%;
+      flex: 1 1 calc(50% - 5px);
+      min-width: 0;
       min-height: 52px;
-      padding: 14px 16px !important;
+      padding: 14px 12px !important;
       font-size: 14px !important;
       line-height: 1.4;
       text-align: center;
@@ -2087,13 +2088,7 @@ function GS() { return <style>{`
       text-overflow: ellipsis;
     }
     @media (min-width: 480px){
-      .cal-appt-actions{
-        flex-direction: row;
-        flex-wrap: wrap;
-        gap: 10px !important;
-      }
       .cal-appt-actions .btn-sm{
-        width: auto;
         flex: 1 1 calc(50% - 5px);
         min-height: 48px;
         padding: 12px 14px !important;
