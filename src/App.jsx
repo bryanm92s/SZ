@@ -2332,22 +2332,22 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
     )}
 
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
-      <div className="stat" onClick={()=>setTab('clients')}>
+      <button type="button" className="stat" onClick={()=>setTab('clients')} style={{background:'none',border:'none',padding:0,width:'100%',textAlign:'left',cursor:'pointer',minHeight:'48px',minWidth:'48px'}}>
         <NavIcon type="people" active={false}/>
         <div style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700,marginTop:6}}>{clients.length}</div>
         <div style={{fontSize:11,color:'var(--t2)',textTransform:'uppercase',letterSpacing:'.06em',fontWeight:600,marginTop:2}}>Clientes</div>
         <div style={{fontSize:11,color:'var(--primary)',marginTop:3,fontWeight:600}}>Ver todas {'\u2192'}</div>
-      </div>
-      <div className="stat" onClick={()=>setTab('appointments')}>
+      </button>
+      <button type="button" className="stat" onClick={()=>setTab('appointments')} style={{background:'none',border:'none',padding:0,width:'100%',textAlign:'left',cursor:'pointer',minHeight:'48px',minWidth:'48px'}}>
         <NavIcon type="cal" active={false}/>
         <div style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700,marginTop:6}}>{ta.length}</div>
         <div style={{fontSize:11,color:'var(--t2)',textTransform:'uppercase',letterSpacing:'.06em',fontWeight:600,marginTop:2}}>Citas hoy</div>
         <div style={{fontSize:11,color:'var(--primary)',marginTop:3,fontWeight:600}}>Ver citas {'\u2192'}</div>
-      </div>
+      </button>
     </div>
 
     <div className="card" style={{marginBottom:14,padding:0,overflow:'hidden'}}>
-      <div style={{background:netoPos?'linear-gradient(135deg,var(--primary),var(--primary-d))':'linear-gradient(135deg,#B04040,#843030)',padding:'16px 18px',cursor:'pointer'}} onClick={()=>setTab('finances')}>
+      <button type="button" style={{background:netoPos?'linear-gradient(135deg,var(--primary),var(--primary-d))':'linear-gradient(135deg,#B04040,#843030)',padding:'16px 18px',cursor:'pointer',border:'none',width:'100%',textAlign:'left',minHeight:'48px'}} onClick={()=>setTab('finances')}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
           <div style={{fontSize:11,color:'var(--grad-t2)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.09em'}}>
             {isMonth?'Balance \u2014 '+new Date(selMonth+'-01T12:00:00').toLocaleDateString('es-CO',{month:'long',year:'numeric'}):'Balance Neto'}
@@ -2366,7 +2366,7 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
         <div style={{fontSize:11,color:'var(--grad-t2)',marginTop:4}}>
           Recibido {fmtM(aRevDone)} {'\u2212'} Gastos {fmtM(aExp)}
         </div>
-      </div>
+      </button>
 
       <div style={{display:'flex',borderBottom:'1px solid var(--border)',background:'var(--bg)'}}>
         {[['general','General'],['month','Por mes']].map(([v,l])=>(
@@ -2387,16 +2387,16 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
       )}
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:10,padding:'14px 16px'}}>
-        <div style={{textAlign:'center',background:'var(--green-bg)',borderRadius:12,padding:'11px 6px',cursor:'pointer'}} onClick={()=>setTab('income-detail', isMonth?{month:selMonth,origin:'dashboard'}:{origin:'dashboard'})}>
+        <button type="button" style={{textAlign:'center',background:'var(--green-bg)',borderRadius:12,padding:'11px 6px',cursor:'pointer',border:'none',width:'100%',minHeight:'48px'}} onClick={()=>setTab('income-detail', isMonth?{month:selMonth,origin:'dashboard'}:{origin:'dashboard'})}>
           <div style={{fontSize:11,color:'var(--green)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Recibido</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--green)'}}>{fmtM(aRevDone)}</div>
           <div style={{fontSize:11,color:'var(--green)',marginTop:2}}>{aDone.length} citas</div>
-        </div>
-        <div style={{textAlign:'center',background:'var(--gold-bg)',borderRadius:12,padding:'11px 6px',cursor:'pointer'}} onClick={()=>setTab('income-detail', isMonth?{filter:'pending',month:selMonth,origin:'dashboard'}:{filter:'pending',origin:'dashboard'})}>
+        </button>
+        <button type="button" style={{textAlign:'center',background:'var(--gold-bg)',borderRadius:12,padding:'11px 6px',cursor:'pointer',border:'none',width:'100%',minHeight:'48px'}} onClick={()=>setTab('income-detail', isMonth?{filter:'pending',month:selMonth,origin:'dashboard'}:{filter:'pending',origin:'dashboard'})}>
           <div style={{fontSize:11,color:'var(--gold)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Pendiente</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--gold)'}}>{fmtM(aRevPend)}</div>
           <div style={{fontSize:11,color:'var(--gold)',marginTop:2}}>{aPend.length} {'\u2192'}</div>
-        </div>
+        </button>
         <div style={{textAlign:'center',background:'var(--primary-l)',borderRadius:12,padding:'11px 6px'}}>
           <div style={{fontSize:11,color:'var(--primary)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Proyectado</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--primary)'}}>{fmtM(aRevAll)}</div>
@@ -2560,16 +2560,16 @@ function MonthlyBalance({appts,expenses,selMonth,setSelMonth,setTab}) {
 
       {/* 3 pills */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8}}>
-        <div style={{background:'var(--green-bg)',borderRadius:10,padding:'10px 8px',textAlign:'center',cursor:'pointer'}} onClick={()=>setTab('income-detail',{month:selMonth})}>
+        <button type="button" style={{background:'var(--green-bg)',borderRadius:10,padding:'10px 8px',textAlign:'center',cursor:'pointer',border:'none',width:'100%',minHeight:'48px'}} onClick={()=>setTab('income-detail',{month:selMonth})}>
           <div style={{fontSize:11,color:'var(--green)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Recibido</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--green)'}}>{fmtM(revDone)}</div>
           <div style={{fontSize:11,color:'var(--green)',marginTop:1}}>{ma.filter(a=>bool(a.completed)).length} citas</div>
-        </div>
-        <div style={{background:'var(--gold-bg)',borderRadius:10,padding:'10px 8px',textAlign:'center',cursor:'pointer'}} onClick={()=>setTab('income-detail',{filter:'pending',month:selMonth})}>
+        </button>
+        <button type="button" style={{background:'var(--gold-bg)',borderRadius:10,padding:'10px 8px',textAlign:'center',cursor:'pointer',border:'none',width:'100%',minHeight:'48px'}} onClick={()=>setTab('income-detail',{filter:'pending',month:selMonth})}>
           <div style={{fontSize:11,color:'var(--gold)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Pendiente</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--gold)'}}>{fmtM(revPend)}</div>
           <div style={{fontSize:11,color:'var(--gold)',marginTop:1}}>{ma.filter(a=>!bool(a.completed)&&!isPastAppt(a)).length} citas</div>
-        </div>
+        </button>
         <div style={{background:'var(--primary-l)',borderRadius:10,padding:'10px 8px',textAlign:'center'}}>
           <div style={{fontSize:11,color:'var(--primary)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:3}}>Proyectado</div>
           <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.6vw,14px)',fontWeight:700,color:'var(--primary)'}}>{fmtM(revTotal)}</div>
@@ -2580,7 +2580,7 @@ function MonthlyBalance({appts,expenses,selMonth,setSelMonth,setTab}) {
       {gastos>0 && (
         <div style={{marginTop:10,display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'var(--t2)',paddingTop:10,borderTop:'1px solid var(--border)'}}>
           <span>Gastos del mes</span>
-          <span style={{fontWeight:700,color:'var(--red)',cursor:'pointer'}} onClick={()=>setTab('expense-detail',{month:selMonth})}>{fmtM(gastos)} Ver →</span>
+          <button type="button" style={{fontWeight:700,color:'var(--red)',cursor:'pointer',background:'none',border:'none',padding:'8px 12px',font:'inherit',minHeight:'48px',minWidth:'48px'}} onClick={()=>setTab('expense-detail',{month:selMonth})}>{fmtM(gastos)} Ver →</button>
         </div>
       )}
     </div>
@@ -3762,7 +3762,7 @@ function ClientsTab({clients,appts,SC,confirm,infoModal,setTab}) {
                   <div style={{fontWeight:600,fontSize:14}}>{c.name}</div>
                   <div style={{fontSize:12,color:'var(--t2)'}}>📱 {c.phone} · {n} cita{n!==1?'s':''}</div>
                 </div>
-                <button className="btn-sm" style={{padding:'5px 8px',fontSize:11}} onClick={()=>setTab('client-history',{client:c})}>Historial</button>
+                <button className="btn-sm" style={{padding:'8px 12px',fontSize:12,minHeight:'48px',minWidth:'48px'}} onClick={()=>setTab('client-history',{client:c})}>Historial</button>
                 <button className="btn-edit" onClick={()=>{setEI(c.id);setED({name:c.name,phone:c.phone})}}>✏️</button>
                 <button className="btn-del" onClick={()=>{
                   const pending=(Array.isArray(appts)?appts:[]).filter(a=>(a.clientPhone||'').replace(/\D/g,'')===(c.phone||'').replace(/\D/g,'')&&!bool(a.completed)&&!isPastAppt(a))
@@ -3930,42 +3930,42 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
       </select>
     </div>
     <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,marginBottom:14}}>
-      <div style={{background:'var(--green-bg)',borderRadius:14,padding:'14px 10px',textAlign:'center',cursor:'pointer'}} onClick={()=>setTab('income-detail',{month})}>
+      <button type="button" style={{background:'var(--green-bg)',borderRadius:14,padding:'14px 10px',textAlign:'center',cursor:'pointer',border:'none',width:'100%',minHeight:'48px'}} onClick={()=>setTab('income-detail',{month})}>
         <div style={{fontSize:11,color:'var(--green)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Recibido</div>
         <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.8vw,15px)',fontWeight:700,color:'var(--green)'}}>{fmtM(revDone)}</div>
         <div style={{fontSize:11,color:'var(--green)',marginTop:2}}>Ver →</div>
-      </div>
-      <div style={{background:'var(--red-bg)',borderRadius:14,padding:'14px 10px',textAlign:'center',cursor:'pointer'}} onClick={()=>setTab('expense-detail',{month})}>
+      </button>
+      <button type="button" style={{background:'var(--red-bg)',borderRadius:14,padding:'14px 10px',textAlign:'center',cursor:'pointer',border:'none',width:'100%',minHeight:'48px'}} onClick={()=>setTab('expense-detail',{month})}>
         <div style={{fontSize:11,color:'var(--red)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Gastos</div>
         <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.8vw,15px)',fontWeight:700,color:'var(--red)'}}>{fmtM(tot)}</div>
         <div style={{fontSize:11,color:'var(--red)',marginTop:2}}>Ver →</div>
-      </div>
+      </button>
       <div style={{background:revDone-tot>=0?'var(--green-bg)':'var(--red-bg)',borderRadius:14,padding:'14px 10px',textAlign:'center',border:`1px solid ${revDone-tot>=0?'var(--green)':'var(--red)'}`}}>
         <div style={{fontSize:11,color:revDone-tot>=0?'var(--green)':'var(--red)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Neto</div>
         <div style={{fontFamily:'Georgia,serif',fontSize:'clamp(12px,3.8vw,15px)',fontWeight:700,color:revDone-tot>=0?'var(--green)':'var(--red)'}}>{fmtM(revDone-tot)}</div>
       </div>
     </div>
     {revTotal>revDone&&<div style={{background:'var(--warn-bg)',borderRadius:12,padding:'10px 14px',marginBottom:14,fontSize:13,color:'var(--warn-t)',display:'flex',justifyContent:'space-between'}}>
-      <span style={{cursor:'pointer'}} onClick={()=>setTab('income-detail',{month})}>💡 Proyectado este mes</span><span style={{fontWeight:700}}>{fmtM(revTotal)}</span>
+      <button type="button" style={{background:'none',border:'none',cursor:'pointer',padding:'8px 12px',font:'inherit',color:'inherit',minHeight:'48px',minWidth:'48px'}} onClick={()=>setTab('income-detail',{month})}>💡 Proyectado este mes</button><span style={{fontWeight:700}}>{fmtM(revTotal)}</span>
     </div>}
 
     {/* Analytics shortcuts */}
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
-      <div className="card" style={{marginBottom:0,cursor:'pointer',textAlign:'center',padding:'16px 12px'}} onClick={()=>setTab('comparison')}>
+      <button type="button" className="card" style={{marginBottom:0,cursor:'pointer',textAlign:'center',padding:'16px 12px',border:'none',background:'var(--card)',width:'100%',minHeight:'48px'}} onClick={()=>setTab('comparison')}>
         <div style={{fontSize:26,marginBottom:6}}><svg width="28" height="22" viewBox="0 0 28 22" fill="none"><rect x="1" y="10" width="5" height="12" rx="1.5" fill="var(--primary)" opacity=".9"/><rect x="8" y="4" width="5" height="18" rx="1.5" fill="var(--primary)"/><rect x="15" y="7" width="5" height="15" rx="1.5" fill="var(--gold)" opacity=".9"/><rect x="22" y="1" width="5" height="21" rx="1.5" fill="var(--gold)"/></svg></div>
         <div style={{fontWeight:700,fontSize:13,color:'var(--t)'}}>Comparar meses</div>
         <div style={{fontSize:11,color:'var(--t2)',marginTop:3}}>Ver crecimiento →</div>
-      </div>
-      <div className="card" style={{marginBottom:0,cursor:'pointer',textAlign:'center',padding:'16px 12px'}} onClick={()=>setTab('top-services')}>
+      </button>
+      <button type="button" className="card" style={{marginBottom:0,cursor:'pointer',textAlign:'center',padding:'16px 12px',border:'none',background:'var(--card)',width:'100%',minHeight:'48px'}} onClick={()=>setTab('top-services')}>
         <div style={{fontSize:26,marginBottom:6}}><svg width="28" height="22" viewBox="0 0 28 22" fill="none"><circle cx="14" cy="11" r="8" stroke="var(--primary)" strokeWidth="2" fill="none"/><path d="M14 7v4l3 2" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round"/><circle cx="5" cy="4" r="3" fill="var(--gold)" opacity=".7"/><circle cx="23" cy="4" r="2" fill="var(--gold)" opacity=".5"/></svg></div>
         <div style={{fontWeight:700,fontSize:13,color:'var(--t)'}}>Servicios rentables</div>
         <div style={{fontSize:11,color:'var(--t2)',marginTop:3}}>Ver ranking →</div>
-      </div>
-      <div className="card" style={{marginBottom:0,cursor:'pointer',textAlign:'center',padding:'16px 12px',gridColumn:'span 2'}} onClick={()=>setTab('report')}>
+      </button>
+      <button type="button" className="card" style={{marginBottom:0,cursor:'pointer',textAlign:'center',padding:'16px 12px',border:'none',background:'var(--card)',width:'100%',gridColumn:'span 2',minHeight:'48px'}} onClick={()=>setTab('report')}>
         <div style={{fontSize:26,marginBottom:6}}><svg width="26" height="22" viewBox="0 0 26 22" fill="none"><rect x="2" y="2" width="22" height="18" rx="2" stroke="var(--primary)" strokeWidth="2" fill="none"/><path d="M6 8h14M6 12h14M6 16h8" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round"/></svg></div>
         <div style={{fontWeight:700,fontSize:13,color:'var(--t)'}}>Reporte y Excel</div>
         <div style={{fontSize:11,color:'var(--t2)',marginTop:3}}>Día, mes, rango o año · Excel →</div>
-      </div>
+      </button>
     </div>
 
     <div className="card">
@@ -5503,11 +5503,11 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
       {/* ── Paleta ── */}
       <div className="card-glass" style={{marginBottom:14}}>
         <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>🎨 Color principal</div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:10}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:10}}>
           {PALETTES.map(pal=>{
             const sel = themePalette===pal.id
             return (
-              <button key={pal.id} onClick={()=>setThemePalette(pal.id)}
+              <button type="button" key={pal.id} onClick={()=>setThemePalette(pal.id)}
                 style={{background:sel?pal.gradient:'var(--neo-light)',border:`2px solid ${sel?pal.primary:'var(--border)'}`,borderRadius:16,padding:'16px 8px',cursor:'pointer',fontFamily:'inherit',transition:'all .2s',display:'flex',flexDirection:'column',alignItems:'center',gap:6,boxShadow:sel?'var(--shadow-md)':'var(--shadow-sm)',color:sel?'var(--grad-t)':'var(--t)'}}>
                 <div style={{width:36,height:36,borderRadius:'50%',background:pal.gradient,boxShadow:sel?`0 0 0 3px var(--surface), 0 0 0 5px ${pal.primary}`:'0 4px 12px rgba(0,0,0,0.15)',transition:'all .2s'}}/>
                 <span style={{fontSize:12,fontWeight:700,color:sel?'var(--grad-t)':'var(--t)'}}>{pal.emoji} {pal.name}</span>
