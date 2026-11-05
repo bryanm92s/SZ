@@ -2067,6 +2067,47 @@ function GS() { return <style>{`
     select{
       padding-right: 40px !important;
     }
+
+    /* Acciones de cita en panel día: stack vertical en móvil con espacio generoso */
+    .cal-appt-actions{
+      display: flex;
+      flex-direction: column;
+      gap: 12px !important;
+      padding: 12px !important;
+    }
+    .cal-appt-actions .btn-sm{
+      width: 100%;
+      min-height: 52px;
+      padding: 14px 16px !important;
+      font-size: 14px !important;
+      line-height: 1.4;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    @media (min-width: 480px){
+      .cal-appt-actions{
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 10px !important;
+      }
+      .cal-appt-actions .btn-sm{
+        width: auto;
+        flex: 1 1 calc(50% - 5px);
+        min-height: 48px;
+        padding: 12px 14px !important;
+        font-size: 13px !important;
+      }
+    }
+    @media (min-width: 768px){
+      .cal-appt-actions .btn-sm{
+        flex: 1 1 auto;
+        min-height: 44px;
+        padding: 10px 16px !important;
+        font-size: 12px !important;
+      }
+    }
   }
   
   @keyframes spin{to{transform:rotate(360deg)}}
