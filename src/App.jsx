@@ -2018,6 +2018,28 @@ function GS() { return <style>{`
   }
   .nav-scroll.nav-fade::after{opacity:1}
 
+  /* ── DayDots: indicadores de citas en el calendario ──
+     Implementación única compartida para desktop y móvil (sin media
+     queries): los 4 estados (completada/pendiente/sin marcar/no asistió)
+     se pintan con background inline; aquí vive el tamaño/forma. Antes
+     estas reglas estaban dentro de @media (pointer:coarse), así que en
+     Chrome Desktop (puntero fino) nunca aplicaban y los divs quedaban
+     0×0 → invisibles.
+     El anillo blanco (box-shadow, hacia afuera: NO altera los 8×8) es
+     invisible sobre fondos claros y solo separa el punto cuando la celda
+     está seleccionada (fondo primario): sin él, el punto «Pendiente»
+     (primario) quedaba primario-sobre-primario e invisible. */
+  .day-dot{
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    flex-shrink:0;
+    box-shadow:0 0 0 1.5px rgba(255,255,255,.92);
+  }
+  .day-dots{
+    gap:6px;
+  }
+
   /* ── iOS / pantallas táctiles ── */
   @supports (-webkit-touch-callout:none){
     /* iOS hace zoom al enfocar campos con letra < 16px */
@@ -2049,19 +2071,6 @@ function GS() { return <style>{`
     }
     div[onClick],span[onClick],td[onClick],th[onClick]{
       min-height:48px;min-width:48px
-    }
-
-    /* DayDots: estilos base para indicadores de citas (desktop y móvil) */
-    .day-dot{
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    /* DayDots: gap mayor en móvil */
-    .day-dots{
-      gap: 6px;
     }
 
     /* Touch targets para inputs, selects */
