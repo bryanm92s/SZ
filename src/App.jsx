@@ -2597,17 +2597,20 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
   useEffect(() => {
     if (!focusId) return
     let cancelled = false
+    let attempts = 0
+    const maxAttempts = 20
     const scroll = () => {
       if (cancelled) return
       const el = document.getElementById(`appt-${focusId}`)
       if (el && el.scrollIntoView) {
         el.scrollIntoView({behavior:'smooth', block:'center'})
-      } else if (!cancelled) {
+      } else if (!cancelled && attempts < maxAttempts) {
+        attempts++
         // Reintento: el grupo puede estar animándose o renderizándose
-        setTimeout(scroll, 120)
+        setTimeout(scroll, 150)
       }
     }
-    const t = setTimeout(scroll, 250) // 180ms animación + 70ms margen
+    const t = setTimeout(scroll, 400) // tiempo extra para animación de apertura de grupo
     return () => { cancelled = true; clearTimeout(t) }
   }, [focusId])
 
@@ -5890,7 +5893,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
     const bg     = done ? 'var(--green-bg)' : noshow ? 'var(--red-bg)' : past ? 'var(--gold-bg)' : 'var(--primary-l)'
     const col    = done ? 'var(--green)' : noshow ? 'var(--red)' : past ? 'var(--gold)' : 'var(--primary)'
     return (
-      <div style={{
+      <div id={`appt-${a.id}`} style={{
         background: bg, border: `1.5px solid ${col}`, borderRadius: 8,
         padding: '5px 8px', marginBottom: 4, cursor: 'pointer',
         transition: 'transform .12s', opacity: noshow ? 0.7 : 1,
@@ -5918,7 +5921,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
       : past    ? { label: 'Sin marcar', color: 'var(--gold)', bg: 'var(--gold-bg)' }
       :           { label: 'Pendiente', color: 'var(--gold)', bg: 'var(--gold-bg)' }
     return (
-      <div style={{
+      <div id={`appt-${a.id}`} style={{
         background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 14,
         padding: '14px', marginBottom: 10, transition: 'box-shadow .15s',
       }}>
