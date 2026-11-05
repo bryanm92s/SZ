@@ -2057,6 +2057,7 @@ function GS() { return <style>{`
     .day-dot{
       width: 8px !important;
       height: 8px !important;
+      border-radius: 50% !important;
     }
 
     /* Touch targets para inputs, selects */
@@ -2332,13 +2333,13 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
     )}
 
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
-      <button type="button" className="stat" onClick={()=>setTab('clients')} style={{background:'none',border:'none',padding:0,width:'100%',textAlign:'left',cursor:'pointer',minHeight:'48px',minWidth:'48px'}}>
+      <button type="button" className="stat" onClick={()=>setTab('clients')} style={{minHeight:'48px',minWidth:'48px'}}>
         <NavIcon type="people" active={false}/>
         <div style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700,marginTop:6}}>{clients.length}</div>
         <div style={{fontSize:11,color:'var(--t2)',textTransform:'uppercase',letterSpacing:'.06em',fontWeight:600,marginTop:2}}>Clientes</div>
         <div style={{fontSize:11,color:'var(--primary)',marginTop:3,fontWeight:600}}>Ver todas {'\u2192'}</div>
       </button>
-      <button type="button" className="stat" onClick={()=>setTab('appointments')} style={{background:'none',border:'none',padding:0,width:'100%',textAlign:'left',cursor:'pointer',minHeight:'48px',minWidth:'48px'}}>
+      <button type="button" className="stat" onClick={()=>setTab('appointments')} style={{minHeight:'48px',minWidth:'48px'}}>
         <NavIcon type="cal" active={false}/>
         <div style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700,marginTop:6}}>{ta.length}</div>
         <div style={{fontSize:11,color:'var(--t2)',textTransform:'uppercase',letterSpacing:'.06em',fontWeight:600,marginTop:2}}>Citas hoy</div>
