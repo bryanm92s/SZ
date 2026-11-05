@@ -2109,6 +2109,56 @@ function GS() { return <style>{`
         max-width: 220px;
       }
     }
+
+    /* Calendar Month view responsive: ajustes para móvil (< 480px) */
+    @media (max-width: 479px){
+      /* Celdas del mes: reducir padding, minHeight y tipografía */
+      .cal-month-week{
+        gap: '2px 2px' !important;
+      }
+      .cal-month-day{
+        min-height: 40px !important;
+        padding: '4px 1px 3px' !important;
+      }
+      .cal-month-day-num{
+        font-size: 11px !important;
+      }
+      /* Leyenda del mes: reducir gap y permitir wrap más compacto */
+      .cal-month-legend{
+        gap: 6px !important;
+      }
+      .cal-month-legend-item{
+        font-size: 10px !important;
+        gap: 3px !important;
+      }
+    }
+
+    /* Calendar Week view responsive: apilar vertical en móvil (< 480px) */
+    @media (max-width: 479px){
+      /* Contenedor principal: cambiar a columna */
+      .cal-week-grid{
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+      }
+      /* Cada día: ancho completo */
+      .cal-week-day{
+        width: 100% !important;
+      }
+      /* Header del día: más compacto */
+      .cal-week-day-header{
+        padding: '8px 6px' !important;
+      }
+      .cal-week-day-dow{
+        font-size: 10px !important;
+      }
+      .cal-week-day-num{
+        font-size: 13px !important;
+      }
+      .cal-week-day-count{
+        font-size: 10px !important;
+      }
+    }
   }
   
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -5891,12 +5941,12 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
     if (!arr?.length) return null
     const max = 4
     return (
-      <div style={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap', marginTop: 2 }}>
+      <div className="day-dots" style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', marginTop: 2 }}>
         {arr.slice(0, max).map((a, i) => (
-          <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: dotColor(a), flexShrink: 0 }} />
+          <div key={i} className="day-dot" style={{ background: dotColor(a), flexShrink: 0 }} />
         ))}
         {arr.length > max && (
-          <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--t2)', flexShrink: 0 }} />
+          <div className="day-dot" style={{ background: 'var(--t2)', flexShrink: 0 }} />
         )}
       </div>
     )
@@ -6176,7 +6226,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
       {view === 'month' && (
         <div className="card" style={{ marginBottom: 12, padding: '10px 8px' }}>
           {/* Day-of-week headers */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', marginBottom: 4 }}>
+          <div className="cal-month-dow" style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', marginBottom: 4 }}>
             {['D', 'L', 'M', 'X', 'J', 'V', 'S'].map(d => (
               <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.06em', paddingBottom: 4 }}>{d}</div>
             ))}
@@ -6184,7 +6234,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
 
           {/* Weeks */}
           {weeks.map((week, wi) => (
-            <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', gap: '3px 3px', marginBottom: 3 }}>
+            <div key={wi} className="cal-month-week" style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', gap: '3px 3px', marginBottom: 3 }}>
               {week.map(dateStr => {
                 const isThisMonth = parseInt(dateStr.slice(5, 7), 10) - 1 === curMonth
                 const isToday     = dateStr === todStr
@@ -6192,7 +6242,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                 const hasAppts    = !!apptsByDate[dateStr]?.length
                 const count       = apptsByDate[dateStr]?.length || 0
                 return (
-                  <div key={dateStr}
+                  <div key={dateStr} className="cal-month-day"
                     onClick={() => setSelDay(isSel ? null : dateStr)}
                     style={{
                       borderRadius: 10, padding: '5px 2px 4px', textAlign: 'center', cursor: 'pointer',
@@ -6203,7 +6253,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                       transition: 'background .12s, transform .1s',
                       transform: isSel ? 'scale(0.97)' : 'scale(1)',
                     }}>
-                    <div style={{
+                    <div className="cal-month-day-num" style={{
                       fontSize: 12, fontWeight: isToday || isSel ? 700 : 500,
                       color: isSel ? 'var(--grad-t)' : isToday ? 'var(--primary)' : 'var(--t)',
                       lineHeight: 1,
@@ -6211,7 +6261,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                       {parseInt(dateStr.slice(8), 10)}
                     </div>
                     {hasAppts && (
-                      <div style={{ marginTop: 3 }}>
+                      <div className="cal-month-day-appts" style={{ marginTop: 3 }}>
                         {count <= 3
                           ? <DayDots dateStr={dateStr} />
                           : (
@@ -6232,14 +6282,14 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
           ))}
 
           {/* Legend */}
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+          <div className="cal-month-legend" style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
             {[
               ['var(--green)', 'Completada'],
               ['var(--primary)', 'Pendiente'],
               ['var(--gold)', 'Sin marcar'],
               ['var(--red)', 'No asistió'],
             ].map(([color, label]) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--t2)' }}>
+              <div key={label} className="cal-month-legend-item" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--t2)', whiteSpace: 'nowrap' }}>
                 <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
                 {label}
               </div>
@@ -6252,17 +6302,17 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
           WEEK VIEW
       ═══════════════════════ */}
       {view === 'week' && (
-        <div className="card" style={{ marginBottom: 12, padding: '10px 8px', overflowX: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', gap: 4, minWidth: 320 }}>
+        <div className="card" style={{ marginBottom: 12, padding: '10px 8px' }}>
+          <div className="cal-week-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', gap: 4 }}>
             {weekDays.map(dateStr => {
               const isToday  = dateStr === todStr
               const isSel    = dateStr === selDay
               const dayAppts = sortAppts(apptsByDate[dateStr] || [])
               const d        = new Date(dateStr + 'T12:00:00')
               return (
-                <div key={dateStr} style={{ minWidth: 0 }}>
+                <div key={dateStr} className="cal-week-day" style={{ minWidth: 0 }}>
                   {/* Day header */}
-                  <div
+                  <div className="cal-week-day-header"
                     onClick={() => setSelDay(isSel ? null : dateStr)}
                     style={{
                       textAlign: 'center', borderRadius: 10, padding: '6px 4px', marginBottom: 6, cursor: 'pointer',
@@ -6270,14 +6320,14 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                       border: isToday && !isSel ? '1.5px solid var(--primary)' : '1.5px solid transparent',
                       transition: 'background .12s',
                     }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: isSel ? 'var(--grad-t2)' : 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                    <div className="cal-week-day-dow" style={{ fontSize: 11, fontWeight: 700, color: isSel ? 'var(--grad-t2)' : 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
                       {d.toLocaleDateString('es-CO', { weekday: 'short' }).replace('.', '')}
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: isSel ? 'var(--grad-t)' : isToday ? 'var(--primary)' : 'var(--t)', marginTop: 1 }}>
+                    <div className="cal-week-day-num" style={{ fontSize: 14, fontWeight: 700, color: isSel ? 'var(--grad-t)' : isToday ? 'var(--primary)' : 'var(--t)', marginTop: 1 }}>
                       {d.getDate()}
                     </div>
                     {dayAppts.length > 0 && (
-                      <div style={{ fontSize: 11, color: isSel ? 'var(--grad-t)' : 'var(--primary)', fontWeight: 700, marginTop: 2 }}>
+                      <div className="cal-week-day-count" style={{ fontSize: 11, color: isSel ? 'var(--grad-t)' : 'var(--primary)', fontWeight: 700, marginTop: 2 }}>
                         {dayAppts.length} cita{dayAppts.length !== 1 ? 's' : ''}
                       </div>
                     )}
