@@ -1658,8 +1658,8 @@ function GS() { return <style>{`
     transition:all .15s;
     box-shadow:var(--shadow-sm);
   }
-  .btn-sm:hover{background:var(--primary);color:white;box-shadow:var(--shadow-md)}
-  .btn-sm:active{box-shadow:var(--shadow-inner)}
+  .btn-sm:not(:disabled):hover{background:var(--primary);color:white;box-shadow:var(--shadow-md)}
+  .btn-sm:not(:disabled):active{box-shadow:var(--shadow-inner)}
   
   .btn-del{
     background:var(--red-bg);
@@ -2052,11 +2052,13 @@ function GS() { return <style>{`
   }
   @media (pointer:coarse){
     /* Objetivos táctiles ≥ 44 px (H-04): el primario .btn no estaba
-       cubierto («+ Nueva cita» medía 30 px) y .btn-o/.btn-sm/etc. 40.
+       cubierto («+ Nueva cita» medía 30 px) y .btn-o/etc. 40.
        min-width cubre iconos compactos («✕» 34 px). Solo aplica en
-       pantallas táctiles: desktop intacto. */
+       pantallas táctiles: desktop intacto. .btn-sm va a 48 px para ser
+       coherente con la regla universal de abajo (H-04). */
     .btn{min-height:44px}
-    .btn-o,.btn-sm,.btn-del,.btn-edit,.btn-check,.btn-wa{min-height:44px;min-width:44px}
+    .btn-sm{min-height:48px;min-width:44px}
+    .btn-o,.btn-del,.btn-edit,.btn-check,.btn-wa{min-height:44px;min-width:44px}
     /* Botones sueltos con estilo inline (↻, ‹ ›, Hoy, segmentadores,
        «Gestionar categorías»): llevan la clase .tap. */
     .tap{min-height:44px;min-width:44px}
@@ -2750,7 +2752,13 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
     // Con `pageSize` solo se pintan las tarjetas de la página visible;
     // los TOTALES del encabezado salen SIEMPRE de la lista completa.
     const sorted  = sortDesc ? sortGDesc(items) : sortG(items)
-    const shown   = pageSize ? sorted.slice((Math.max(1,page)-1)*pageSize, Math.max(1,page)*pageSize) : sorted
+    // Página efectiva limitada a [1, pages] — MISMA regla que Pager: si la
+    // lista se reduce (p. ej. borrados estando en pág. 2), una página
+    // obsoleta no puede ocultar las citas restantes ni dejar el grupo con
+    // contador > 0 y sin tarjetas. Cálculo local puro, sin tocar estados.
+    const pages   = pageSize ? Math.max(1, Math.ceil(sorted.length / pageSize)) : 1
+    const effPage = pageSize ? Math.min(Math.max(1, page), pages) : 1
+    const shown   = pageSize ? sorted.slice((effPage-1)*pageSize, effPage*pageSize) : sorted
     return (
       <div style={{border:`1.5px solid ${color}28`,borderRadius:16,marginBottom:10,overflow:'hidden'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',cursor:'pointer',background:`${color}0E`,userSelect:'none'}} onClick={()=>toggle(gKey)}>
@@ -2779,7 +2787,7 @@ function ApptsTab({clients,services,appts,SA,SC,sync,deleteAppt,confirm,infoModa
                 onRemind={askReminder}
               />
             ))}
-            {pageSize && <Pager page={page} total={items.length} onPage={onPage} label="citas" size={pageSize}/>}
+            {pageSize && <Pager page={effPage} total={items.length} onPage={onPage} label="citas" size={pageSize}/>}
           </div>
         )}
       </div>
