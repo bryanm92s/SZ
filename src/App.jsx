@@ -2937,6 +2937,15 @@ function ApptDetail({appt,services,onClose,onEdit,onDelete}) {
     </div>
   )
 
+  // UX-02 — Foco accesible del detalle: foco inicial dentro del diálogo,
+  // trampa de Tab/Shift+Tab, recuperación si el foco escapa mientras está
+  // abierto y devolución del foco al disparador al cerrar. NO toca el
+  // Escape existente, el role/aria ni ningún estilo.
+  const dlgRef    = useRef(null)   // overlay con role="dialog"
+  const openerRef = useRef(null)   // nodo disparador capturado al montar
+  const apptRef   = useRef(null)
+  apptRef.current = appt           // para localizar el disparador al cerrar
+
   // Cierre con la tecla Esc, como el resto de modales de la app.
   useEffect(() => {
     const onKey = e => { if (e.key === 'Escape') onClose() }
@@ -2944,8 +2953,89 @@ function ApptDetail({appt,services,onClose,onEdit,onDelete}) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  // Foco: inicial, trampa y restauración (UX-02). Se registra una sola vez
+  // al montar; los handlers solo usan refs/DOM, así que no hay que
+  // re-registrar en cada render. Idempotente con StrictMode.
+  useEffect(() => {
+    openerRef.current = (document.activeElement && document.activeElement !== document.body) ? document.activeElement : null
+    const dlg = dlgRef.current
+    // Controles reales del diálogo: botones habilitados; los deshabilitados
+    // y los que no sean enfocables se ignoran.
+    const focusables = () => dlg
+      ? Array.from(dlg.querySelectorAll('button, [href], input, select, textarea, [tabindex]'))
+          .filter(el => !el.disabled && el.tabIndex >= 0)
+      : []
+    // Foco inicial: el botón de cierre (Cerrar); si faltara, el primero.
+    if (dlg) {
+      const first = dlg.querySelector('button.btn-o') || dlg.querySelector('button')
+      if (first) first.focus()
+    }
+    const onKey = e => {
+      if (e.key !== 'Tab' || !dlg) return
+      const list = focusables()
+      if (!list.length) return
+      const active = document.activeElement
+      const inside = dlg.contains(active)
+      if (e.shiftKey) {
+        // Shift+Tab: del primero se da la vuelta al último (nunca sale).
+        if (!inside || active === list[0]) { e.preventDefault(); list[list.length - 1].focus() }
+      } else if (!inside || active === list[list.length - 1]) {
+        // Tab: del último se da la vuelta al primero (nunca sale).
+        e.preventDefault(); list[0].focus()
+      }
+    }
+    // Si el foco cae fuera del diálogo mientras está abierto (p. ej. al
+    // pulsar sobre texto no enfocable), se recupera dentro.
+    const onFocusIn = e => {
+      if (dlg && !dlg.contains(e.target)) {
+        const list = focusables()
+        if (list.length) list[0].focus()
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    document.addEventListener('focusin', onFocusIn)
+    return () => {
+      // Primero se quitan los listeners: así la devolución del foco no
+      // dispara la recuperación y el foco sale limpio del diálogo.
+      window.removeEventListener('keydown', onKey, true)
+      document.removeEventListener('focusin', onFocusIn)
+      // Foco al disparador: su nodo original si sigue conectado (este
+      // comportamiento se conserva). Si ya no está —Citas y Calendario
+      // remontan sus tarjetas al re-renderizar y el nodo queda huérfano—
+      // se localiza la tarjeta EXACTA de ESTA cita por su id estable
+      // #appt-{id} (así un cliente con varias citas no recibe el foco en
+      // otra tarjeta). Home no expone ese id: su respaldo es igualdad
+      // EXACTA de aria-label con cliente + hora (único en el día). Si el
+      // disparador ya no existe (cita eliminada), el foco queda donde
+      // esté — sin errores ni excepciones.
+      let target = openerRef.current
+      if (!target || !document.contains(target)) {
+        const ap = apptRef.current
+        target = null
+        // Nivel 1 — #appt-{id}: recorrer TODAS las cajas con ese id
+        // (la vista de semana añade una píldora con el mismo id y sin
+        // botón de detalle; la tarjeta de día sí lo lleva).
+        if (ap && ap.id != null) {
+          const wantedId = `appt-${ap.id}`
+          for (const box of Array.from(document.querySelectorAll('div'))) {
+            if (box.id !== wantedId) continue
+            const b = box.querySelector('button[aria-label^="Ver detalle de la cita"]')
+            if (b) { target = b; break }
+          }
+        }
+        // Nivel 2 — Home: aria-label EXACTO «cliente + a las hora».
+        if (!target && ap && ap.clientName) {
+          const exact = `Ver detalle de la cita de ${ap.clientName} a las ${fmtTime(ap.time)}`
+          target = Array.from(document.querySelectorAll('button[aria-label]'))
+            .find(b => b.getAttribute('aria-label') === exact) || null
+        }
+      }
+      if (target) { try { target.focus() } catch {} }
+    }
+  }, [])
+
   return (
-    <div role="dialog" aria-modal="true" aria-label="Detalle de la cita"
+    <div ref={dlgRef} role="dialog" aria-modal="true" aria-label="Detalle de la cita"
       onClick={onClose}
       style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20,backdropFilter:'var(--glass-blur-sm)',WebkitBackdropFilter:'var(--glass-blur-sm)'}}>
       <div onClick={e=>e.stopPropagation()}
