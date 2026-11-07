@@ -1610,6 +1610,16 @@ function GS() { return <style>{`
     box-shadow:0 0 0 3px var(--ring), var(--shadow-inner);
   }
   .inp::placeholder{color:var(--t2)}
+
+  /* UX-03 — Foco de teclado en los 3 selects de mes: su outline:none
+     inline dejaba Tab/Shift+Tab sin indicador (WCAG 2.4.7). Anillo --ring
+     (coherente con .inp:focus) + outline de 2px en el primario de la
+     paleta: indicador perceptible que no depende solo del color (1.4.11)
+     y que solo aparece con :focus-visible. */
+  .msel:focus-visible{
+    outline:2px solid var(--primary);
+    box-shadow:0 0 0 3px var(--ring);
+  }
   
   /* ── Labels ── */
   .lbl{
@@ -2450,8 +2460,8 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
 
       {isMonth&&(
         <div style={{padding:'10px 16px 0',background:'var(--surface)'}}>
-          <select value={selMonth} onChange={e=>setSelMonth(e.target.value)}
-            style={{width:'100%',border:'1.5px solid var(--border)',borderRadius:8,padding:'7px 12px',fontSize:13,fontFamily:'inherit',color:'var(--t)',background:'var(--surface)',outline:'none',cursor:'pointer'}}>
+          <select className="msel" value={selMonth} onChange={e=>setSelMonth(e.target.value)}
+            style={{width:'100%',border:'1.5px solid var(--border)',borderRadius:8,padding:'7px 12px',fontSize:13,fontFamily:'inherit',color:'var(--t)',background:'var(--surface)',cursor:'pointer'}}>
             {months.map(m=><option key={m} value={m}>{new Date(m+'-01T12:00:00').toLocaleDateString('es-CO',{month:'long',year:'numeric'})}</option>)}
           </select>
         </div>
@@ -2548,8 +2558,8 @@ function MonthlyIncomeState({appts,selMonth,setSelMonth,setTab}) {
         <span style={{fontWeight:700,fontSize:14}}>
           {'\uD83D\uDCCA'} Estado de ingresos por mes
         </span>
-        <select value={selMonth} onChange={e=>setSelMonth(e.target.value)}
-          style={{border:'1.5px solid var(--border)',borderRadius:8,padding:'4px 10px',fontSize:12,fontFamily:'inherit',color:'var(--t)',background:'var(--surface)',outline:'none',cursor:'pointer'}}>
+        <select className="msel" value={selMonth} onChange={e=>setSelMonth(e.target.value)}
+          style={{border:'1.5px solid var(--border)',borderRadius:8,padding:'4px 10px',fontSize:12,fontFamily:'inherit',color:'var(--t)',background:'var(--surface)',cursor:'pointer'}}>
           {months.map(m=><option key={m} value={m}>{new Date(m+'-01T12:00:00').toLocaleDateString('es-CO',{month:'short',year:'numeric'})}</option>)}
         </select>
       </div>
@@ -2614,8 +2624,8 @@ function MonthlyBalance({appts,expenses,selMonth,setSelMonth,setTab}) {
     <div className="card" style={{marginBottom:14,background:'var(--card)',border:'1.5px solid var(--border)'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
         <span style={{fontWeight:700,fontSize:14,color:'var(--t)'}}>📅 Balance por mes</span>
-        <select value={selMonth} onChange={e=>setSelMonth(e.target.value)}
-          style={{border:'1.5px solid var(--border)',borderRadius:8,padding:'4px 10px',fontSize:12,fontFamily:'inherit',color:'var(--t)',background:'var(--surface)',outline:'none',cursor:'pointer'}}>
+        <select className="msel" value={selMonth} onChange={e=>setSelMonth(e.target.value)}
+          style={{border:'1.5px solid var(--border)',borderRadius:8,padding:'4px 10px',fontSize:12,fontFamily:'inherit',color:'var(--t)',background:'var(--surface)',cursor:'pointer'}}>
           {months.map(m=><option key={m} value={m}>{new Date(m+'-01T12:00:00').toLocaleDateString('es-CO',{month:'short',year:'numeric'})}</option>)}
         </select>
       </div>
