@@ -1144,11 +1144,66 @@ export default function App() {
 }
 
 function Modal({msg, onOk, onCancel, okLabel='Eliminar', cancelLabel='Cancelar'}) {
+  // UX-01 — Accesibilidad del diálogo compartido: semántica ARIA, foco
+  // inicial en Cancelar, trampa de Tab/Shift+Tab, Escape que CANCELA
+  // (nunca activa Eliminar) y restauración del foco al disparador al
+  // cerrar. El markup, los textos y los estilos NO cambian: solo se
+  // añaden role/aria y el manejo de foco/teclado. Si el disparador ya no
+  // existe al cerrar (p. ej. el detalle se cierra antes de confirmar, o
+  // la fila se eliminó), el foco vuelve al body — queda documentado.
+  const panelRef  = useRef(null)
+  const openerRef = useRef(null)
+  // Handlers por referencia: el listener se registra una sola vez pero
+  // siempre ejecuta la última prop (sin re-registrar en cada render).
+  const cbRef = useRef(null)
+  cbRef.current = {onOk, onCancel}
+
+  useEffect(() => {
+    openerRef.current = (document.activeElement && document.activeElement !== document.body) ? document.activeElement : null
+    const panel = panelRef.current
+    if (panel) {
+      // Foco inicial: Cancelar (botón defensivo); si no existe
+      // (modal informativo de un solo botón), el único botón.
+      const first = panel.querySelector('button.btn-o') || panel.querySelector('button')
+      if (first) first.focus()
+    }
+    const onKey = e => {
+      if (e.key === 'Escape') {
+        // Captura en window: por delante del Escape del detalle
+        // (window burbuja), así Escape cierra SOLO este diálogo.
+        e.preventDefault()
+        e.stopPropagation()
+        const c = cbRef.current
+        ;(c.onCancel || c.onOk)()   // confirm → Cancelar; informativo → Entendido
+        return
+      }
+      if (e.key !== 'Tab' || !panel) return
+      const list = Array.from(panel.querySelectorAll('button')).filter(b => !b.disabled)
+      if (!list.length) return
+      const active = document.activeElement
+      const inside = panel.contains(active)
+      if (e.shiftKey) {
+        // Shift+Tab: del primero se da la vuelta al último (nunca sale).
+        if (!inside || active === list[0]) { e.preventDefault(); list[list.length - 1].focus() }
+      } else if (!inside || active === list[list.length - 1]) {
+        // Tab: del último se da la vuelta al primero (nunca sale).
+        e.preventDefault(); list[0].focus()
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => {
+      window.removeEventListener('keydown', onKey, true)
+      const opener = openerRef.current
+      if (opener && document.contains(opener)) { try { opener.focus() } catch {} }
+    }
+  }, [])
+
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20,backdropFilter:'var(--glass-blur-sm)',WebkitBackdropFilter:'var(--glass-blur-sm)'}}>
-      <div style={{background:'var(--chrome-bgr)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)',borderRadius:24,padding:32,maxWidth:360,width:'100%',maxHeight:'calc(100dvh - 40px)',overflowY:'auto',textAlign:'center',boxShadow:'var(--shadow-xl)',border:'1px solid var(--chrome-brd)'}}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="sz-modal-msg"
+        style={{background:'var(--chrome-bgr)',backdropFilter:'var(--glass-blur)',WebkitBackdropFilter:'var(--glass-blur)',borderRadius:24,padding:32,maxWidth:360,width:'100%',maxHeight:'calc(100dvh - 40px)',overflowY:'auto',textAlign:'center',boxShadow:'var(--shadow-xl)',border:'1px solid var(--chrome-brd)'}}>
         <div style={{fontSize:40,marginBottom:16}}>⚠️</div>
-        <div style={{fontSize:15,fontWeight:600,color:'var(--t)',marginBottom:22,lineHeight:1.5}}>{msg}</div>
+        <div id="sz-modal-msg" style={{fontSize:15,fontWeight:600,color:'var(--t)',marginBottom:22,lineHeight:1.5}}>{msg}</div>
         <div style={{display:'flex',gap:10,justifyContent:'center'}}>
           {cancelLabel && <button className="btn-o" style={{flex:1}} onClick={onCancel}>{cancelLabel}</button>}
           <button className="btn" style={{flex:1,background:okLabel==='Eliminar'?'linear-gradient(135deg, var(--red) 0%, var(--red-d) 100%)':'var(--gradient)'}} onClick={onOk}>{okLabel}</button>
