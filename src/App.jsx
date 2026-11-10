@@ -1927,7 +1927,7 @@ function GS() { return <style>{`
   .kpi-sub{font-size:11px;color:var(--t2);margin-top:3px}
   /* El neto hereda el mismo gradiente que usa el Panel para el balance */
   .kpi-net{background:var(--gradient);border:none;color:white}
-  .kpi-net .kpi-label,.kpi-net .kpi-sub{color:rgba(255,255,255,.85)}
+  .kpi-net .kpi-label,.kpi-net .kpi-sub{color:white}
   .kpi-net .kpi-value{color:white}
 
   /* Encabezado de sección del reporte */
@@ -2430,21 +2430,21 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
     <div className="card" style={{marginBottom:14,padding:0,overflow:'hidden'}}>
       <button type="button" style={{background:netoPos?'linear-gradient(135deg,var(--primary),var(--primary-d))':'linear-gradient(135deg,#B04040,#843030)',padding:'16px 18px',cursor:'pointer',border:'none',width:'100%',textAlign:'left',minHeight:'48px'}} onClick={()=>setTab('finances')}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
-          <div style={{fontSize:11,color:'var(--grad-t2)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.09em'}}>
+          <div style={{fontSize:11,color:'var(--grad-t)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.09em'}}>
             {isMonth?'Balance \u2014 '+new Date(selMonth+'-01T12:00:00').toLocaleDateString('es-CO',{month:'long',year:'numeric'}):'Balance Neto'}
           </div>
-          <span style={{fontSize:11,color:'var(--grad-t2)'}}>Ver finanzas {'\u2192'}</span>
+          <span style={{fontSize:11,color:'var(--grad-t)'}}>Ver finanzas {'\u2192'}</span>
         </div>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:12}}>
           <div style={{fontFamily:'Georgia,serif',fontSize:30,fontWeight:700,color:'var(--grad-t)'}}>{fmtM(aNeto)}</div>
           {conInit!==null&&(
-            <div style={{fontSize:11,color:'var(--grad-t2)',textAlign:'right',lineHeight:1.5,minWidth:0,flexShrink:1}}>
+            <div style={{fontSize:11,color:'var(--grad-t)',textAlign:'right',lineHeight:1.5,minWidth:0,flexShrink:1}}>
               + Saldo inicial {fmtM(openingBalance)}<br/>
               <b style={{fontSize:12,color:'var(--grad-t)'}}>Con saldo inicial {fmtM(conInit)}</b>
             </div>
           )}
         </div>
-        <div style={{fontSize:11,color:'var(--grad-t2)',marginTop:4}}>
+        <div style={{fontSize:11,color:'var(--grad-t)',marginTop:4}}>
           Recibido {fmtM(aRevDone)} {'\u2212'} Gastos {fmtM(aExp)}
         </div>
       </button>
@@ -3642,7 +3642,7 @@ function NewWizard({clients,services,appts,SA,SC,sync,infoModal,onClose,initialD
 
   const Dots = () => <div style={{display:'flex',alignItems:'center',marginBottom:22,gap:4}}>
     {[1,2,3,4].map((s,i)=><div key={s} style={{display:'contents'}}>
-      <div style={{width:27,height:27,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,flexShrink:0,transition:'background .2s',background:step>s?'var(--primary)':step===s?'var(--primary)':'var(--border)',color:step>=s?'white':'var(--t2)'}}>{step>s?'✓':s}</div>
+      <div style={{width:27,height:27,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,flexShrink:0,transition:'background .2s',background:step>s?'var(--primary)':step===s?'var(--primary)':'var(--border)',color:step>=s?'white':'var(--t)'}}>{step>s?'✓':s}</div>
       {i<3&&<div style={{flex:1,height:2,transition:'background .3s',background:step>s?'var(--primary)':'var(--border)'}}/>}
     </div>)}
   </div>
@@ -5685,10 +5685,10 @@ function SettingsTab({clients, appts, expenses, resetAll, requestResetCode, them
             const sel = themePalette===pal.id
             return (
               <button type="button" key={pal.id} onClick={()=>setThemePalette(pal.id)}
-                style={{background:sel?pal.gradient:'var(--neo-light)',border:`2px solid ${sel?pal.primary:'var(--border)'}`,borderRadius:16,padding:'16px 8px',cursor:'pointer',fontFamily:'inherit',transition:'all .2s',display:'flex',flexDirection:'column',alignItems:'center',gap:6,boxShadow:sel?'var(--shadow-md)':'var(--shadow-sm)',color:sel?'var(--grad-t)':'var(--t)'}}>
+                style={{background:sel?`linear-gradient(rgba(0,0,0,.24),rgba(0,0,0,.24)),${pal.gradient}`:'var(--neo-light)',border:`2px solid ${sel?pal.primary:'var(--border)'}`,borderRadius:16,padding:'16px 8px',cursor:'pointer',fontFamily:'inherit',transition:'all .2s',display:'flex',flexDirection:'column',alignItems:'center',gap:6,boxShadow:sel?'var(--shadow-md)':'var(--shadow-sm)',color:sel?'var(--grad-t)':'var(--t)'}}>
                 <div style={{width:36,height:36,borderRadius:'50%',background:pal.gradient,boxShadow:sel?`0 0 0 3px var(--surface), 0 0 0 5px ${pal.primary}`:'0 4px 12px rgba(0,0,0,0.15)',transition:'all .2s'}}/>
                 <span style={{fontSize:12,fontWeight:700,color:sel?'var(--grad-t)':'var(--t)'}}>{pal.emoji} {pal.name}</span>
-                {sel && <span style={{fontSize:11,color:sel?'rgba(255,255,255,0.85)':'var(--t2)',letterSpacing:'.05em'}}>ACTIVO</span>}
+                {sel && <span style={{fontSize:11,color:'var(--grad-t)',letterSpacing:'.05em'}}>ACTIVO</span>}
               </button>
             )
           })}
@@ -6497,7 +6497,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
                       border: isToday && !isSel ? '1.5px solid var(--primary)' : '1.5px solid transparent',
                       transition: 'background .12s',
                     }}>
-                    <div className="cal-week-day-dow" style={{ fontSize: 11, fontWeight: 700, color: isSel ? 'var(--grad-t2)' : 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                    <div className="cal-week-day-dow" style={{ fontSize: 11, fontWeight: 700, color: isSel ? 'var(--grad-t)' : isToday ? 'var(--t)' : 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
                       {d.toLocaleDateString('es-CO', { weekday: 'short' }).replace('.', '')}
                     </div>
                     <div className="cal-week-day-num" style={{ fontSize: 14, fontWeight: 700, color: isSel ? 'var(--grad-t)' : isToday ? 'var(--primary)' : 'var(--t)', marginTop: 1 }}>
@@ -6515,7 +6515,7 @@ function CalendarView({ clients, services, appts, SA, priceHistory, setTab, conf
 
                   {/* Empty day hint */}
                   {dayAppts.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '6px 2px', fontSize: 11, color: 'var(--border)' }}>—</div>
+                    <div style={{ textAlign: 'center', padding: '6px 2px', fontSize: 11, color: 'var(--t2)' }}>—</div>
                   )}
                 </div>
               )
