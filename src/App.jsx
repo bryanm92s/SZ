@@ -2460,7 +2460,7 @@ function Dashboard({clients,appts,expenses,services,confirm,deleteAppt,setTab,op
 
       {isMonth&&(
         <div style={{padding:'10px 16px 0',background:'var(--surface)'}}>
-          <select className="msel" value={selMonth} onChange={e=>setSelMonth(e.target.value)}
+          <select className="msel" aria-label="Mes del balance" value={selMonth} onChange={e=>setSelMonth(e.target.value)}
             style={{width:'100%',border:'1.5px solid var(--border)',borderRadius:8,padding:'7px 12px',fontSize:13,fontFamily:'inherit',color:'var(--t)',background:'var(--surface)',cursor:'pointer'}}>
             {months.map(m=><option key={m} value={m}>{new Date(m+'-01T12:00:00').toLocaleDateString('es-CO',{month:'long',year:'numeric'})}</option>)}
           </select>
@@ -4003,8 +4003,8 @@ function ServicesTab({services,appts,SS,confirm,infoModal}) {
           {priceErr&&<div style={{color:'var(--red)',fontSize:11,marginTop:4}}>{priceErr}</div>}
         </div>
         <div style={{gridColumn:'1 / -1'}}>
-          <label className="lbl">Duración</label>
-          <select className="inp" value={dur} onChange={e=>setDur(Number(e.target.value))}>
+          <label className="lbl" htmlFor="svc-duracion">Duración</label>
+          <select className="inp" id="svc-duracion" value={dur} onChange={e=>setDur(Number(e.target.value))}>
             {DURATION_OPTIONS.map(m=><option key={m} value={m}>{fmtDuration(m)}</option>)}
           </select>
         </div>
@@ -4101,8 +4101,8 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
   return <>
     <h1 style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:600,color:'var(--t)',margin:'0 0 16px'}}>Finanzas</h1>
     <div style={{marginBottom:14}}>
-      <label className="lbl">Ver mes</label>
-      <select className="inp" value={month} onChange={e=>setM(e.target.value)}>
+      <label className="lbl" htmlFor="fin-ver-mes">Ver mes</label>
+      <select className="inp" id="fin-ver-mes" value={month} onChange={e=>setM(e.target.value)}>
         {months.map(m=><option key={m} value={m}>{new Date(m+'-01T12:00:00').toLocaleDateString('es-CO',{month:'long',year:'numeric'})}</option>)}
       </select>
     </div>
@@ -4159,14 +4159,14 @@ function FinancesTab({appts,expenses,SE,setTab,confirm}) {
           {amountErr&&<div style={{color:'var(--red)',fontSize:11,marginTop:4}}>{amountErr}</div>}
         </div>
         <div>
-          <label className="lbl">Categoría</label>
-          <select className="inp" value={customCat?'__c':cat} onChange={e=>{const v=e.target.value;if(v==='__c'){setCC('new')}else{setC(v);setCC('')}}}>
+          <label className="lbl" htmlFor="fin-cat">Categoría</label>
+          <select className="inp" id="fin-cat" value={customCat?'__c':cat} onChange={e=>{const v=e.target.value;if(v==='__c'){setCC('new')}else{setC(v);setCC('')}}}>
             {allCats.map(c=><option key={c}>{c}</option>)}
             <option value="__c">+ Nueva categoría</option>
           </select>
         </div>
         {customCat&&<div><label className="lbl">Nueva cat.</label><input className="inp" placeholder="Ej: Equipos" value={customCat==='new'?'':customCat} onChange={e=>{const v=e.target.value;setCC(v?v.charAt(0).toUpperCase()+v.slice(1).toLowerCase():'');}}/></div>}
-        <div><label className="lbl">Fecha</label><input type="date" className="inp" value={expDate} onChange={e=>setED(e.target.value)}/></div>
+        <div><label className="lbl" htmlFor="fin-fecha">Fecha</label><input type="date" id="fin-fecha" className="inp" value={expDate} onChange={e=>setED(e.target.value)}/></div>
       </div>
       <button className="btn" style={{width:'100%'}} onClick={add} disabled={!desc.trim()||!amount||Number(amount)<0}>Agregar gasto</button>
 
